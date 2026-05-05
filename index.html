@@ -77,6 +77,31 @@
 
   .empty{padding:60px 20px;text-align:center;color:var(--text-muted);font-style:italic;font-size:14px}
   .empty .ico{font-size:36px;margin-bottom:10px;display:block}
+
+  /* ── Modals ──────────────────────────────────────────────────── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,3,24,.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow-y:auto}
+  .modal-box{background:#fff;border:1px solid #e6dec0;border-radius:14px;max-width:440px;width:100%;color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e6dec0}
+  .modal-title{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.06em;color:var(--royal);text-transform:uppercase}
+  .modal-close{background:none;border:none;font-size:18px;color:var(--text-muted);cursor:pointer;padding:4px 8px;line-height:1}
+  .modal-body{padding:18px}
+
+  .btn-secondary{width:100%;background:#fff;color:var(--royal);border:1px solid var(--royal);border-radius:10px;padding:11px;font-family:'Cinzel',serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
+  .btn-secondary:hover{background:#f5f0fa}
+  .link-btn{background:none;border:none;color:var(--royal);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
+  .link-btn:hover{color:var(--gold-dim);text-decoration:underline}
+
+  /* ── PCM list rows ───────────────────────────────────────────── */
+  .pcm-row{background:#fff;border:1px solid #e6dec0;border-radius:10px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+  .pcm-row.chosen{border-color:#2d7a4f;background:rgba(45,122,79,.04)}
+  .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--royal);color:var(--gold-light);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:13px;flex-shrink:0}
+  .pcm-info{flex:1;min-width:0}
+  .pcm-name{font-family:'Cinzel',serif;font-size:13px;color:var(--royal);letter-spacing:.04em;margin-bottom:2px}
+  .pcm-meta{font-size:11px;color:var(--text-muted);font-style:italic}
+  .pcm-channels{font-size:10px;color:var(--text-muted);margin-top:4px;letter-spacing:.04em}
+  .pcm-pick{background:var(--royal);color:var(--gold-light);border:none;border-radius:8px;padding:8px 14px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
+  .pcm-pick:hover{background:var(--royal-light)}
+  .pcm-pick.chosen{background:#2d7a4f}
 </style>
 </head>
 <body>
@@ -159,11 +184,61 @@
   </div>
 
   <div class="page" id="page-pcm">
-    <div class="card">
-      <div class="card-title">Choose a Personal Contact Minister</div>
-      <div class="card-text">A PCM volunteers their time to walk this preparation alongside you. Choose someone in or near your region.</div>
+    <div class="card" id="pcm-intro">
+      <div class="card-title">Personal Contact Minister</div>
+      <div class="card-text" id="pcm-intro-text">A PCM volunteers their time to walk this preparation alongside you. Choose someone in or near your region.</div>
     </div>
-    <div class="empty"><span class="ico">⛪</span>PCM list will appear here once volunteers register. The list will filter by your region.</div>
+
+    <!-- Current chosen PCM (only visible once selected) -->
+    <div class="card" id="pcm-current" style="display:none">
+      <div class="card-title" style="color:#2d7a4f">✓ Your Personal Contact Minister</div>
+      <div id="pcm-current-body"></div>
+    </div>
+
+    <!-- Volunteer status (only visible once user is a PCM themselves) -->
+    <div class="card" id="pcm-mine" style="display:none;border-color:var(--gold)">
+      <div class="card-title">⛪ You Are a PCM</div>
+      <div id="pcm-mine-body"></div>
+      <div style="text-align:right;margin-top:8px">
+        <button class="link-btn" onclick="openPcmVolunteer()">Edit contact details</button>
+      </div>
+    </div>
+
+    <!-- List of available PCMs -->
+    <div id="pcm-list-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 4px 8px">
+        <div style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:.10em;color:var(--royal);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
+        <button class="link-btn" onclick="openPcmVolunteer()" id="pcm-volunteer-btn">+ Volunteer as PCM</button>
+      </div>
+      <div id="pcm-list"></div>
+    </div>
+  </div>
+
+  <!-- Volunteer modal -->
+  <div id="pcm-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span class="modal-title">Volunteer as a PCM</span>
+        <button class="modal-close" onclick="closePcmVolunteer()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="card-text" style="font-size:13px;margin-bottom:12px">
+          A PCM walks alongside applicants as they prepare to enter The Living Network. Share whichever contact channels you're comfortable with — at minimum, your email.
+        </div>
+        <label class="form-label" style="color:var(--text-muted)">Region (where applicants will see you)</label>
+        <input class="form-input" id="pcm-region" type="text" placeholder="e.g. Australia, Texas, England" style="background:#fff;color:var(--text);border-color:#e6dec0">
+        <label class="form-label" style="color:var(--text-muted)">Email *</label>
+        <input class="form-input" id="pcm-email" type="email" style="background:#fff;color:var(--text);border-color:#e6dec0">
+        <label class="form-label" style="color:var(--text-muted)">Phone (optional)</label>
+        <input class="form-input" id="pcm-phone" type="tel" placeholder="+61 ..." style="background:#fff;color:var(--text);border-color:#e6dec0">
+        <label class="form-label" style="color:var(--text-muted)">Telegram handle (optional)</label>
+        <input class="form-input" id="pcm-telegram" type="text" placeholder="@yourhandle" style="background:#fff;color:var(--text);border-color:#e6dec0">
+        <label class="form-label" style="color:var(--text-muted)">Messenger (optional)</label>
+        <input class="form-input" id="pcm-messenger" type="text" placeholder="Facebook profile or @handle" style="background:#fff;color:var(--text);border-color:#e6dec0">
+        <button class="btn-primary" onclick="savePcmVolunteer()" style="margin-top:14px">Save</button>
+        <button class="btn-secondary" id="pcm-stop-btn" onclick="stopBeingPcm()" style="display:none;margin-top:8px">Stop being a PCM</button>
+      </div>
+    </div>
   </div>
 
   <div class="page" id="page-library">
@@ -299,6 +374,194 @@ function showPage(name){
     if(b.getAttribute('onclick')?.includes("'"+name+"'")) b.classList.add('active');
   });
   window.scrollTo(0,0);
+  // Lazy-load page contents on entry
+  if(name === 'pcm') buildPcmPage();
+}
+
+// ═════════════════════════ PCM FLOW ═════════════════════════
+let _pcmAmIPcm = false;
+let _pcmList = [];
+
+async function buildPcmPage(){
+  if(!_sb || !currentUser) return;
+
+  // 1. Refresh my own profile (so we have latest pcm_id)
+  const { data: me } = await _sb.from('prep_users').select('*').eq('id', currentUser.id).maybeSingle();
+  if(me) currentUser = Object.assign(currentUser, me);
+
+  // 2. Am I myself a PCM?
+  const { data: myPcm } = await _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle();
+  _pcmAmIPcm = !!(myPcm && myPcm.active);
+  const mineCard = document.getElementById('pcm-mine');
+  const volBtn   = document.getElementById('pcm-volunteer-btn');
+  if(_pcmAmIPcm){
+    mineCard.style.display = 'block';
+    volBtn.textContent = 'Edit my PCM details';
+    document.getElementById('pcm-mine-body').innerHTML =
+      '<div style="font-size:13px;color:var(--text);line-height:1.7">'
+      + (myPcm.region ? '<div><strong>Region:</strong> ' + _esc(myPcm.region) + '</div>' : '')
+      + (myPcm.email ? '<div><strong>Email:</strong> ' + _esc(myPcm.email) + '</div>' : '')
+      + (myPcm.phone ? '<div><strong>Phone:</strong> ' + _esc(myPcm.phone) + '</div>' : '')
+      + (myPcm.telegram ? '<div><strong>Telegram:</strong> ' + _esc(myPcm.telegram) + '</div>' : '')
+      + (myPcm.messenger ? '<div><strong>Messenger:</strong> ' + _esc(myPcm.messenger) + '</div>' : '')
+      + '</div>';
+  } else {
+    mineCard.style.display = 'none';
+    volBtn.textContent = '+ Volunteer as PCM';
+  }
+
+  // 3. Pull all active PCMs and partition by region match
+  const { data: rows } = await _sb.from('prep_pcms')
+    .select('id, name, email, phone, telegram, messenger, region, active')
+    .eq('active', true);
+  _pcmList = (rows || []).filter(p => p.id !== currentUser.id);  // exclude self
+  const myRegion = (currentUser.region || '').toLowerCase().trim();
+  const inRegion = _pcmList.filter(p => (p.region || '').toLowerCase().trim() === myRegion);
+  const outOfRegion = _pcmList.filter(p => (p.region || '').toLowerCase().trim() !== myRegion);
+
+  // 4. Render the list
+  const listEl = document.getElementById('pcm-list');
+  if(!_pcmList.length){
+    listEl.innerHTML = '<div class="empty"><span class="ico">⛪</span>No PCMs have volunteered yet. Be the first.</div>';
+  } else {
+    let html = '';
+    if(myRegion && inRegion.length){
+      html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin:6px 4px 4px">In your region (' + _esc(currentUser.region) + ')</div>';
+      html += inRegion.map(p => _pcmRow(p)).join('');
+    }
+    if(outOfRegion.length){
+      html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin:14px 4px 4px">' + (myRegion ? 'Other regions' : 'All available') + '</div>';
+      html += outOfRegion.map(p => _pcmRow(p)).join('');
+    }
+    listEl.innerHTML = html;
+  }
+
+  // 5. If a PCM is already chosen, show the "Your PCM" card
+  if(currentUser.pcm_id){
+    const chosen = _pcmList.find(p => p.id === currentUser.pcm_id);
+    if(chosen){
+      const card = document.getElementById('pcm-current');
+      card.style.display = 'block';
+      document.getElementById('pcm-current-body').innerHTML =
+        '<div style="display:flex;align-items:center;gap:12px;margin-top:6px">'
+        + '<div class="pcm-av">' + _initials(chosen.name) + '</div>'
+        + '<div style="flex:1">'
+        +   '<div class="pcm-name">' + _esc(chosen.name) + '</div>'
+        +   (chosen.region ? '<div class="pcm-meta">' + _esc(chosen.region) + '</div>' : '')
+        +   _pcmChannelLines(chosen)
+        + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;margin-top:10px"><button class="link-btn" onclick="changePcm()">Change</button></div>';
+    }
+  } else {
+    document.getElementById('pcm-current').style.display = 'none';
+  }
+}
+
+function _pcmRow(p){
+  const isChosen = currentUser.pcm_id === p.id;
+  return '<div class="pcm-row' + (isChosen ? ' chosen' : '') + '">'
+    + '<div class="pcm-av">' + _initials(p.name) + '</div>'
+    + '<div class="pcm-info">'
+    +   '<div class="pcm-name">' + _esc(p.name) + '</div>'
+    +   (p.region ? '<div class="pcm-meta">' + _esc(p.region) + '</div>' : '')
+    +   _pcmChannelLines(p)
+    + '</div>'
+    + '<button class="pcm-pick' + (isChosen ? ' chosen' : '') + '" onclick="choosePcm(\'' + p.id + '\')">'
+    +   (isChosen ? '✓ Chosen' : 'Choose')
+    + '</button>'
+    + '</div>';
+}
+
+function _pcmChannelLines(p){
+  const parts = [];
+  if(p.email)    parts.push('✉ ' + _esc(p.email));
+  if(p.phone)    parts.push('☎ ' + _esc(p.phone));
+  if(p.telegram) parts.push('Tg ' + _esc(p.telegram));
+  if(p.messenger)parts.push('M ' + _esc(p.messenger));
+  return parts.length ? '<div class="pcm-channels">' + parts.join('   ·   ') + '</div>' : '';
+}
+
+function _initials(s){
+  return (s||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+}
+function _esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function choosePcm(pcmId){
+  if(!_sb || !currentUser) return;
+  const { error } = await _sb.from('prep_users').update({ pcm_id: pcmId }).eq('id', currentUser.id);
+  if(error){ alert('Could not save: ' + error.message); return; }
+  currentUser.pcm_id = pcmId;
+  buildPcmPage();
+}
+
+async function changePcm(){
+  if(!_sb || !currentUser) return;
+  if(!confirm('Choose a different Personal Contact Minister?')) return;
+  await _sb.from('prep_users').update({ pcm_id: null }).eq('id', currentUser.id);
+  currentUser.pcm_id = null;
+  buildPcmPage();
+}
+
+function openPcmVolunteer(){
+  // Pre-fill from existing record (if any) or from currentUser defaults
+  const m = document.getElementById('pcm-modal');
+  document.getElementById('pcm-region').value = currentUser.region || '';
+  document.getElementById('pcm-email').value  = currentUser.email || '';
+  document.getElementById('pcm-phone').value = '';
+  document.getElementById('pcm-telegram').value = '';
+  document.getElementById('pcm-messenger').value = '';
+  // If already a PCM, hydrate with current values
+  if(_sb && _pcmAmIPcm){
+    _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle().then(({data})=>{
+      if(data){
+        document.getElementById('pcm-region').value = data.region || '';
+        document.getElementById('pcm-email').value = data.email || '';
+        document.getElementById('pcm-phone').value = data.phone || '';
+        document.getElementById('pcm-telegram').value = data.telegram || '';
+        document.getElementById('pcm-messenger').value = data.messenger || '';
+      }
+    });
+    document.getElementById('pcm-stop-btn').style.display = 'block';
+  } else {
+    document.getElementById('pcm-stop-btn').style.display = 'none';
+  }
+  m.style.display = 'flex';
+}
+
+function closePcmVolunteer(){
+  document.getElementById('pcm-modal').style.display = 'none';
+}
+
+async function savePcmVolunteer(){
+  if(!_sb || !currentUser) return;
+  const region    = document.getElementById('pcm-region').value.trim();
+  const email     = document.getElementById('pcm-email').value.trim().toLowerCase();
+  const phone     = document.getElementById('pcm-phone').value.trim();
+  const telegram  = document.getElementById('pcm-telegram').value.trim();
+  const messenger = document.getElementById('pcm-messenger').value.trim();
+  if(!email){ alert('Email is required.'); return; }
+  const payload = {
+    id: currentUser.id,
+    name: currentUser.name,
+    email, phone: phone || null, telegram: telegram || null, messenger: messenger || null,
+    region: region || null, active: true
+  };
+  const { error } = await _sb.from('prep_pcms').upsert(payload, { onConflict: 'id' });
+  if(error){ alert('Could not save: ' + error.message); return; }
+  closePcmVolunteer();
+  buildPcmPage();
+}
+
+async function stopBeingPcm(){
+  if(!_sb || !currentUser) return;
+  if(!confirm('Stop being available as a PCM? Existing applicants will no longer see you in the list.')) return;
+  const { error } = await _sb.from('prep_pcms').update({ active: false }).eq('id', currentUser.id);
+  if(error){ alert('Could not save: ' + error.message); return; }
+  closePcmVolunteer();
+  buildPcmPage();
 }
 
 async function signOut(){
