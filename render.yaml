@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: preparing-you-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    plan: starter
+    envVars:
+      - key: ALLOWED_ORIGIN
+        value: "https://preparing-you.netlify.app"
+      - key: SUPABASE_URL
+        sync: false   # set in Render dashboard once the new Supabase project exists
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TLN_HANDOFF_SECRET
+        sync: false   # used to sign the JWT that hands the user off to TLN

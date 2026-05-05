@@ -1,0 +1,10 @@
+[build]
+  publish = "."
+  # No build step yet — single index.html. Add one when we introduce a bundler.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

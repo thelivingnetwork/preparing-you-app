@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Preparing You · His Holy Church</title>
+  <meta name="theme-color" content="#1e0d3d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="description" content="Prepare your heart, mind, and household for entry into The Living Network.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --royal:#1e0d3d; --royal-deep:#0a0318; --royal-light:#3d1f7a;
+    --gold:#c9a227; --gold-light:#f5e8b0; --gold-dim:#8b6500;
+    --parch:#faf8f2; --text:#1a0d3d; --text-muted:#6e5c8c;
+    --border:rgba(245,232,176,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--text);font-family:'Cormorant Garamond',Georgia,serif;font-size:16px;line-height:1.55}
+  h1,h2,h3,.cinzel{font-family:'Cinzel',serif;letter-spacing:.06em;color:var(--royal)}
+  body{min-height:100vh;display:flex;flex-direction:column}
+
+  /* ── Landing ────────────────────────────────────────────────── */
+  .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;background:linear-gradient(180deg,var(--royal-deep),var(--royal))}
+  .landing-title{font-family:'Cinzel',serif;font-size:32px;color:var(--gold-light);margin:0 0 6px;text-align:center}
+  .landing-sub{font-size:14px;color:rgba(245,232,176,.7);font-style:italic;margin:0 0 24px;text-align:center}
+  .landing-quote{max-width:480px;color:rgba(245,232,176,.55);font-size:13px;font-style:italic;text-align:center;margin:0 0 36px;padding:0 20px}
+  .auth-box{width:100%;max-width:380px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:14px;padding:28px;color:var(--gold-light)}
+  .auth-tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)}
+  .auth-tab{flex:1;background:none;border:none;color:rgba(245,232,176,.5);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent}
+  .auth-tab.active{color:var(--gold-light);border-bottom-color:var(--gold)}
+  .form-label{display:block;font-size:11px;color:rgba(245,232,176,.6);font-style:italic;margin:10px 0 4px}
+  .form-input{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--gold-light);font-family:inherit;font-size:14px;outline:none}
+  .form-input:focus{border-color:var(--gold)}
+  .btn-primary{width:100%;background:var(--royal-light);color:var(--gold-light);border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.10em;cursor:pointer;margin-top:14px;text-transform:uppercase}
+  .btn-primary:hover{background:#4d2a96}
+  .auth-error{display:none;background:rgba(139,26,26,.15);border:1px solid rgba(139,26,26,.4);color:#ffb4b4;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px}
+  .auth-error.show{display:block}
+
+  /* ── App shell ───────────────────────────────────────────────── */
+  .screen{display:none}
+  .screen.active{display:flex;flex-direction:column;min-height:100vh}
+
+  .hdr{background:linear-gradient(135deg,var(--royal),var(--royal-deep));color:var(--gold-light);padding:18px 20px;display:flex;align-items:center;gap:12px}
+  .hdr-av{width:40px;height:40px;border-radius:50%;background:var(--royal-light);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light)}
+  .hdr-name{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.04em}
+  .hdr-sub{font-size:11px;color:rgba(245,232,176,.6);font-style:italic}
+
+  .page{display:none;flex:1;padding:20px 16px 100px}
+  .page.active{display:block}
+
+  .card{background:#fff;border:1px solid #e6dec0;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 0 rgba(0,0,0,.04)}
+  .card-title{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.08em;color:var(--royal);margin:0 0 10px;text-transform:uppercase}
+  .card-text{font-size:15px;line-height:1.6;color:var(--text);margin:0}
+
+  .tile-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .tile{background:#fff;border:1px solid #e6dec0;border-radius:12px;padding:18px 14px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease}
+  .tile:hover{transform:translateY(-2px);border-color:var(--gold)}
+  .tile-icon{font-size:24px;margin-bottom:8px}
+  .tile-name{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.06em;color:var(--royal);text-transform:uppercase}
+  .tile-meta{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:4px}
+
+  .nav{position:fixed;bottom:0;left:0;right:0;background:var(--royal-deep);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 0 max(8px,env(safe-area-inset-bottom));z-index:50}
+  .nav-btn{flex:1;background:none;border:none;color:rgba(245,232,176,.5);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.06em;padding:6px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .nav-btn.active{color:var(--gold-light)}
+  .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* ── Paul (floating AI button) ──────────────────────────────── */
+  .paul-fab{position:fixed;right:18px;bottom:84px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#b58a1c);color:var(--royal-deep);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:60;border:2px solid var(--gold-light);letter-spacing:.06em}
+  .paul-fab:hover{transform:scale(1.05)}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--text-muted);font-style:italic;font-size:14px}
+  .empty .ico{font-size:36px;margin-bottom:10px;display:block}
+</style>
+</head>
+<body>
+
+<!-- ═════════════════════════ LANDING / AUTH ═════════════════════════ -->
+<div id="screen-landing" class="screen active">
+  <div class="landing">
+    <h1 class="landing-title">Preparing You</h1>
+    <div class="landing-sub">A gateway into The Living Network</div>
+    <div class="landing-quote">"Prepare ye the way of the Lord, make his paths straight." — Mark 1:3</div>
+
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signin" onclick="showAuthTab('signin')">Sign In</button>
+        <button class="auth-tab" id="tab-join" onclick="showAuthTab('join')">Join</button>
+      </div>
+
+      <div id="panel-signin">
+        <div id="signin-error" class="auth-error">Invalid email or password.</div>
+        <label class="form-label">Email address</label>
+        <input class="form-input" id="si-email" type="email" placeholder="your@email.com">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="si-pw" type="password" placeholder="••••••••">
+        <button class="btn-primary" onclick="doSignIn()">Continue</button>
+      </div>
+
+      <div id="panel-join" style="display:none">
+        <div id="join-error" class="auth-error">Could not create account.</div>
+        <label class="form-label">Your name</label>
+        <input class="form-input" id="j-name" type="text" placeholder="Your full name">
+        <label class="form-label">Email address</label>
+        <input class="form-input" id="j-email" type="email" placeholder="your@email.com">
+        <label class="form-label">Country / Region</label>
+        <input class="form-input" id="j-region" type="text" placeholder="e.g. Australia, Texas, England">
+        <label class="form-label">Choose a password</label>
+        <input class="form-input" id="j-pw" type="password" placeholder="At least 8 characters">
+        <button class="btn-primary" onclick="doJoin()">Begin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ APP ═════════════════════════ -->
+<div id="screen-app" class="screen">
+  <div class="hdr">
+    <div class="hdr-av" id="hdr-av">?</div>
+    <div>
+      <div class="hdr-name" id="hdr-name">—</div>
+      <div class="hdr-sub" id="hdr-sub">Preparing You</div>
+    </div>
+  </div>
+
+  <!-- Pages -->
+  <div class="page active" id="page-home">
+    <div class="card">
+      <div class="card-title">✝ Welcome</div>
+      <div class="card-text">Begin by watching the gateway video. Once it is finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
+    </div>
+    <div class="tile-row">
+      <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Gateway Video</div><div class="tile-meta">Step 1</div></div>
+      <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">⛪</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
+    </div>
+    <div class="tile-row">
+      <div class="tile" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
+      <div class="tile" onclick="showPage('books')"><div class="tile-icon">📖</div><div class="tile-name">The Five Books</div><div class="tile-meta">Read · listen</div></div>
+    </div>
+    <div class="tile" style="grid-column:1/-1" onclick="showPage('join-tln')">
+      <div class="tile-icon">✝</div>
+      <div class="tile-name">Join The Living Network</div>
+      <div class="tile-meta">Available once your PCM signs off on your readiness</div>
+    </div>
+  </div>
+
+  <div class="page" id="page-video">
+    <div class="card">
+      <div class="card-title">Gateway Video</div>
+      <div class="card-text">A 10-minute introduction drawn from the five source books. Watch in full to unlock the next step.</div>
+    </div>
+    <div class="empty"><span class="ico">▶</span>Video player goes here. Replace with a Vimeo / YouTube embed or a direct mp4.</div>
+  </div>
+
+  <div class="page" id="page-pcm">
+    <div class="card">
+      <div class="card-title">Choose a Personal Contact Minister</div>
+      <div class="card-text">A PCM volunteers their time to walk this preparation alongside you. Choose someone in or near your region.</div>
+    </div>
+    <div class="empty"><span class="ico">⛪</span>PCM list will appear here once volunteers register. The list will filter by your region.</div>
+  </div>
+
+  <div class="page" id="page-library">
+    <div class="card">
+      <div class="card-title">Topical Library</div>
+      <div class="card-text">Articles and videos arranged by topic. Use Paul (the assistant) to ask questions about anything you read.</div>
+    </div>
+    <div class="empty"><span class="ico">📚</span>Library coming soon.</div>
+  </div>
+
+  <div class="page" id="page-books">
+    <div class="card">
+      <div class="card-title">The Five Books</div>
+      <div class="card-text">Read each chapter in full, or listen to an AI-summarised audio narration. Paul can answer any question that comes up.</div>
+    </div>
+    <div class="tile-row" id="books-grid">
+      <!-- Populated from prep_books once the ingest pipeline runs. Placeholder: -->
+      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book I</div><div class="tile-meta">Awaiting upload</div></div>
+      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book II</div><div class="tile-meta">Awaiting upload</div></div>
+      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book III</div><div class="tile-meta">Awaiting upload</div></div>
+      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book IV</div><div class="tile-meta">Awaiting upload</div></div>
+      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book V</div><div class="tile-meta">Awaiting upload</div></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-join-tln">
+    <div class="card">
+      <div class="card-title">Join The Living Network</div>
+      <div class="card-text">When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.</div>
+    </div>
+    <div class="empty"><span class="ico">✝</span>Awaiting PCM sign-off.</div>
+  </div>
+
+  <!-- Paul: floating AI assistant -->
+  <div class="paul-fab" onclick="alert('Paul is coming online soon.')" title="Ask Paul">P</div>
+
+  <!-- Bottom nav -->
+  <div class="nav">
+    <button class="nav-btn active" onclick="showPage('home')"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Home</button>
+    <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Library</button>
+    <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
+    <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM</button>
+    <button class="nav-btn" onclick="signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Out</button>
+  </div>
+</div>
+
+<script>
+// ═════════════════════════ CONFIG ═════════════════════════
+// Fill these in once the new Supabase project is created.
+const _SB_URL  = '__SUPABASE_URL__';
+const _SB_ANON = '__SUPABASE_ANON_KEY__';
+const _SERVER_URL = '__RENDER_SERVICE_URL__';
+
+const _sb = (window.supabase && _SB_URL.startsWith('http'))
+  ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } })
+  : null;
+
+let currentUser = null;
+
+// ═════════════════════════ AUTH UI ═════════════════════════
+function showAuthTab(name){
+  document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('panel-signin').style.display = name==='signin' ? 'block' : 'none';
+  document.getElementById('panel-join').style.display   = name==='join'   ? 'block' : 'none';
+}
+
+async function doSignIn(){
+  const email = document.getElementById('si-email').value.trim().toLowerCase();
+  const pw    = document.getElementById('si-pw').value;
+  const err   = document.getElementById('signin-error');
+  err.classList.remove('show');
+  if(!_sb){ err.textContent='Supabase is not configured yet.'; err.classList.add('show'); return; }
+  const { data, error } = await _sb.auth.signInWithPassword({ email, password: pw });
+  if(error || !data?.user){ err.textContent='Invalid email or password.'; err.classList.add('show'); return; }
+  await _loadProfile(data.user);
+  enterApp();
+}
+
+async function doJoin(){
+  const name   = document.getElementById('j-name').value.trim();
+  const email  = document.getElementById('j-email').value.trim().toLowerCase();
+  const region = document.getElementById('j-region').value.trim();
+  const pw     = document.getElementById('j-pw').value;
+  const err    = document.getElementById('join-error');
+  err.classList.remove('show');
+  if(!name || !email || !region || !pw || pw.length < 8){
+    err.textContent='Please fill every field. Password must be at least 8 characters.';
+    err.classList.add('show'); return;
+  }
+  if(!_sb){ err.textContent='Supabase is not configured yet.'; err.classList.add('show'); return; }
+  const { data, error } = await _sb.auth.signUp({
+    email, password: pw,
+    options: { data: { name, region } }
+  });
+  if(error){ err.textContent = error.message; err.classList.add('show'); return; }
+  await _loadProfile(data.user);
+  enterApp();
+}
+
+async function _loadProfile(authUser){
+  // Upsert prep_users row keyed on auth.users.id
+  if(_sb && authUser){
+    const { data } = await _sb.from('prep_users').select('*').eq('id', authUser.id).maybeSingle();
+    currentUser = data || {
+      id: authUser.id,
+      email: authUser.email,
+      name: authUser.user_metadata?.name || authUser.email.split('@')[0],
+      region: authUser.user_metadata?.region || ''
+    };
+    if(!data){
+      await _sb.from('prep_users').insert(currentUser);
+    }
+  }
+}
+
+// ═════════════════════════ APP NAV ═════════════════════════
+function enterApp(){
+  if(!currentUser) return;
+  document.getElementById('hdr-av').textContent = (currentUser.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('hdr-name').textContent = currentUser.name || 'Friend';
+  document.getElementById('hdr-sub').textContent  = currentUser.region || 'Preparing You';
+  document.getElementById('screen-landing').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+  showPage('home');
+}
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const p = document.getElementById('page-'+name); if(p) p.classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    if(b.getAttribute('onclick')?.includes("'"+name+"'")) b.classList.add('active');
+  });
+  window.scrollTo(0,0);
+}
+
+async function signOut(){
+  if(_sb) await _sb.auth.signOut().catch(()=>{});
+  currentUser = null;
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById('screen-landing').classList.add('active');
+  document.getElementById('si-pw').value='';
+}
+
+// ═════════════════════════ INIT ═════════════════════════
+window.addEventListener('load', async ()=>{
+  if(_sb){
+    const { data } = await _sb.auth.getSession();
+    if(data?.session?.user){
+      await _loadProfile(data.session.user);
+      enterApp();
+    }
+  }
+});
+</script>
+</body>
+</html>
