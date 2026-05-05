@@ -8,3 +8,6 @@ data/
 *.pdf
 books-source/
 .netlify/
+
+.supabase-db-password.txt
+.secrets.txt

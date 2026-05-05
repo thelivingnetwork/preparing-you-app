@@ -17,3 +17,5 @@ services:
         sync: false
       - key: TLN_HANDOFF_SECRET
         sync: false   # used to sign the JWT that hands the user off to TLN
+      - key: OPENAI_API_KEY
+        sync: false   # used for embeddings (text-embedding-3-small, 1536-dim) for Paul's RAG
