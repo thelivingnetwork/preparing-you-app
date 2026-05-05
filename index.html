@@ -301,15 +301,14 @@
   <div class="page" id="page-books">
     <div class="card">
       <div class="card-title">The Five Books</div>
-      <div class="card-text">Read each chapter in full, or listen to an AI-summarised audio narration. Paul can answer any question that comes up.</div>
+      <div class="card-text">Read each book in full, or listen to a 15-minute audio overview — a podcast-style discussion drawn from the source. Paul can answer any question that comes up.</div>
     </div>
-    <div class="tile-row" id="books-grid">
-      <!-- Populated from prep_books once the ingest pipeline runs. Placeholder: -->
-      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book I</div><div class="tile-meta">Awaiting upload</div></div>
-      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book II</div><div class="tile-meta">Awaiting upload</div></div>
-      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book III</div><div class="tile-meta">Awaiting upload</div></div>
-      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book IV</div><div class="tile-meta">Awaiting upload</div></div>
-      <div class="tile"><div class="tile-icon">📖</div><div class="tile-name">Book V</div><div class="tile-meta">Awaiting upload</div></div>
+    <div id="books-list"><div class="empty"><span class="ico">📖</span>Loading…</div></div>
+
+    <div id="book-listen-wrap" style="display:none;margin-top:14px">
+      <div class="card-title" id="book-listen-title" style="margin-bottom:8px"></div>
+      <audio id="book-listen-player" controls style="width:100%"></audio>
+      <div style="text-align:right;margin-top:8px"><button class="link-btn" onclick="closeBookListen()">Close player</button></div>
     </div>
   </div>
 
@@ -428,6 +427,63 @@ function showPage(name){
   if(name === 'video') buildGatewayPage();
   if(name !== 'video') stopGatewayPlayer();
   if(name === 'home') refreshHomeTiles();
+  if(name === 'books') buildBooksPage();
+  if(name !== 'books') closeBookListen();
+}
+
+// ═════════════════════════ BOOKS ═════════════════════════
+let _booksData = null;
+
+async function buildBooksPage(){
+  const wrap = document.getElementById('books-list');
+  if(!_booksData){
+    if(!_sb){ wrap.innerHTML = '<div class="empty">Not signed in.</div>'; return; }
+    const { data, error } = await _sb.from('prep_books').select('*').order('order_index');
+    if(error){ wrap.innerHTML = '<div class="empty">Error loading books.</div>'; return; }
+    _booksData = data || [];
+  }
+  if(!_booksData.length){ wrap.innerHTML = '<div class="empty">No books yet.</div>'; return; }
+  wrap.innerHTML = _booksData.map(b => {
+    const hasAudio = !!b.audio_overview_path;
+    const hasPdf = !!b.pdf_storage_path;
+    return `<div class="card" style="display:flex;align-items:center;gap:14px">
+      <div style="font-size:24px;width:36px;text-align:center">📖</div>
+      <div style="flex:1;min-width:0">
+        <div class="card-title" style="margin:0;font-size:16px">${_esc(b.title)}</div>
+        ${b.description ? `<div style="font-size:12px;color:var(--walnut-mid);margin-top:2px">${_esc(b.description)}</div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--terra-deep);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
+          <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--teal);color:var(--teal);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openBookListen(bookId){
+  const b = _booksData.find(x => x.id === bookId);
+  if(!b || !b.audio_overview_path) return;
+  const wrap = document.getElementById('book-listen-wrap');
+  const player = document.getElementById('book-listen-player');
+  document.getElementById('book-listen-title').textContent = '🎧 ' + b.title + ' — Audio Overview';
+  player.src = b.audio_overview_path;
+  wrap.style.display = 'block';
+  player.load();
+  player.play().catch(()=>{});
+  wrap.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function closeBookListen(){
+  const player = document.getElementById('book-listen-player');
+  if(player){ try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  const wrap = document.getElementById('book-listen-wrap');
+  if(wrap) wrap.style.display = 'none';
+}
+
+function openBookRead(bookId){
+  const b = _booksData.find(x => x.id === bookId);
+  if(!b || !b.pdf_storage_path) return;
+  window.open(b.pdf_storage_path, '_blank');
 }
 
 function refreshHomeTiles(){
