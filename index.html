@@ -203,7 +203,7 @@
       <div class="card-text">Begin by watching the gateway video. Once it is finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
     </div>
     <div class="tile-row">
-      <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Gateway Video</div><div class="tile-meta">Step 1</div></div>
+      <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Gateway Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
       <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">⛪</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
     </div>
     <div class="tile-row">
@@ -219,10 +219,15 @@
 
   <div class="page" id="page-video">
     <div class="card">
-      <div class="card-title">Gateway Video</div>
-      <div class="card-text">A 10-minute introduction drawn from the five source books. Watch in full to unlock the next step.</div>
+      <div class="card-title">Gateway Videos</div>
+      <div class="card-text">Three short films, watched in order. Each must play to the end before the next unlocks.</div>
     </div>
-    <div class="empty"><span class="ico">▶</span>Video player goes here. Replace with a Vimeo / YouTube embed or a direct mp4.</div>
+    <div id="gateway-list"></div>
+    <div id="gateway-player-wrap" style="display:none;margin-top:14px">
+      <div class="card-title" id="gateway-player-title" style="margin-bottom:8px"></div>
+      <video id="gateway-player" controls controlsList="nodownload noplaybackrate" disablepictureinpicture playsinline style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      <div style="margin-top:6px;font-size:12px;color:var(--walnut-mid);font-style:italic">Seeking past unwatched portions is disabled. The video unlocks the next step when it reaches the end.</div>
+    </div>
   </div>
 
   <div class="page" id="page-pcm">
@@ -420,7 +425,123 @@ function showPage(name){
   // Lazy-load page contents on entry
   if(name === 'pcm') buildPcmPage();
   if(name === 'library') buildLibraryPage();
+  if(name === 'video') buildGatewayPage();
+  if(name !== 'video') stopGatewayPlayer();
+  if(name === 'home') refreshHomeTiles();
 }
+
+function refreshHomeTiles(){
+  const meta = document.getElementById('tile-video-meta');
+  if(!meta || !currentUser) return;
+  const { done } = gatewayProgress();
+  meta.textContent = done === 3 ? '✓ All 3 watched' : `Step 1 · ${done}/3 watched`;
+}
+
+// ═════════════════════════ GATEWAY VIDEOS ═════════════════════════
+const GATEWAY_VIDEOS = [
+  { idx:1, key:'gateway_v1_at', src:'/videos/1-contracts.mp4', title:'Contracts',  subtitle:'Step 1 of 3' },
+  { idx:2, key:'gateway_v2_at', src:'/videos/2-snare.mp4',     title:'The Snare',  subtitle:'Step 2 of 3' },
+  { idx:3, key:'gateway_v3_at', src:'/videos/3-true.mp4',      title:'The True',   subtitle:'Step 3 of 3' },
+];
+let _gatewayMaxTime = 0; // seconds — anti-skip ceiling for current video
+let _gatewayCurrent = null;
+
+function gatewayProgress(){
+  if(!currentUser) return { done:0, next:GATEWAY_VIDEOS[0] };
+  let done = 0;
+  for(const v of GATEWAY_VIDEOS){ if(currentUser[v.key]) done++; else break; }
+  return { done, next: GATEWAY_VIDEOS[done] || null };
+}
+
+function buildGatewayPage(){
+  const list = document.getElementById('gateway-list');
+  const { done, next } = gatewayProgress();
+  let html = '';
+  GATEWAY_VIDEOS.forEach(v => {
+    const isDone = !!(currentUser && currentUser[v.key]);
+    const isNext = !isDone && next && next.idx === v.idx;
+    const locked = !isDone && !isNext;
+    const icon = isDone ? '✓' : (locked ? '🔒' : '▶');
+    const meta = isDone ? 'Watched' : (isNext ? 'Tap to watch' : 'Locked — finish previous video');
+    const style = locked ? 'opacity:.45;pointer-events:none' : '';
+    const onclick = (isDone || isNext) ? `onclick="playGateway(${v.idx})"` : '';
+    html += `<div class="card" style="display:flex;align-items:center;gap:14px;cursor:${locked?'default':'pointer'};${style}" ${onclick}>
+      <div style="font-size:24px;width:36px;text-align:center">${icon}</div>
+      <div style="flex:1">
+        <div class="card-title" style="margin:0">${v.title}</div>
+        <div style="font-size:12px;color:var(--walnut-mid);font-style:italic">${v.subtitle} · ${meta}</div>
+      </div>
+    </div>`;
+  });
+  if(done === GATEWAY_VIDEOS.length){
+    html += `<div class="card" style="border-color:var(--terra);background:var(--terra-soft)">
+      <div class="card-title" style="color:var(--terra-deep)">✓ Gateway Complete</div>
+      <div class="card-text">All three videos watched. You may continue to the next step on the home page.</div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+function playGateway(idx){
+  const v = GATEWAY_VIDEOS.find(x => x.idx === idx); if(!v) return;
+  const { next } = gatewayProgress();
+  const isDone = !!(currentUser && currentUser[v.key]);
+  // Only allow already-completed or the immediate next
+  if(!isDone && (!next || next.idx !== idx)) return;
+  _gatewayCurrent = v;
+  _gatewayMaxTime = isDone ? Infinity : 0; // re-watching done videos: free seek
+  const wrap = document.getElementById('gateway-player-wrap');
+  const player = document.getElementById('gateway-player');
+  document.getElementById('gateway-player-title').textContent = v.title;
+  player.src = v.src;
+  wrap.style.display = 'block';
+  player.load();
+  player.play().catch(()=>{});
+  wrap.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function stopGatewayPlayer(){
+  const player = document.getElementById('gateway-player');
+  if(player){ try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  const wrap = document.getElementById('gateway-player-wrap');
+  if(wrap) wrap.style.display = 'none';
+  _gatewayCurrent = null;
+  _gatewayMaxTime = 0;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const player = document.getElementById('gateway-player');
+  if(!player) return;
+  player.addEventListener('timeupdate', () => {
+    if(_gatewayMaxTime === Infinity) return;
+    if(player.currentTime > _gatewayMaxTime + 0.5){
+      // user tried to seek past unwatched portion — snap back
+      player.currentTime = _gatewayMaxTime;
+    } else if(player.currentTime > _gatewayMaxTime){
+      _gatewayMaxTime = player.currentTime;
+    }
+  });
+  player.addEventListener('seeking', () => {
+    if(_gatewayMaxTime === Infinity) return;
+    if(player.currentTime > _gatewayMaxTime + 0.5){
+      player.currentTime = _gatewayMaxTime;
+    }
+  });
+  player.addEventListener('ended', async () => {
+    if(!_gatewayCurrent || !_sb || !currentUser) return;
+    const v = _gatewayCurrent;
+    if(currentUser[v.key]) return; // already recorded
+    const now = new Date().toISOString();
+    const patch = { [v.key]: now };
+    // If this was the last one, also stamp the legacy aggregate
+    if(v.idx === GATEWAY_VIDEOS.length) patch.gateway_watched_at = now;
+    const { error } = await _sb.from('prep_users').update(patch).eq('id', currentUser.id);
+    if(!error){
+      Object.assign(currentUser, patch);
+      buildGatewayPage();
+    }
+  });
+});
 
 // ═════════════════════════ LIBRARY ═════════════════════════
 let _libData = null;
