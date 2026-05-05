@@ -95,8 +95,9 @@
   .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* ── Paul (floating AI button) ──────────────────────────────── */
-  .paul-fab{position:fixed;right:18px;bottom:88px;width:60px;height:60px;border-radius:50%;background:var(--terra);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:18px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(196,103,58,.4);z-index:60;border:3px solid var(--cream);letter-spacing:.04em;transition:transform .15s}
-  .paul-fab:hover{transform:scale(1.06);background:var(--terra-deep)}
+  .paul-fab{position:fixed;right:14px;bottom:84px;display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;border-radius:34px;background:var(--terra);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(196,103,58,.4);z-index:60;border:2px solid var(--cream);letter-spacing:.04em;transition:transform .15s}
+  .paul-fab:hover{transform:scale(1.04);background:var(--terra-deep)}
+  .paul-fab svg{width:36px;height:36px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:2px;color:var(--walnut)}
 
   .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-style:italic;font-size:15px}
   .empty .ico{font-size:42px;margin-bottom:12px;display:block;opacity:.6}
@@ -321,7 +322,26 @@
   </div>
 
   <!-- Paul: floating AI assistant -->
-  <div class="paul-fab" onclick="openPaul()" title="Ask Paul">P</div>
+  <div class="paul-fab" onclick="openPaul()" title="Ask Paul">
+    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <!-- head -->
+      <path d="M20 26c0-7 5.4-12 12-12s12 5 12 12v6"/>
+      <!-- hair / forehead line -->
+      <path d="M20 22c2-3 6-6 12-6s10 3 12 6"/>
+      <!-- eyes -->
+      <circle cx="27" cy="27" r="1.2" fill="currentColor"/>
+      <circle cx="37" cy="27" r="1.2" fill="currentColor"/>
+      <!-- nose -->
+      <path d="M32 28v5"/>
+      <!-- mustache -->
+      <path d="M26 36c2 1.2 4 1.6 6 1.6s4-.4 6-1.6"/>
+      <!-- beard outline -->
+      <path d="M20 32c0 6 2 12 4 16 2 3 5 5 8 5s6-2 8-5c2-4 4-10 4-16"/>
+      <!-- beard texture lines -->
+      <path d="M26 42v6M32 44v8M38 42v6"/>
+    </svg>
+    <span>Ask Paul</span>
+  </div>
 
   <!-- Paul drawer -->
   <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
@@ -329,7 +349,7 @@
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
         <div>
           <div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Paul</div>
-          <div style="font-size:11px;font-style:italic;opacity:.85">Drawn from the five books</div>
+          <div style="font-size:11px;font-style:italic;opacity:.85">Here to walk with you</div>
         </div>
         <button onclick="closePaul()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 8px">×</button>
       </div>
@@ -510,7 +530,7 @@ let _paulHistory = []; // [{role, content}]
 function openPaul(){
   document.getElementById('paul-drawer').style.display = 'block';
   if(!_paulHistory.length){
-    _renderPaulMessage('assistant', 'Peace to you. I can answer questions drawn from the five books — Covenants, Contracts and Constitutions; The Higher Liberty; The Covenants of the gods; The Free Church Report; and Thy Kingdom Comes. What would you like to ask?');
+    _renderPaulMessage('assistant', 'Peace to you. What would you like to ask?');
   }
   setTimeout(() => document.getElementById('paul-input').focus(), 50);
 }
