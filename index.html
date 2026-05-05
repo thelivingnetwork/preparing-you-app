@@ -102,6 +102,24 @@
   .pcm-pick{background:var(--royal);color:var(--gold-light);border:none;border-radius:8px;padding:8px 14px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
   .pcm-pick:hover{background:var(--royal-light)}
   .pcm-pick.chosen{background:#2d7a4f}
+
+  /* ── Library ─────────────────────────────────────────────────── */
+  .lib-search{width:100%;background:#fff;border:1px solid #e6dec0;border-radius:10px;padding:11px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;margin-bottom:14px}
+  .lib-search:focus{border-color:var(--gold)}
+  .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:#fff;border:1px solid #e6dec0;border-radius:10px}
+  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--royal);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:4px;text-transform:uppercase}
+  .lib-letter:hover{background:rgba(61,31,122,.08)}
+  .lib-letter.disabled{opacity:.25;cursor:default}
+  .lib-letter.disabled:hover{background:none}
+  .lib-section{background:#fff;border:1px solid #e6dec0;border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .lib-section-hdr{font-family:'Cinzel',serif;font-size:18px;color:var(--royal);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid #f0e8d0}
+  .lib-topic{padding:8px 0;border-bottom:1px solid #f7f1de}
+  .lib-topic:last-child{border-bottom:none}
+  .lib-topic-title{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--royal);text-decoration:none;font-weight:500}
+  .lib-topic-title:hover{color:var(--gold-dim);text-decoration:underline}
+  .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
+  .lib-media a{font-size:10px;background:rgba(201,162,39,.12);border:1px solid rgba(201,162,39,.4);color:var(--gold-dim);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Cinzel',serif}
+  .lib-media a:hover{background:var(--gold);color:#fff}
 </style>
 </head>
 <body>
@@ -244,9 +262,11 @@
   <div class="page" id="page-library">
     <div class="card">
       <div class="card-title">Topical Library</div>
-      <div class="card-text">Articles and videos arranged by topic. Use Paul (the assistant) to ask questions about anything you read.</div>
+      <div class="card-text">Articles and videos arranged by topic. Tap any title to open the full article on preparingyou.com. Use Paul to ask questions about what you read.</div>
     </div>
-    <div class="empty"><span class="ico">📚</span>Library coming soon.</div>
+    <input class="lib-search" id="lib-search" type="search" placeholder="Search topics…" oninput="filterLibrary(this.value)">
+    <div class="lib-letter-bar" id="lib-letter-bar"></div>
+    <div id="lib-content"><div class="empty"><span class="ico">📚</span>Loading library…</div></div>
   </div>
 
   <div class="page" id="page-books">
@@ -376,6 +396,72 @@ function showPage(name){
   window.scrollTo(0,0);
   // Lazy-load page contents on entry
   if(name === 'pcm') buildPcmPage();
+  if(name === 'library') buildLibraryPage();
+}
+
+// ═════════════════════════ LIBRARY ═════════════════════════
+let _libData = null;
+
+async function buildLibraryPage(){
+  if(!_libData){
+    try {
+      const r = await fetch('/library.json');
+      _libData = await r.json();
+    } catch(e){
+      document.getElementById('lib-content').innerHTML =
+        '<div class="empty">Could not load the library. Try again later.</div>';
+      return;
+    }
+  }
+  // Letter bar — only letters that have entries
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const has = {};
+  _libData.forEach(s => has[s.letter.toUpperCase()] = true);
+  document.getElementById('lib-letter-bar').innerHTML = letters.map(L =>
+    has[L]
+      ? '<button class="lib-letter" onclick="scrollToLetter(\'' + L + '\')">' + L + '</button>'
+      : '<button class="lib-letter disabled" disabled>' + L + '</button>'
+  ).join('');
+  renderLibrary(_libData);
+}
+
+function renderLibrary(data){
+  let html = '';
+  data.forEach(section => {
+    if(!section.topics.length) return;
+    html += '<div class="lib-section" id="lib-letter-' + section.letter + '">'
+         +    '<div class="lib-section-hdr">' + _esc(section.letter) + '</div>';
+    section.topics.forEach(t => {
+      html += '<div class="lib-topic">'
+           +    '<a class="lib-topic-title" href="' + _esc(t.href) + '" target="_blank" rel="noopener">' + _esc(t.title) + '</a>';
+      if(t.media && t.media.length){
+        html += '<div class="lib-media">'
+             +    t.media.map(m =>
+                    '<a href="' + _esc(m.href) + '" target="_blank" rel="noopener">' + _esc(m.label) + '</a>'
+                  ).join('')
+             + '</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('lib-content').innerHTML = html || '<div class="empty">No topics match.</div>';
+}
+
+function scrollToLetter(L){
+  const el = document.getElementById('lib-letter-' + L);
+  if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function filterLibrary(q){
+  if(!_libData) return;
+  q = (q || '').trim().toLowerCase();
+  if(!q){ renderLibrary(_libData); return; }
+  const filtered = _libData.map(s => ({
+    letter: s.letter,
+    topics: s.topics.filter(t => t.title.toLowerCase().includes(q))
+  })).filter(s => s.topics.length);
+  renderLibrary(filtered);
 }
 
 // ═════════════════════════ PCM FLOW ═════════════════════════
