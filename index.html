@@ -4,79 +4,102 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Preparing You · His Holy Church</title>
-  <meta name="theme-color" content="#1e0d3d">
+  <meta name="theme-color" content="#1f4a4f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="description" content="Prepare your heart, mind, and household for entry into The Living Network.">
+  <link rel="icon" href="/favicon.png" type="image/png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
   :root{
-    --royal:#1e0d3d; --royal-deep:#0a0318; --royal-light:#3d1f7a;
-    --gold:#c9a227; --gold-light:#f5e8b0; --gold-dim:#8b6500;
-    --parch:#faf8f2; --text:#1a0d3d; --text-muted:#6e5c8c;
-    --border:rgba(245,232,176,.18);
+    /* Earthy pilgrimage palette — distinct from The Living Network's purple+gold */
+    --teal:#1f4a4f;       /* deep anchor — primary brand colour */
+    --teal-deep:#143034;  /* darker variant */
+    --teal-soft:#2d6a70;  /* hovered teal */
+    --terra:#c4673a;      /* terracotta — primary action / warmth */
+    --terra-deep:#9c4a23; /* hovered terracotta */
+    --terra-soft:rgba(196,103,58,.12);
+    --gold:#a0772a;       /* aged gold — accent, restrained */
+    --gold-soft:rgba(160,119,42,.15);
+    --parch:#faf6e9;      /* warm parchment — page background */
+    --cream:#fefcf4;      /* card surface */
+    --walnut:#3a2818;     /* primary text */
+    --walnut-mid:#6f5641; /* secondary text */
+    --walnut-soft:#a08a72;/* muted text */
+    --line:#e8dec3;       /* card borders / dividers */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--parch);color:var(--text);font-family:'Cormorant Garamond',Georgia,serif;font-size:16px;line-height:1.55}
-  h1,h2,h3,.cinzel{font-family:'Cinzel',serif;letter-spacing:.06em;color:var(--royal)}
-  body{min-height:100vh;display:flex;flex-direction:column}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6}
+  h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--teal);font-weight:600;margin:0 0 8px}
+  body{min-height:100vh;display:flex;flex-direction:column;
+    /* Faint paper grain — subtle radial pattern that mimics parchment */
+    background-image:
+      radial-gradient(circle at 25% 15%, rgba(196,103,58,.04) 0, transparent 40%),
+      radial-gradient(circle at 75% 85%, rgba(31,74,79,.05) 0, transparent 50%);
+    background-attachment:fixed;
+  }
 
   /* ── Landing ────────────────────────────────────────────────── */
-  .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;background:linear-gradient(180deg,var(--royal-deep),var(--royal))}
-  .landing-title{font-family:'Cinzel',serif;font-size:32px;color:var(--gold-light);margin:0 0 6px;text-align:center}
-  .landing-sub{font-size:14px;color:rgba(245,232,176,.7);font-style:italic;margin:0 0 24px;text-align:center}
-  .landing-quote{max-width:480px;color:rgba(245,232,176,.55);font-size:13px;font-style:italic;text-align:center;margin:0 0 36px;padding:0 20px}
-  .auth-box{width:100%;max-width:380px;background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:14px;padding:28px;color:var(--gold-light)}
-  .auth-tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)}
-  .auth-tab{flex:1;background:none;border:none;color:rgba(245,232,176,.5);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent}
-  .auth-tab.active{color:var(--gold-light);border-bottom-color:var(--gold)}
-  .form-label{display:block;font-size:11px;color:rgba(245,232,176,.6);font-style:italic;margin:10px 0 4px}
-  .form-input{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--gold-light);font-family:inherit;font-size:14px;outline:none}
-  .form-input:focus{border-color:var(--gold)}
-  .btn-primary{width:100%;background:var(--royal-light);color:var(--gold-light);border:1px solid var(--gold);border-radius:10px;padding:13px;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.10em;cursor:pointer;margin-top:14px;text-transform:uppercase}
-  .btn-primary:hover{background:#4d2a96}
-  .auth-error{display:none;background:rgba(139,26,26,.15);border:1px solid rgba(139,26,26,.4);color:#ffb4b4;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px}
+  .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px}
+  .landing-ark{width:140px;height:auto;margin-bottom:20px;filter:drop-shadow(0 1px 2px rgba(58,40,24,.15))}
+  .landing-title{font-family:'Spectral',serif;font-size:38px;font-weight:600;color:var(--teal);margin:0 0 4px;text-align:center;letter-spacing:.02em}
+  .landing-sub{font-size:14px;color:var(--walnut-mid);font-style:italic;margin:0 0 18px;text-align:center;letter-spacing:.04em}
+  .landing-quote{max-width:480px;color:var(--walnut-mid);font-size:14px;font-style:italic;text-align:center;margin:0 0 32px;padding:0 20px;line-height:1.6}
+  .landing-quote::before, .landing-quote::after{content:'';display:inline-block;width:30px;height:1px;background:var(--gold);vertical-align:middle;margin:0 12px}
+
+  .auth-box{width:100%;max-width:400px;background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
+  .auth-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line)}
+  .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:'Spectral',serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
+  .auth-tab.active{color:var(--teal);border-bottom-color:var(--terra)}
+  .form-label{display:block;font-size:12px;color:var(--walnut-mid);font-style:italic;margin:12px 0 4px;letter-spacing:.02em}
+  .form-input{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:15px;outline:none;transition:border-color .15s}
+  .form-input:focus{border-color:var(--terra)}
+  .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Spectral',serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
+  .btn-primary:hover{background:var(--terra-deep)}
+  .auth-error{display:none;background:rgba(159,57,28,.08);border:1px solid rgba(159,57,28,.3);color:#9c4a23;padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic}
   .auth-error.show{display:block}
 
   /* ── App shell ───────────────────────────────────────────────── */
   .screen{display:none}
   .screen.active{display:flex;flex-direction:column;min-height:100vh}
 
-  .hdr{background:linear-gradient(135deg,var(--royal),var(--royal-deep));color:var(--gold-light);padding:18px 20px;display:flex;align-items:center;gap:12px}
-  .hdr-av{width:40px;height:40px;border-radius:50%;background:var(--royal-light);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light)}
-  .hdr-name{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.04em}
-  .hdr-sub{font-size:11px;color:rgba(245,232,176,.6);font-style:italic}
+  .hdr{background:var(--teal);color:var(--cream);padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--terra)}
+  .hdr-ark{width:38px;height:auto;flex-shrink:0;filter:brightness(0) invert(1) opacity(.92)}
+  .hdr-name{font-family:'Spectral',serif;font-size:16px;letter-spacing:.02em;font-weight:500}
+  .hdr-sub{font-size:12px;color:rgba(254,252,244,.65);font-style:italic;letter-spacing:.04em}
 
-  .page{display:none;flex:1;padding:20px 16px 100px}
+  .page{display:none;flex:1;padding:24px 16px 100px}
   .page.active{display:block}
 
-  .card{background:#fff;border:1px solid #e6dec0;border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 0 rgba(0,0,0,.04)}
-  .card-title{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.08em;color:var(--royal);margin:0 0 10px;text-transform:uppercase}
-  .card-text{font-size:15px;line-height:1.6;color:var(--text);margin:0}
+  .card{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
+  .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--teal);margin:0 0 10px;text-transform:uppercase;font-weight:600}
+  .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
-  .tile-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-  .tile{background:#fff;border:1px solid #e6dec0;border-radius:12px;padding:18px 14px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease}
-  .tile:hover{transform:translateY(-2px);border-color:var(--gold)}
-  .tile-icon{font-size:24px;margin-bottom:8px}
-  .tile-name{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.06em;color:var(--royal);text-transform:uppercase}
-  .tile-meta{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:4px}
+  .tile-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .tile{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+  .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(196,103,58,.12)}
+  .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
+  .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600}
+  .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
 
-  .nav{position:fixed;bottom:0;left:0;right:0;background:var(--royal-deep);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 0 max(8px,env(safe-area-inset-bottom));z-index:50}
-  .nav-btn{flex:1;background:none;border:none;color:rgba(245,232,176,.5);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.06em;padding:6px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:4px}
-  .nav-btn.active{color:var(--gold-light)}
+  .nav{position:fixed;bottom:0;left:0;right:0;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:8px 0 max(8px,env(safe-area-inset-bottom));z-index:50}
+  .nav-btn{flex:1;background:none;border:none;color:rgba(254,252,244,.55);font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;padding:6px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:500}
+  .nav-btn.active{color:var(--cream)}
+  .nav-btn.active::before{content:'';position:absolute;top:0;width:32px;height:2px;background:var(--terra);border-radius:0 0 2px 2px;margin-top:-8px}
+  .nav-btn{position:relative}
   .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* ── Paul (floating AI button) ──────────────────────────────── */
-  .paul-fab{position:fixed;right:18px;bottom:84px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#b58a1c);color:var(--royal-deep);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:60;border:2px solid var(--gold-light);letter-spacing:.06em}
-  .paul-fab:hover{transform:scale(1.05)}
+  .paul-fab{position:fixed;right:18px;bottom:88px;width:60px;height:60px;border-radius:50%;background:var(--terra);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:18px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(196,103,58,.4);z-index:60;border:3px solid var(--cream);letter-spacing:.04em;transition:transform .15s}
+  .paul-fab:hover{transform:scale(1.06);background:var(--terra-deep)}
 
-  .empty{padding:60px 20px;text-align:center;color:var(--text-muted);font-style:italic;font-size:14px}
-  .empty .ico{font-size:36px;margin-bottom:10px;display:block}
+  .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-style:italic;font-size:15px}
+  .empty .ico{font-size:42px;margin-bottom:12px;display:block;opacity:.6}
 
   /* ── Modals ──────────────────────────────────────────────────── */
   .modal-overlay{position:fixed;inset:0;background:rgba(10,3,24,.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow-y:auto}
@@ -127,6 +150,7 @@
 <!-- ═════════════════════════ LANDING / AUTH ═════════════════════════ -->
 <div id="screen-landing" class="screen active">
   <div class="landing">
+    <img class="landing-ark" src="/ark.png" alt="Preparing You">
     <h1 class="landing-title">Preparing You</h1>
     <div class="landing-sub">A gateway into The Living Network</div>
     <div class="landing-quote">"Prepare ye the way of the Lord, make his paths straight." — Mark 1:3</div>
@@ -165,7 +189,7 @@
 <!-- ═════════════════════════ APP ═════════════════════════ -->
 <div id="screen-app" class="screen">
   <div class="hdr">
-    <div class="hdr-av" id="hdr-av">?</div>
+    <img class="hdr-ark" src="/ark.png" alt="">
     <div>
       <div class="hdr-name" id="hdr-name">—</div>
       <div class="hdr-sub" id="hdr-sub">Preparing You</div>
@@ -378,7 +402,6 @@ async function _loadProfile(authUser){
 // ═════════════════════════ APP NAV ═════════════════════════
 function enterApp(){
   if(!currentUser) return;
-  document.getElementById('hdr-av').textContent = (currentUser.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('hdr-name').textContent = currentUser.name || 'Friend';
   document.getElementById('hdr-sub').textContent  = currentUser.region || 'Preparing You';
   document.getElementById('screen-landing').classList.remove('active');
