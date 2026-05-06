@@ -580,7 +580,16 @@ async function loadMessages(){
   const list = document.getElementById('msg-list');
   list.innerHTML = (msgs || []).map(m => {
     const mine = m.sender_id === currentUser.id;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:14px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap">${_esc(m.body)}</div>`;
+    // Auto-link URLs (https only). For Daily.co room URLs we route through joinDailyLink so
+    // the recipient mints their own token instead of joining as the caller.
+    const linked = _esc(m.body).replace(/(https?:\/\/[^\s]+)/g, (url) => {
+      if(/daily\.co\//.test(url)){
+        const room = (url.split('/').pop() || '').split('?')[0];
+        return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="color:${mine?'var(--cream)':'var(--terra-deep)'};text-decoration:underline">${url}</a>`;
+      }
+      return `<a href="${url}" target="_blank" rel="noopener" style="color:${mine?'var(--cream)':'var(--terra-deep)'};text-decoration:underline">${url}</a>`;
+    });
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:14px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word">${linked}</div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
 
@@ -597,6 +606,21 @@ async function sendMessage(){
   input.value = '';
   await _sb.from('prep_messages').insert({ sender_id: currentUser.id, recipient_id: _msgPeerId, body: text });
   await loadMessages();
+}
+
+async function joinDailyLink(roomName){
+  if(!roomName) return;
+  try {
+    const r = await fetch(_SERVER_URL + '/call/start', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ roomName, userName: currentUser?.name || 'Guest', isOwner: false })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'join failed');
+    window.open(j.url, '_blank');
+  } catch(e){
+    alert('Could not join: ' + e.message);
+  }
 }
 
 async function refreshMessageBadge(){
@@ -1032,6 +1056,17 @@ async function startPcmCall(){
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || 'call failed');
+
+    // Drop a system-style message so the other side sees the incoming call link.
+    // The room URL is shared (j.roomUrl) — both sides hit /call/start independently
+    // to mint their own per-user token, so we send the bare room URL, not j.url.
+    const inviteUrl = j.roomUrl || j.url;
+    await _sb.from('prep_messages').insert({
+      sender_id: currentUser.id,
+      recipient_id: currentUser.pcm_id,
+      body: '📞 ' + (currentUser.name || 'Your contact') + ' is calling. Tap to join: ' + inviteUrl
+    });
+
     window.open(j.url, '_blank');
   } catch(e){
     alert('Could not start call: ' + e.message);
