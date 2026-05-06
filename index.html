@@ -47,6 +47,13 @@
   /* ── Landing ────────────────────────────────────────────────── */
   .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px}
   .landing-ark{width:140px;height:auto;margin-bottom:20px;filter:drop-shadow(0 1px 2px rgba(58,40,24,.15))}
+  .landing-hero{width:min(100%,560px);height:auto;margin:0 0 18px;display:block;color:var(--teal);filter:drop-shadow(0 4px 8px rgba(20,48,52,.12))}
+  .landing-hero .hero-rays line{stroke:var(--gold);stroke-width:1;opacity:.55}
+  .landing-hero .hero-hill{fill:var(--teal-deep);opacity:.85}
+  .landing-hero .hero-hill-far{fill:var(--teal);opacity:.5}
+  .landing-hero .hero-frond{fill:var(--gold);opacity:.7}
+  .landing-hero .hero-ark{stroke:var(--teal-deep);stroke-width:2;fill:var(--cream);stroke-linecap:round;stroke-linejoin:round}
+  .landing-hero .hero-ark-door{fill:var(--terra)}
   .landing-title{font-family:'Spectral',serif;font-size:38px;font-weight:600;color:var(--teal);margin:0 0 4px;text-align:center;letter-spacing:.02em}
   .landing-sub{font-size:14px;color:var(--walnut-mid);font-style:italic;margin:0 0 18px;text-align:center;letter-spacing:.04em}
   .landing-quote{max-width:480px;color:var(--walnut-mid);font-size:14px;font-style:italic;text-align:center;margin:0 0 32px;padding:0 20px;line-height:1.6}
@@ -83,7 +90,19 @@
   .tile-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
   .tile{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
   .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(196,103,58,.12)}
-  .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
+  .tile-icon{font-size:30px;margin-bottom:10px;line-height:1;color:var(--teal);display:flex;align-items:center;justify-content:center;height:50px}
+  .tile-icon svg{width:50px;height:50px;display:block}
+  .tile:hover .tile-icon{color:var(--terra)}
+  .tile-wide{display:flex;align-items:center;gap:18px;text-align:left;padding:18px 22px}
+  .tile-wide .tile-icon{margin-bottom:0;flex-shrink:0;height:48px}
+  .tile-wide .tile-icon svg{width:48px;height:48px}
+  .tile-wide .tile-name{margin-bottom:4px}
+
+  /* ── Welcome card flourishes ────────────────────────────── */
+  .welcome-card{position:relative}
+  .dropcap{float:left;font-family:'Spectral',serif;font-weight:600;font-size:48px;line-height:.85;color:var(--gold);padding:6px 8px 0 0;text-shadow:0 1px 0 rgba(160,119,42,.15)}
+  .ornament{margin:14px auto 0;color:var(--gold);width:240px;display:block;opacity:.85}
+  .ornament svg{width:240px;height:auto;display:block}
   .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600}
   .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
 
@@ -151,7 +170,36 @@
 <!-- ═════════════════════════ LANDING / AUTH ═════════════════════════ -->
 <div id="screen-landing" class="screen active">
   <div class="landing">
-    <img class="landing-ark" src="/ark-purple.png" alt="Preparing You">
+    <svg class="landing-hero" viewBox="0 0 560 320" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g class="hero-rays" transform="translate(280 160)">
+        <line x1="0" y1="0" x2="0" y2="-130"/>
+        <line x1="0" y1="0" x2="60" y2="-115"/>
+        <line x1="0" y1="0" x2="-60" y2="-115"/>
+        <line x1="0" y1="0" x2="115" y2="-90"/>
+        <line x1="0" y1="0" x2="-115" y2="-90"/>
+        <line x1="0" y1="0" x2="160" y2="-50"/>
+        <line x1="0" y1="0" x2="-160" y2="-50"/>
+        <line x1="0" y1="0" x2="180" y2="0"/>
+        <line x1="0" y1="0" x2="-180" y2="0"/>
+      </g>
+      <path class="hero-hill-far" d="M0 230 Q90 200 180 215 Q270 232 360 210 Q450 188 560 218 L560 320 L0 320 Z"/>
+      <path class="hero-hill" d="M0 260 Q70 240 140 252 Q210 264 280 248 Q360 232 440 254 Q520 274 560 260 L560 320 L0 320 Z"/>
+      <g transform="translate(220 110)">
+        <path class="hero-ark" d="M0 38 L60 0 L120 38" fill="none"/>
+        <path class="hero-ark" d="M14 38 L14 110 Q60 124 106 110 L106 38"/>
+        <circle class="hero-ark-door" cx="60" cy="76" r="10"/>
+      </g>
+      <g class="hero-frond" transform="translate(50 240)">
+        <path d="M0 50 Q-2 30 6 14 Q10 6 16 0 Q14 14 8 26 Q4 38 0 50 Z"/>
+        <path d="M0 50 Q-12 38 -16 22 Q-18 14 -16 4 Q-10 18 -6 30 Q-2 40 0 50 Z"/>
+        <path d="M0 50 Q12 38 22 26 Q28 18 32 8 Q26 24 18 34 Q8 44 0 50 Z"/>
+      </g>
+      <g class="hero-frond" transform="translate(510 240) scale(-1 1)">
+        <path d="M0 50 Q-2 30 6 14 Q10 6 16 0 Q14 14 8 26 Q4 38 0 50 Z"/>
+        <path d="M0 50 Q-12 38 -16 22 Q-18 14 -16 4 Q-10 18 -6 30 Q-2 40 0 50 Z"/>
+        <path d="M0 50 Q12 38 22 26 Q28 18 32 8 Q26 24 18 34 Q8 44 0 50 Z"/>
+      </g>
+    </svg>
     <h1 class="landing-title">Preparing You</h1>
     <div class="landing-sub">A gateway into The Living Network</div>
     <div class="landing-quote">"Prepare ye the way of the Lord, make his paths straight." — Mark 1:3</div>
@@ -199,20 +247,88 @@
 
   <!-- Pages -->
   <div class="page active" id="page-home">
-    <div class="card">
-      <div class="card-title">✝ Welcome</div>
-      <div class="card-text">Begin by watching the gateway video. Once it is finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
+    <div class="card welcome-card">
+      <div class="card-title">Welcome</div>
+      <div class="card-text"><span class="dropcap">B</span>egin by watching the gateway videos. Once they are finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
+      <div class="ornament" aria-hidden="true">
+        <svg viewBox="0 0 240 24" preserveAspectRatio="xMidYMid meet">
+          <line x1="0"   y1="12" x2="100" y2="12" stroke="currentColor" stroke-width="1"/>
+          <line x1="140" y1="12" x2="240" y2="12" stroke="currentColor" stroke-width="1"/>
+          <g transform="translate(108,2) scale(0.7)" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 14 L17 4 L31 14"/>
+            <path d="M6 14 L6 27 Q17 32 28 27 L28 14"/>
+            <circle cx="17" cy="20" r="2.4" fill="currentColor"/>
+          </g>
+        </svg>
+      </div>
     </div>
     <div class="tile-row">
-      <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Gateway Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
-      <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">⛪</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
+      <div class="tile" onclick="showPage('video')">
+        <div class="tile-icon"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- oil lamp with flame -->
+          <path d="M14 44 Q14 36 22 36 L42 36 Q50 36 50 44 Q50 50 42 50 L22 50 Q14 50 14 44 Z"/>
+          <path d="M50 40 L58 38 L58 46 L50 44"/>
+          <path d="M30 36 L30 28 L34 28 L34 36"/>
+          <path d="M32 28 Q28 22 32 14 Q36 22 32 28 Z" fill="currentColor" stroke="none"/>
+          <line x1="20" y1="55" x2="44" y2="55" stroke-width="1" opacity=".4"/>
+        </svg></div>
+        <div class="tile-name">Gateway Videos</div>
+        <div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div>
+      </div>
+      <div class="tile" onclick="showPage('pcm')">
+        <div class="tile-icon"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- two figures walking together -->
+          <circle cx="22" cy="18" r="5"/>
+          <path d="M14 50 Q14 30 22 30 Q30 30 30 50"/>
+          <path d="M22 32 L22 42"/>
+          <circle cx="42" cy="18" r="5"/>
+          <path d="M34 50 Q34 30 42 30 Q50 30 50 50"/>
+          <path d="M42 32 L42 42"/>
+          <line x1="14" y1="56" x2="50" y2="56" stroke-width="1" opacity=".4"/>
+        </svg></div>
+        <div class="tile-name">Choose a PCM</div>
+        <div class="tile-meta">Step 2</div>
+      </div>
     </div>
     <div class="tile-row">
-      <div class="tile" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
-      <div class="tile" onclick="showPage('books')"><div class="tile-icon">📖</div><div class="tile-name">The Five Books</div><div class="tile-meta">Read · listen</div></div>
+      <div class="tile" onclick="showPage('library')">
+        <div class="tile-icon"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- stack of scrolls -->
+          <ellipse cx="32" cy="14" rx="20" ry="4"/>
+          <path d="M12 14 L12 28 Q12 32 32 32 Q52 32 52 28 L52 14"/>
+          <ellipse cx="32" cy="28" rx="20" ry="4" opacity=".35"/>
+          <path d="M12 32 L12 46 Q12 50 32 50 Q52 50 52 46 L52 32"/>
+          <ellipse cx="32" cy="46" rx="20" ry="4" opacity=".35"/>
+          <line x1="22" y1="20" x2="42" y2="20" opacity=".35"/>
+          <line x1="22" y1="38" x2="42" y2="38" opacity=".35"/>
+        </svg></div>
+        <div class="tile-name">Topical Library</div>
+        <div class="tile-meta">Articles · videos</div>
+      </div>
+      <div class="tile" onclick="showPage('books')">
+        <div class="tile-icon"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <!-- open illuminated manuscript -->
+          <path d="M8 16 Q22 14 32 18 Q42 14 56 16 L56 50 Q42 48 32 52 Q22 48 8 50 Z"/>
+          <line x1="32" y1="18" x2="32" y2="52"/>
+          <line x1="14" y1="24" x2="26" y2="24" opacity=".4"/>
+          <line x1="14" y1="30" x2="26" y2="30" opacity=".4"/>
+          <line x1="14" y1="36" x2="26" y2="36" opacity=".4"/>
+          <line x1="38" y1="24" x2="50" y2="24" opacity=".4"/>
+          <line x1="38" y1="30" x2="50" y2="30" opacity=".4"/>
+          <line x1="38" y1="36" x2="50" y2="36" opacity=".4"/>
+        </svg></div>
+        <div class="tile-name">The Five Books</div>
+        <div class="tile-meta">Read · listen</div>
+      </div>
     </div>
-    <div class="tile" style="grid-column:1/-1" onclick="showPage('join-tln')">
-      <div class="tile-icon">✝</div>
+    <div class="tile tile-wide" style="grid-column:1/-1" onclick="showPage('join-tln')">
+      <div class="tile-icon"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <!-- arched gateway -->
+        <path d="M14 54 L14 30 Q14 14 32 14 Q50 14 50 30 L50 54"/>
+        <path d="M22 54 L22 30 Q22 22 32 22 Q42 22 42 30 L42 54"/>
+        <line x1="10" y1="54" x2="54" y2="54"/>
+        <circle cx="32" cy="32" r="1.6" fill="currentColor"/>
+      </svg></div>
       <div class="tile-name">Join The Living Network</div>
       <div class="tile-meta">Available once your PCM signs off on your readiness</div>
     </div>
