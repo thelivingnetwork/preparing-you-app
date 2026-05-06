@@ -556,16 +556,16 @@ async function buildMessagesPage(){
   const empty = document.getElementById('msg-empty');
   const wrap  = document.getElementById('msg-thread-wrap');
 
-  // Collect all peers: my PCM (if I'm an elector) + all electors who have me as their PCM
-  const peers = [];
-  if(currentUser.pcm_id){
-    const { data: pcm } = await _sb.from('prep_users').select('id, name, region').eq('id', currentUser.pcm_id).maybeSingle();
-    if(pcm) peers.push({ ...pcm, role: 'Your Personal Contact Minister' });
-  }
-  const { data: mine } = await _sb.from('prep_users').select('id, name, region').eq('pcm_id', currentUser.id);
-  for(const e of (mine || [])){
-    if(!peers.find(p => p.id === e.id)) peers.push({ ...e, role: 'You are their PCM' });
-  }
+  // Fetch peers from the server (bypasses RLS — server uses service role)
+  let peers = [];
+  try {
+    const r = await fetch(_SERVER_URL + '/peers', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    const j = await r.json();
+    if(r.ok) peers = j.peers || [];
+  } catch(e){ console.warn('peers fetch failed', e); }
   _msgPeers = peers;
 
   if(!peers.length){ empty.style.display = 'block'; wrap.style.display = 'none'; return; }

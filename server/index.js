@@ -235,7 +235,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.3.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.3.1' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -262,6 +262,24 @@ const server = http.createServer(async (req, res) => {
       const room = await dailyEnsureRoom(roomName)
       const token = await dailyMintToken(roomName, { userName, isOwner })
       return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token })
+    }
+
+    if (req.method === 'POST' && req.url === '/peers') {
+      const { userId } = await readJson(req)
+      if (!userId) return send(res, 400, { error: 'userId required' })
+      // 1) my PCM (if I'm an elector)
+      // 2) electors who have me as their PCM
+      const peers = []
+      const { data: me } = await sb.from('prep_users').select('pcm_id').eq('id', userId).maybeSingle()
+      if (me?.pcm_id) {
+        const { data: pcm } = await sb.from('prep_users').select('id, name, region').eq('id', me.pcm_id).maybeSingle()
+        if (pcm) peers.push({ ...pcm, role: 'Your Personal Contact Minister' })
+      }
+      const { data: mine } = await sb.from('prep_users').select('id, name, region').eq('pcm_id', userId)
+      for (const e of (mine || [])) {
+        if (!peers.find(p => p.id === e.id)) peers.push({ ...e, role: 'You are their PCM' })
+      }
+      return send(res, 200, { peers })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/join') {
