@@ -549,26 +549,64 @@ async function joinTownhall(){
 let _msgPeerId = null;
 let _msgPollTimer = null;
 
+let _msgPeers = [];
+
 async function buildMessagesPage(){
   if(!_sb || !currentUser) return;
   const empty = document.getElementById('msg-empty');
   const wrap  = document.getElementById('msg-thread-wrap');
 
-  if(!currentUser.pcm_id){ empty.style.display = 'block'; wrap.style.display = 'none'; return; }
+  // Collect all peers: my PCM (if I'm an elector) + all electors who have me as their PCM
+  const peers = [];
+  if(currentUser.pcm_id){
+    const { data: pcm } = await _sb.from('prep_users').select('id, name, region').eq('id', currentUser.pcm_id).maybeSingle();
+    if(pcm) peers.push({ ...pcm, role: 'Your Personal Contact Minister' });
+  }
+  const { data: mine } = await _sb.from('prep_users').select('id, name, region').eq('pcm_id', currentUser.id);
+  for(const e of (mine || [])){
+    if(!peers.find(p => p.id === e.id)) peers.push({ ...e, role: 'You are their PCM' });
+  }
+  _msgPeers = peers;
+
+  if(!peers.length){ empty.style.display = 'block'; wrap.style.display = 'none'; return; }
   empty.style.display = 'none'; wrap.style.display = 'block';
 
-  // Find peer info
-  const { data: peer } = await _sb.from('prep_users').select('id, name, region').eq('id', currentUser.pcm_id).maybeSingle();
-  if(!peer){ empty.style.display='block'; wrap.style.display='none'; return; }
-  _msgPeerId = peer.id;
-  document.getElementById('msg-peer-av').textContent = _initials(peer.name);
-  document.getElementById('msg-peer-name').textContent = peer.name || '—';
-  document.getElementById('msg-peer-role').textContent = 'Your Personal Contact Minister' + (peer.region ? ' · ' + peer.region : '');
+  // Render peer selector if more than one
+  let selector = document.getElementById('msg-peer-selector');
+  if(!selector){
+    selector = document.createElement('div');
+    selector.id = 'msg-peer-selector';
+    selector.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px';
+    wrap.insertBefore(selector, wrap.firstChild);
+  }
+  if(peers.length > 1){
+    selector.style.display = 'flex';
+    selector.innerHTML = peers.map(p => `<button class="link-btn" onclick="selectMsgPeer('${p.id}')" style="padding:6px 12px;border:1px solid var(--line);border-radius:18px;background:${p.id===_msgPeerId?'var(--teal)':'var(--cream)'};color:${p.id===_msgPeerId?'var(--cream)':'var(--walnut)'};font-size:12px">${_esc(p.name)}</button>`).join('');
+  } else {
+    selector.style.display = 'none';
+  }
 
-  await loadMessages();
-  // Poll every 5s while on this page
+  // Default peer = first (or whatever is currently selected if still in list)
+  if(!_msgPeerId || !peers.find(p => p.id === _msgPeerId)) _msgPeerId = peers[0].id;
+  await renderActivePeer();
+
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => { if(document.getElementById('page-messages').classList.contains('active')) loadMessages(); }, 5000);
+}
+
+async function selectMsgPeer(id){
+  _msgPeerId = id;
+  await renderActivePeer();
+  buildMessagesPage(); // re-render selector pill highlights
+}
+
+async function renderActivePeer(){
+  const peer = _msgPeers.find(p => p.id === _msgPeerId);
+  if(!peer) return;
+  document.getElementById('msg-peer-av').textContent = _initials(peer.name);
+  document.getElementById('msg-peer-name').textContent = peer.name || '—';
+  document.getElementById('msg-peer-role').textContent = peer.role + (peer.region ? ' · ' + peer.region : '');
+  await loadMessages();
 }
 
 async function loadMessages(){
@@ -1045,9 +1083,15 @@ async function buildPcmPage(){
 }
 
 async function startPcmCall(){
-  if(!currentUser?.pcm_id) return;
-  // Room name: deterministic per pairing so both sides land in same room
-  const ids = [currentUser.id, currentUser.pcm_id].sort().join('-');
+  // Determine the peer: prefer the currently-selected message peer if any,
+  // otherwise fall back to my PCM (if I'm an elector) or my first elector (if I'm a PCM).
+  let peerId = _msgPeerId || currentUser?.pcm_id;
+  if(!peerId){
+    const { data: mine } = await _sb.from('prep_users').select('id').eq('pcm_id', currentUser.id).limit(1);
+    if(mine && mine[0]) peerId = mine[0].id;
+  }
+  if(!peerId){ alert('No paired contact to call.'); return; }
+  const ids = [currentUser.id, peerId].sort().join('-');
   const roomName = 'py-' + ids.slice(0, 24);
   try {
     const r = await fetch(_SERVER_URL + '/call/start', {
@@ -1063,7 +1107,7 @@ async function startPcmCall(){
     const inviteUrl = j.roomUrl || j.url;
     await _sb.from('prep_messages').insert({
       sender_id: currentUser.id,
-      recipient_id: currentUser.pcm_id,
+      recipient_id: peerId,
       body: '📞 ' + (currentUser.name || 'Your contact') + ' is calling. Tap to join: ' + inviteUrl
     });
 
