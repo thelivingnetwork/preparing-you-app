@@ -116,26 +116,165 @@ async function paulChat(userId, messages) {
   }
 }
 
+// ─── Email via Resend ───────────────────────────────────────────────────
+const RESEND_FROM = process.env.RESEND_FROM || 'Preparing You <onboarding@resend.dev>'
+async function sendEmail(to, subject, html) {
+  if (!process.env.RESEND_API_KEY) { console.warn('[email] no RESEND_API_KEY'); return }
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ from: RESEND_FROM, to, subject, html })
+    })
+    if (!r.ok) console.error('[email] failed', r.status, await r.text())
+  } catch (e) { console.error('[email] threw', e) }
+}
+
+function emailWrap(title, body, ctaText, ctaUrl) {
+  return `<!doctype html><html><body style="margin:0;background:#faf6e9;font-family:Georgia,serif;color:#3a2818">
+    <div style="max-width:520px;margin:0 auto;padding:32px 24px">
+      <h1 style="font-family:Georgia,serif;color:#1f4a4f;font-size:22px;margin:0 0 16px">${title}</h1>
+      <div style="background:#fefcf4;border:1px solid #e8dec3;border-radius:10px;padding:24px;font-size:16px;line-height:1.6">
+        ${body}
+        ${ctaText ? `<div style="margin-top:20px"><a href="${ctaUrl}" style="display:inline-block;background:#c4673a;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">${ctaText}</a></div>` : ''}
+      </div>
+      <p style="font-size:12px;color:#6f5641;font-style:italic;margin-top:18px;text-align:center">Preparing You — a gateway into The Living Network</p>
+    </div></body></html>`
+}
+
+// ─── Daily.co room helpers ──────────────────────────────────────────────
+async function dailyEnsureRoom(roomName, opts = {}) {
+  if (!process.env.DAILY_API_KEY) throw new Error('DAILY_API_KEY missing')
+  const headers = { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' }
+  // Try get
+  const got = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, { headers })
+  if (got.ok) return await got.json()
+  // Create
+  const cr = await fetch('https://api.daily.co/v1/rooms', {
+    method: 'POST', headers,
+    body: JSON.stringify({
+      name: roomName,
+      privacy: 'public',
+      properties: { enable_chat: true, enable_screenshare: true, ...(opts.properties || {}) }
+    })
+  })
+  if (!cr.ok) throw new Error(`daily room create failed: ${cr.status} ${await cr.text()}`)
+  return await cr.json()
+}
+
+async function dailyMintToken(roomName, { userName, isOwner }) {
+  const r = await fetch('https://api.daily.co/v1/meeting-tokens', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ properties: { room_name: roomName, user_name: userName || 'Guest', is_owner: !!isOwner, exp: Math.floor(Date.now()/1000) + 3*3600 } })
+  })
+  if (!r.ok) throw new Error(`daily token mint failed: ${r.status} ${await r.text()}`)
+  return (await r.json()).token
+}
+
+// ─── PCM election ───────────────────────────────────────────────────────
+async function electPcm({ electorId, pcmId }) {
+  if (!electorId || !pcmId) throw new Error('electorId and pcmId required')
+  if (electorId === pcmId) throw new Error('cannot elect self')
+
+  // Insert election (unique partial idx ensures only one active per elector)
+  const { data: row, error } = await sb.from('prep_pcm_elections')
+    .insert({ elector_id: electorId, pcm_id: pcmId, status: 'pending' })
+    .select().single()
+  if (error) throw new Error(error.message)
+
+  // Look up names + email of PCM, name of elector
+  const { data: pcm } = await sb.from('prep_users').select('name, email').eq('id', pcmId).single()
+  const { data: elector } = await sb.from('prep_users').select('name').eq('id', electorId).single()
+  if (pcm?.email) {
+    await sendEmail(pcm.email, 'You have been elected as a Personal Contact Minister',
+      emailWrap('A new election', `<p>${elector?.name || 'A user'} has elected you as their Personal Contact Minister.</p><p>Open the app to accept or decline.</p>`,
+        'Open Preparing You', 'https://preparing-you.netlify.app'))
+  }
+  return row
+}
+
+async function respondPcm({ electionId, pcmId, accept }) {
+  const { data: el, error: e1 } = await sb.from('prep_pcm_elections')
+    .select('*').eq('id', electionId).maybeSingle()
+  if (e1 || !el) throw new Error('election not found')
+  if (el.pcm_id !== pcmId) throw new Error('not your election')
+  if (el.status !== 'pending') throw new Error('already responded')
+
+  const newStatus = accept ? 'accepted' : 'declined'
+  await sb.from('prep_pcm_elections').update({ status: newStatus, responded_at: new Date().toISOString() }).eq('id', electionId)
+
+  if (accept) {
+    await sb.from('prep_users').update({ pcm_id: pcmId }).eq('id', el.elector_id)
+  }
+
+  const { data: elector } = await sb.from('prep_users').select('name, email').eq('id', el.elector_id).single()
+  const { data: pcm } = await sb.from('prep_users').select('name').eq('id', pcmId).single()
+  if (elector?.email) {
+    if (accept) {
+      await sendEmail(elector.email, 'Your PCM accepted your election',
+        emailWrap('Accepted',
+          `<p>${pcm?.name || 'Your PCM'} has accepted your election. They will walk this preparation alongside you.</p><p>You can now message them or schedule a call from inside the app.</p>`,
+          'Open Preparing You', 'https://preparing-you.netlify.app'))
+    } else {
+      await sendEmail(elector.email, 'Your PCM is currently unavailable',
+        emailWrap('Currently unavailable',
+          `<p>${pcm?.name || 'Your PCM'} is unavailable at this time. Please choose another Personal Contact Minister from the list.</p>`,
+          'Choose another', 'https://preparing-you.netlify.app'))
+    }
+  }
+  return { status: newStatus }
+}
+
 const server = http.createServer(async (req, res) => {
   cors(res)
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.2.1' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.3.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
       const body = await readJson(req)
       const { userId, messages } = body
-      if (!Array.isArray(messages) || !messages.length) {
-        return send(res, 400, { error: 'messages required' })
-      }
-      const out = await paulChat(userId, messages)
-      return send(res, 200, out)
+      if (!Array.isArray(messages) || !messages.length) return send(res, 400, { error: 'messages required' })
+      return send(res, 200, await paulChat(userId, messages))
     }
 
-    // TODO: POST /signoff
+    if (req.method === 'POST' && req.url === '/elect') {
+      const { electorId, pcmId } = await readJson(req)
+      const row = await electPcm({ electorId, pcmId })
+      return send(res, 200, { election: row })
+    }
+
+    if (req.method === 'POST' && req.url === '/election/respond') {
+      const { electionId, pcmId, accept } = await readJson(req)
+      return send(res, 200, await respondPcm({ electionId, pcmId, accept }))
+    }
+
+    if (req.method === 'POST' && req.url === '/call/start') {
+      const { roomName, userName, isOwner } = await readJson(req)
+      if (!roomName) return send(res, 400, { error: 'roomName required' })
+      const room = await dailyEnsureRoom(roomName)
+      const token = await dailyMintToken(roomName, { userName, isOwner })
+      return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token })
+    }
+
+    if (req.method === 'POST' && req.url === '/townhall/join') {
+      const { userId, userName } = await readJson(req)
+      const { data: th } = await sb.from('prep_townhalls').select('*').order('scheduled_at', { ascending: true }).limit(1).maybeSingle()
+      if (!th) return send(res, 404, { error: 'no townhall' })
+      const { data: hostRow } = userId ? await sb.from('prep_townhall_hosts').select('user_id').eq('user_id', userId).maybeSingle() : { data: null }
+      const isOwner = !!hostRow
+      const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
+      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner })
+      return send(res, 200, { url: `${room.url}?t=${token}`, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic, isOwner })
+    }
+
     send(res, 404, { error: 'not_found' })
   } catch (e) {
     console.error('[err]', e)

@@ -203,6 +203,15 @@
       <div class="card-title">✝ Welcome</div>
       <div class="card-text">Begin by watching the gateway video. Once it is finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
     </div>
+
+    <!-- Townhall card -->
+    <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="joinTownhall()">
+      <div class="card-title" style="color:var(--terra-deep);display:flex;align-items:center;justify-content:space-between">
+        <span>🎙 Weekly Townhall</span>
+        <span id="townhall-when" style="font-size:11px;font-weight:400;color:var(--walnut-mid);font-style:italic;text-transform:none">—</span>
+      </div>
+      <div class="card-text" id="townhall-text">Join the call.</div>
+    </div>
     <div class="tile-row">
       <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Gateway Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
       <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">⛪</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
@@ -241,6 +250,19 @@
     <div class="card" id="pcm-current" style="display:none">
       <div class="card-title" style="color:#2d7a4f">✓ Your Personal Contact Minister</div>
       <div id="pcm-current-body"></div>
+    </div>
+
+    <!-- Pending outbound election (elector waiting) -->
+    <div class="card" id="pcm-pending" style="display:none;border-color:var(--gold);background:var(--gold-soft)">
+      <div class="card-title" style="color:var(--gold)">⏳ Awaiting Acceptance</div>
+      <div class="card-text">You have elected <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
+      <div style="text-align:right;margin-top:10px"><button class="link-btn" onclick="changePcm()">Withdraw election</button></div>
+    </div>
+
+    <!-- Inbound elections (PCM viewing requests) -->
+    <div class="card" id="pcm-inbound" style="display:none;border-color:var(--terra)">
+      <div class="card-title" style="color:var(--terra-deep)">⛪ Elections Awaiting Your Response</div>
+      <div data-inbound-list></div>
     </div>
 
     <!-- Volunteer status (only visible once user is a PCM themselves) -->
@@ -313,6 +335,28 @@
     </div>
   </div>
 
+  <div class="page" id="page-messages">
+    <div class="card">
+      <div class="card-title">💬 Messages</div>
+      <div class="card-text" id="msg-intro">Direct messages with your Personal Contact Minister.</div>
+    </div>
+    <div id="msg-empty" class="empty" style="display:none"><span class="ico">💬</span>You'll be able to message your PCM here once your election is accepted.</div>
+    <div id="msg-thread-wrap" style="display:none">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--teal);color:var(--cream)">
+          <div class="pcm-av" id="msg-peer-av" style="background:var(--cream);color:var(--teal)">?</div>
+          <div style="flex:1"><div style="font-family:'Spectral',serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
+          <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
+        </div>
+        <div id="msg-list" style="padding:14px 16px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
+        <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px">
+          <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:inherit;font-size:14px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-join-tln">
     <div class="card">
       <div class="card-title">Join The Living Network</div>
@@ -367,6 +411,7 @@
     <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Library</button>
     <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
     <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM</button>
+    <button class="nav-btn" onclick="showPage('messages')" style="position:relative"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" style="display:none;position:absolute;top:2px;right:18px;background:var(--terra);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:600">●</span></button>
     <button class="nav-btn" onclick="signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Out</button>
   </div>
 </div>
@@ -449,6 +494,8 @@ function enterApp(){
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   showPage('home');
+  refreshMessageBadge();
+  setInterval(refreshMessageBadge, 30000);
 }
 
 function showPage(name){
@@ -464,9 +511,101 @@ function showPage(name){
   if(name === 'library') buildLibraryPage();
   if(name === 'video') buildGatewayPage();
   if(name !== 'video') stopGatewayPlayer();
-  if(name === 'home') refreshHomeTiles();
+  if(name === 'home'){ refreshHomeTiles(); refreshTownhallCard(); }
   if(name === 'books') buildBooksPage();
   if(name !== 'books') closeBookListen();
+  if(name === 'messages') buildMessagesPage();
+}
+
+// ═════════════════════════ TOWNHALL ═════════════════════════
+async function refreshTownhallCard(){
+  if(!_sb) return;
+  const { data: th } = await _sb.from('prep_townhalls').select('*').order('scheduled_at').limit(1).maybeSingle();
+  const card = document.getElementById('townhall-card');
+  if(!th){ if(card) card.style.display='none'; return; }
+  card.style.display = 'block';
+  const at = new Date(th.scheduled_at);
+  const isUpcoming = at.getTime() > Date.now() - 60*60*1000; // within last hour or future
+  document.getElementById('townhall-when').textContent = at.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  document.getElementById('townhall-text').textContent = th.topic ? th.topic + ' — tap to join' : 'Tap to join the call';
+}
+
+async function joinTownhall(){
+  if(!_sb || !currentUser) return;
+  try {
+    const r = await fetch(_SERVER_URL + '/townhall/join', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: currentUser.id, userName: currentUser.name || 'Guest' })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'townhall failed');
+    window.open(j.url, '_blank');
+  } catch(e){
+    alert('Could not join: ' + e.message);
+  }
+}
+
+// ═════════════════════════ MESSAGES ═════════════════════════
+let _msgPeerId = null;
+let _msgPollTimer = null;
+
+async function buildMessagesPage(){
+  if(!_sb || !currentUser) return;
+  const empty = document.getElementById('msg-empty');
+  const wrap  = document.getElementById('msg-thread-wrap');
+
+  if(!currentUser.pcm_id){ empty.style.display = 'block'; wrap.style.display = 'none'; return; }
+  empty.style.display = 'none'; wrap.style.display = 'block';
+
+  // Find peer info
+  const { data: peer } = await _sb.from('prep_users').select('id, name, region').eq('id', currentUser.pcm_id).maybeSingle();
+  if(!peer){ empty.style.display='block'; wrap.style.display='none'; return; }
+  _msgPeerId = peer.id;
+  document.getElementById('msg-peer-av').textContent = _initials(peer.name);
+  document.getElementById('msg-peer-name').textContent = peer.name || '—';
+  document.getElementById('msg-peer-role').textContent = 'Your Personal Contact Minister' + (peer.region ? ' · ' + peer.region : '');
+
+  await loadMessages();
+  // Poll every 5s while on this page
+  if(_msgPollTimer) clearInterval(_msgPollTimer);
+  _msgPollTimer = setInterval(() => { if(document.getElementById('page-messages').classList.contains('active')) loadMessages(); }, 5000);
+}
+
+async function loadMessages(){
+  if(!_msgPeerId) return;
+  const { data: msgs } = await _sb.from('prep_messages')
+    .select('*')
+    .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${_msgPeerId}),and(sender_id.eq.${_msgPeerId},recipient_id.eq.${currentUser.id})`)
+    .order('created_at');
+  const list = document.getElementById('msg-list');
+  list.innerHTML = (msgs || []).map(m => {
+    const mine = m.sender_id === currentUser.id;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:14px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap">${_esc(m.body)}</div>`;
+  }).join('');
+  list.scrollTop = list.scrollHeight;
+
+  // Mark unread inbound as read
+  await _sb.from('prep_messages').update({ read_at: new Date().toISOString() })
+    .eq('recipient_id', currentUser.id).eq('sender_id', _msgPeerId).is('read_at', null);
+  refreshMessageBadge();
+}
+
+async function sendMessage(){
+  const input = document.getElementById('msg-input');
+  const text = (input.value || '').trim();
+  if(!text || !_msgPeerId) return;
+  input.value = '';
+  await _sb.from('prep_messages').insert({ sender_id: currentUser.id, recipient_id: _msgPeerId, body: text });
+  await loadMessages();
+}
+
+async function refreshMessageBadge(){
+  if(!_sb || !currentUser) return;
+  const { count } = await _sb.from('prep_messages')
+    .select('id', { count:'exact', head:true })
+    .eq('recipient_id', currentUser.id).is('read_at', null);
+  const badge = document.getElementById('nav-msg-badge');
+  if(badge) badge.style.display = (count && count > 0) ? 'inline' : 'none';
 }
 
 // ═════════════════════════ BOOKS ═════════════════════════
@@ -830,10 +969,72 @@ async function buildPcmPage(){
         +   _pcmChannelLines(chosen)
         + '</div>'
         + '</div>'
-        + '<div style="text-align:right;margin-top:10px"><button class="link-btn" onclick="changePcm()">Change</button></div>';
+        + '<div style="text-align:right;margin-top:10px;display:flex;gap:8px;justify-content:flex-end">'
+        + '<button class="link-btn" onclick="showPage(\'messages\')">💬 Message</button>'
+        + '<button class="link-btn" onclick="startPcmCall()">📞 Call</button>'
+        + '<button class="link-btn" onclick="changePcm()">Change</button>'
+        + '</div>';
     }
   } else {
     document.getElementById('pcm-current').style.display = 'none';
+  }
+
+  // 6. Pending outbound election (elector waiting for PCM response)
+  const pendingCard = document.getElementById('pcm-pending');
+  if(pendingCard){
+    const { data: out } = await _sb.from('prep_pcm_elections')
+      .select('*, pcm:pcm_id(name, region)').eq('elector_id', currentUser.id)
+      .eq('status', 'pending').maybeSingle();
+    if(out){
+      pendingCard.style.display = 'block';
+      pendingCard.querySelector('[data-pending-name]').textContent = out.pcm?.name || '—';
+    } else {
+      pendingCard.style.display = 'none';
+    }
+  }
+
+  // 7. Inbound elections (where I am the PCM and someone has elected me)
+  const inboundCard = document.getElementById('pcm-inbound');
+  if(inboundCard && _pcmAmIPcm){
+    const { data: inbound } = await _sb.from('prep_pcm_elections')
+      .select('id, elector_id, elected_at, elector:elector_id(name, email, region)')
+      .eq('pcm_id', currentUser.id).eq('status', 'pending').order('elected_at');
+    if((inbound || []).length){
+      inboundCard.style.display = 'block';
+      inboundCard.querySelector('[data-inbound-list]').innerHTML = inbound.map(e =>
+        '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">'
+        + '<div class="pcm-av">' + _initials(e.elector?.name || '?') + '</div>'
+        + '<div style="flex:1">'
+        +   '<div class="pcm-name">' + _esc(e.elector?.name || 'Unknown') + '</div>'
+        +   (e.elector?.region ? '<div class="pcm-meta">' + _esc(e.elector.region) + '</div>' : '')
+        + '</div>'
+        + '<button class="pcm-pick" style="background:#2d7a4f;color:#fff" onclick="pcmRespondElection(' + e.id + ', true)">Accept</button>'
+        + '<button class="link-btn" style="margin-left:6px" onclick="pcmRespondElection(' + e.id + ', false)">Decline</button>'
+        + '</div>'
+      ).join('');
+    } else {
+      inboundCard.style.display = 'none';
+    }
+  } else if(inboundCard){
+    inboundCard.style.display = 'none';
+  }
+}
+
+async function startPcmCall(){
+  if(!currentUser?.pcm_id) return;
+  // Room name: deterministic per pairing so both sides land in same room
+  const ids = [currentUser.id, currentUser.pcm_id].sort().join('-');
+  const roomName = 'py-' + ids.slice(0, 24);
+  try {
+    const r = await fetch(_SERVER_URL + '/call/start', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ roomName, userName: currentUser.name || 'User', isOwner: false })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'call failed');
+    window.open(j.url, '_blank');
+  } catch(e){
+    alert('Could not start call: ' + e.message);
   }
 }
 
@@ -868,20 +1069,58 @@ function _esc(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Elect (replaces direct pick): creates pending election, emails the PCM.
 async function choosePcm(pcmId){
   if(!_sb || !currentUser) return;
-  const { error } = await _sb.from('prep_users').update({ pcm_id: pcmId }).eq('id', currentUser.id);
-  if(error){ alert('Could not save: ' + error.message); return; }
-  currentUser.pcm_id = pcmId;
-  buildPcmPage();
+  // Block if elector already has pending or accepted election
+  const { data: existing } = await _sb.from('prep_pcm_elections')
+    .select('id, status').eq('elector_id', currentUser.id).in('status', ['pending','accepted']).maybeSingle();
+  if(existing){
+    alert(existing.status === 'pending'
+      ? 'You already have an election awaiting response. Please wait or withdraw it.'
+      : 'You already have an accepted PCM. Withdraw the current pairing first.');
+    return;
+  }
+  try {
+    const r = await fetch(_SERVER_URL + '/elect', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ electorId: currentUser.id, pcmId })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'election failed');
+    alert('Election sent. Your PCM has been emailed and will accept or decline shortly.');
+    buildPcmPage();
+  } catch(e){
+    alert('Could not send election: ' + e.message);
+  }
 }
 
 async function changePcm(){
   if(!_sb || !currentUser) return;
-  if(!confirm('Choose a different Personal Contact Minister?')) return;
+  if(!confirm('Withdraw current PCM pairing and choose a different one?')) return;
+  // Mark any active election as declined and clear pcm_id
+  await _sb.from('prep_pcm_elections')
+    .update({ status: 'declined', responded_at: new Date().toISOString() })
+    .eq('elector_id', currentUser.id).in('status', ['pending','accepted']);
   await _sb.from('prep_users').update({ pcm_id: null }).eq('id', currentUser.id);
   currentUser.pcm_id = null;
   buildPcmPage();
+}
+
+async function pcmRespondElection(electionId, accept){
+  if(!_sb || !currentUser) return;
+  if(!accept && !confirm('Decline this election? The user will be told you are currently unavailable.')) return;
+  try {
+    const r = await fetch(_SERVER_URL + '/election/respond', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ electionId, pcmId: currentUser.id, accept })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'response failed');
+    buildPcmPage();
+  } catch(e){
+    alert('Could not respond: ' + e.message);
+  }
 }
 
 function openPcmVolunteer(){
