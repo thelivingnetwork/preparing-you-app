@@ -478,7 +478,7 @@ const _SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const _SERVER_URL = 'https://preparing-you-server.onrender.com';
 
 const _sb = (window.supabase && _SB_URL.startsWith('http'))
-  ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } })
+  ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: false, autoRefreshToken: false } })
   : null;
 
 let currentUser = null;
