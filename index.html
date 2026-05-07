@@ -302,6 +302,12 @@
       <div data-inbound-list></div>
     </div>
 
+    <!-- Electors I have accepted — ready for sign-off into TLN -->
+    <div class="card" id="pcm-electors" style="display:none">
+      <div class="card-title" style="color:var(--teal)">📜 Your Electors</div>
+      <div data-electors-list></div>
+    </div>
+
     <!-- Volunteer status (only visible once user is a PCM themselves) -->
     <div class="card" id="pcm-mine" style="display:none;border-color:var(--gold)">
       <div class="card-title">⛪ You Are a PCM</div>
@@ -1281,6 +1287,52 @@ async function buildPcmPage(){
     }
   } else if(inboundCard){
     inboundCard.style.display = 'none';
+  }
+
+  // 8. Accepted electors (PCM can sign them off into TLN)
+  const electorsCard = document.getElementById('pcm-electors');
+  if(electorsCard && _pcmAmIPcm){
+    const { data: accepted } = await _sb.from('prep_pcm_elections')
+      .select('id, elector_id, responded_at, elector:elector_id(name, email, region, tln_invited_at)')
+      .eq('pcm_id', currentUser.id).eq('status', 'accepted').order('responded_at', { ascending:false });
+    if((accepted || []).length){
+      electorsCard.style.display = 'block';
+      electorsCard.querySelector('[data-electors-list]').innerHTML = accepted.map(e => {
+        const invited = !!e.elector?.tln_invited_at;
+        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">'
+          + '<div class="pcm-av">' + _initials(e.elector?.name || '?') + '</div>'
+          + '<div style="flex:1">'
+          +   '<div class="pcm-name">' + _esc(e.elector?.name || 'Unknown') + '</div>'
+          +   (e.elector?.region ? '<div class="pcm-meta">' + _esc(e.elector.region) + '</div>' : '')
+          +   (invited ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:3px">✓ TLN invited</div>' : '')
+          + '</div>'
+          + (invited
+              ? '<span style="font-size:11px;color:var(--walnut-mid);font-style:italic">Already invited</span>'
+              : '<button class="pcm-pick" style="background:var(--teal);color:#fff" onclick="signoffToTln(\'' + e.elector_id + '\', \'' + _esc(e.elector?.name || '') + '\')">Sign off &amp; invite to TLN</button>')
+          + '</div>';
+      }).join('');
+    } else {
+      electorsCard.style.display = 'none';
+    }
+  } else if(electorsCard){
+    electorsCard.style.display = 'none';
+  }
+}
+
+async function signoffToTln(electorId, electorName){
+  if(!confirm('Sign off on '+(electorName||'this elector')+' and invite them into The Living Network? They will be emailed a signup link.')) return;
+  try {
+    const r = await fetch(_SERVER_URL + '/tln/invite', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: electorId, fromName: currentUser?.name || null })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'invite failed');
+    if(!j.ok) alert('Could not send: ' + (j.reason || 'unknown'));
+    else alert('Invitation sent. They will receive an email with a TLN signup link.');
+    buildPcmPage();
+  } catch(e){
+    alert('Could not invite: ' + e.message);
   }
 }
 

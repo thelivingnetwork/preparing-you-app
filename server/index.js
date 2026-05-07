@@ -175,6 +175,26 @@ async function dailyMintToken(roomName, { userName, isOwner }) {
   return (await r.json()).token
 }
 
+// ─── TLN invitation ─────────────────────────────────────────────────────
+const TLN_URL = process.env.TLN_URL || 'https://livingnetwork.netlify.app'
+
+async function inviteToTln(userId, reasonHtml) {
+  if (!userId) return { ok: false, reason: 'no userId' }
+  const { data: u } = await sb.from('prep_users').select('name, email, tln_invited_at').eq('id', userId).maybeSingle()
+  if (!u?.email) return { ok: false, reason: 'no email' }
+  if (u.tln_invited_at) return { ok: false, reason: 'already invited', at: u.tln_invited_at }
+
+  await sendEmail(u.email, 'You have been invited to The Living Network',
+    emailWrap('Welcome to The Living Network',
+      (reasonHtml || `<p>${u.name || 'Friend'},</p><p>Your preparation has been recognised.</p>`) +
+      `<p>You may now create your account in The Living Network. Use the same email so your records align.</p>`,
+      'Open The Living Network', TLN_URL))
+
+  await sb.from('prep_users').update({ tln_invited_at: new Date().toISOString() }).eq('id', userId)
+  await notify(userId, '✝', 'You have been invited to The Living Network. Check your email.', { type:'page', page:'join-tln' })
+  return { ok: true }
+}
+
 // ─── Notification helper ────────────────────────────────────────────────
 async function notify(userId, icon, text, action) {
   if (!userId) return
@@ -246,6 +266,19 @@ async function respondPcm({ electionId, pcmId, accept }) {
   }
   if (accept) await notify(el.elector_id, '✓', `${pcm?.name || 'Your PCM'} accepted your election.`, { type:'page', page:'messages' })
   else        await notify(el.elector_id, '⚠', `${pcm?.name || 'Your PCM'} is currently unavailable. Choose another.`, { type:'page', page:'pcm' })
+
+  // Auto-invite the PCM to TLN on their first accepted election (the
+  // act of being chosen by another is the qualifying event).
+  if (accept) {
+    const { count } = await sb.from('prep_pcm_elections')
+      .select('id', { count:'exact', head:true })
+      .eq('pcm_id', pcmId).eq('status', 'accepted')
+    if (count === 1) {
+      await inviteToTln(pcmId,
+        `<p>${pcm?.name || 'Friend'},</p>
+         <p>You have been chosen by ${elector?.name || 'someone'} as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network.</p>`)
+    }
+  }
   return { status: newStatus }
 }
 
@@ -255,7 +288,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.5.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.6.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -282,6 +315,16 @@ const server = http.createServer(async (req, res) => {
       const room = await dailyEnsureRoom(roomName)
       const token = await dailyMintToken(roomName, { userName, isOwner })
       return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token })
+    }
+
+    if (req.method === 'POST' && req.url === '/tln/invite') {
+      const { userId, fromName } = await readJson(req)
+      if (!userId) return send(res, 400, { error: 'userId required' })
+      const reason = fromName
+        ? `<p>${fromName} has signed off on your readiness and invites you to enter The Living Network.</p>`
+        : `<p>You have been invited to enter The Living Network.</p>`
+      const result = await inviteToTln(userId, reason)
+      return send(res, 200, result)
     }
 
     if (req.method === 'POST' && req.url === '/welcome') {
