@@ -729,9 +729,22 @@ async function loadMessages(){
 async function sendMessage(){
   const input = document.getElementById('msg-input');
   const text = (input.value || '').trim();
-  if(!text || !_msgPeerId) return;
+  if(!text){ return; }
+  if(!_msgPeerId){
+    alert('No peer selected. Refresh the page.');
+    return;
+  }
+  if(!currentUser?.id){
+    alert('You appear to be signed out. Refresh and sign in again.');
+    return;
+  }
   input.value = '';
-  await _sb.from('prep_messages').insert({ sender_id: currentUser.id, recipient_id: _msgPeerId, body: text });
+  const { error } = await _sb.from('prep_messages').insert({ sender_id: currentUser.id, recipient_id: _msgPeerId, body: text });
+  if(error){
+    input.value = text; // restore so they don't lose their message
+    alert('Could not send: ' + error.message);
+    return;
+  }
   await loadMessages();
 }
 
