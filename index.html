@@ -169,6 +169,25 @@
         <label class="form-label">Password</label>
         <input class="form-input" id="si-pw" type="password" placeholder="••••••••">
         <button class="btn-primary" onclick="doSignIn()">Continue</button>
+        <div style="text-align:center;margin-top:12px"><a onclick="openForgotPassword()" style="font-size:12px;color:var(--walnut-mid);font-style:italic;cursor:pointer;text-decoration:underline">Forgot your password?</a></div>
+      </div>
+
+      <div id="panel-forgot" style="display:none">
+        <div id="forgot-error" class="auth-error"></div>
+        <div id="forgot-success" style="display:none;background:rgba(45,122,79,.1);border:1px solid rgba(45,122,79,.3);color:var(--success,#2d7a4f);padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic">Check your email for a reset link.</div>
+        <p style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin:0 0 8px">Enter your email and we'll send a reset link.</p>
+        <label class="form-label">Email address</label>
+        <input class="form-input" id="forgot-email" type="email" placeholder="your@email.com">
+        <button class="btn-primary" onclick="doForgotPassword()">Send reset link</button>
+        <div style="text-align:center;margin-top:12px"><a onclick="showAuthTab('signin')" style="font-size:12px;color:var(--walnut-mid);font-style:italic;cursor:pointer;text-decoration:underline">← Back to sign in</a></div>
+      </div>
+
+      <div id="panel-reset" style="display:none">
+        <div id="reset-error" class="auth-error"></div>
+        <p style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin:0 0 8px">Choose a new password.</p>
+        <label class="form-label">New password</label>
+        <input class="form-input" id="reset-pw" type="password" placeholder="At least 8 characters">
+        <button class="btn-primary" onclick="doResetPassword()">Set new password</button>
       </div>
 
       <div id="panel-join" style="display:none">
@@ -324,7 +343,7 @@
   <div class="page" id="page-books">
     <div class="card">
       <div class="card-title">The Five Books</div>
-      <div class="card-text">Read each book in full, or listen to a 15-minute audio overview — a podcast-style discussion drawn from the source. Paul can answer any question that comes up.</div>
+      <div class="card-text">Read each book in full and listen to a 15-minute audio overview — a podcast-style discussion drawn from the source. Paul can answer any question that comes up.</div>
     </div>
     <div id="books-list"><div class="empty"><span class="ico">📖</span>Loading…</div></div>
 
@@ -432,9 +451,44 @@ let currentUser = null;
 // ═════════════════════════ AUTH UI ═════════════════════════
 function showAuthTab(name){
   document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  document.getElementById('panel-signin').style.display = name==='signin' ? 'block' : 'none';
-  document.getElementById('panel-join').style.display   = name==='join'   ? 'block' : 'none';
+  const tab = document.getElementById('tab-'+name); if(tab) tab.classList.add('active');
+  ['signin','join','forgot','reset'].forEach(n => {
+    const p = document.getElementById('panel-'+n); if(p) p.style.display = (n===name) ? 'block' : 'none';
+  });
+}
+
+function openForgotPassword(){
+  document.getElementById('forgot-error').classList.remove('show');
+  document.getElementById('forgot-success').style.display = 'none';
+  document.getElementById('forgot-email').value = document.getElementById('si-email').value || '';
+  showAuthTab('forgot');
+}
+
+async function doForgotPassword(){
+  const email = document.getElementById('forgot-email').value.trim().toLowerCase();
+  const err   = document.getElementById('forgot-error');
+  const ok    = document.getElementById('forgot-success');
+  err.classList.remove('show'); ok.style.display = 'none';
+  if(!email){ err.textContent='Enter your email.'; err.classList.add('show'); return; }
+  const { error } = await _sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/?reset=1'
+  });
+  if(error){ err.textContent = error.message; err.classList.add('show'); return; }
+  ok.style.display = 'block';
+}
+
+async function doResetPassword(){
+  const pw  = document.getElementById('reset-pw').value;
+  const err = document.getElementById('reset-error');
+  err.classList.remove('show');
+  if(!pw || pw.length < 8){ err.textContent='Password must be at least 8 characters.'; err.classList.add('show'); return; }
+  const { error } = await _sb.auth.updateUser({ password: pw });
+  if(error){ err.textContent = error.message; err.classList.add('show'); return; }
+  // Clean URL and proceed
+  history.replaceState({}, '', window.location.pathname);
+  const { data: { session } } = await _sb.auth.getSession();
+  if(session?.user){ await _loadProfile(session.user); enterApp(); }
+  else showAuthTab('signin');
 }
 
 async function doSignIn(){
@@ -467,6 +521,11 @@ async function doJoin(){
   });
   if(error){ err.textContent = error.message; err.classList.add('show'); return; }
   await _loadProfile(data.user);
+  // Fire-and-forget welcome email
+  fetch(_SERVER_URL + '/welcome', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ userId: data.user.id })
+  }).catch(()=>{});
   enterApp();
 }
 
@@ -1273,13 +1332,31 @@ async function signOut(){
 
 // ═════════════════════════ INIT ═════════════════════════
 window.addEventListener('load', async ()=>{
-  if(_sb){
-    const { data } = await _sb.auth.getSession();
-    if(data?.session?.user){
-      await _loadProfile(data.session.user);
-      enterApp();
-    }
+  if(!_sb) return;
+
+  // Recovery flow — Supabase delivers the access token in the URL hash with type=recovery.
+  // The supabase-js client picks it up automatically on init; we just need to surface the
+  // password-reset panel before any other gating.
+  const hash = window.location.hash || '';
+  if(hash.includes('type=recovery') || new URL(window.location.href).searchParams.get('reset') === '1'){
+    showAuthTab('reset');
+    return;
   }
+
+  const { data } = await _sb.auth.getSession();
+  if(data?.session?.user){
+    await _loadProfile(data.session.user);
+    enterApp();
+  }
+});
+
+// React to the recovery state arriving asynchronously after supabase parses the hash.
+if(window._sb){ /* placeholder — sb already created above */ }
+document.addEventListener('DOMContentLoaded', () => {
+  if(!_sb) return;
+  _sb.auth.onAuthStateChange((event) => {
+    if(event === 'PASSWORD_RECOVERY'){ showAuthTab('reset'); }
+  });
 });
 </script>
 </body>

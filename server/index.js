@@ -186,12 +186,21 @@ async function electPcm({ electorId, pcmId }) {
     .select().single()
   if (error) throw new Error(error.message)
 
-  // Look up names + email of PCM, name of elector
+  // Look up names + email of PCM, name+email of elector
   const { data: pcm } = await sb.from('prep_users').select('name, email').eq('id', pcmId).single()
-  const { data: elector } = await sb.from('prep_users').select('name').eq('id', electorId).single()
+  const { data: elector } = await sb.from('prep_users').select('name, email').eq('id', electorId).single()
   if (pcm?.email) {
     await sendEmail(pcm.email, 'You have been elected as a Personal Contact Minister',
-      emailWrap('A new election', `<p>${elector?.name || 'A user'} has elected you as their Personal Contact Minister.</p><p>Open the app to accept or decline.</p>`,
+      emailWrap('A new election',
+        `<p>${elector?.name || 'A user'} has elected you as their Personal Contact Minister.</p>
+         <p>Open the app to accept or decline. If you accept, you will be paired with them in messages and able to walk alongside their preparation.</p>`,
+        'Open Preparing You', 'https://preparing-you.netlify.app'))
+  }
+  if (elector?.email) {
+    await sendEmail(elector.email, 'Your election has been sent',
+      emailWrap('Election sent',
+        `<p>You have elected <strong>${pcm?.name || 'a Personal Contact Minister'}</strong>.</p>
+         <p>They have been emailed and will respond shortly. We will email you again once they accept or decline.</p>`,
         'Open Preparing You', 'https://preparing-you.netlify.app'))
   }
   return row
@@ -235,7 +244,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.3.1' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.4.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -262,6 +271,21 @@ const server = http.createServer(async (req, res) => {
       const room = await dailyEnsureRoom(roomName)
       const token = await dailyMintToken(roomName, { userName, isOwner })
       return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token })
+    }
+
+    if (req.method === 'POST' && req.url === '/welcome') {
+      const { userId } = await readJson(req)
+      if (!userId) return send(res, 400, { error: 'userId required' })
+      const { data: u } = await sb.from('prep_users').select('name, email').eq('id', userId).maybeSingle()
+      if (u?.email) {
+        await sendEmail(u.email, 'Welcome to Preparing You',
+          emailWrap('Welcome',
+            `<p>Peace to you, ${u.name || 'friend'}.</p>
+             <p>You have begun the work of preparation. Three short videos and five short books wait inside, along with Paul — an AI guide drawn from those books — and a community of Personal Contact Ministers ready to walk this with you.</p>
+             <p>Begin where you are.</p>`,
+            'Open Preparing You', 'https://preparing-you.netlify.app'))
+      }
+      return send(res, 200, { ok: true })
     }
 
     if (req.method === 'POST' && req.url === '/peers') {
