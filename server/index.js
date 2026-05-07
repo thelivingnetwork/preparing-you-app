@@ -187,17 +187,19 @@ async function dailyMintToken(roomName, { userName, isOwner }) {
 // ─── TLN invitation ─────────────────────────────────────────────────────
 const TLN_URL = process.env.TLN_URL || 'https://livingnetwork.netlify.app'
 
-async function inviteToTln(userId, reasonHtml) {
+async function inviteToTln(userId, reasonHtml, skipEmail) {
   if (!userId) return { ok: false, reason: 'no userId' }
   const { data: u } = await sb.from('prep_users').select('name, email, tln_invited_at').eq('id', userId).maybeSingle()
   if (!u?.email) return { ok: false, reason: 'no email' }
   if (u.tln_invited_at) return { ok: false, reason: 'already invited', at: u.tln_invited_at }
 
-  await sendEmail(u.email, 'You have been invited to The Living Network',
-    emailWrap('Welcome to The Living Network',
-      (reasonHtml || `<p>${u.name || 'Friend'},</p><p>Your preparation has been recognised.</p>`) +
-      `<p>You may now create your account in The Living Network. Use the same email so your records align.</p>`,
-      'Open The Living Network', TLN_URL))
+  if (!skipEmail) {
+    await sendEmail(u.email, 'You have been invited to The Living Network',
+      emailWrap('Welcome to The Living Network',
+        (reasonHtml || `<p>${u.name || 'Friend'},</p><p>Your preparation has been recognised.</p>`) +
+        `<p>You may now create your account in The Living Network. Use the same email so your records align.</p>`,
+        'Open The Living Network', TLN_URL))
+  }
 
   await sb.from('prep_users').update({ tln_invited_at: new Date().toISOString() }).eq('id', userId)
   await notify(userId, '✝', 'You have been invited to The Living Network. Check your email.', { type:'page', page:'join-tln' })
@@ -212,7 +214,7 @@ async function notify(userId, icon, text, action) {
 }
 
 // ─── PCM election ───────────────────────────────────────────────────────
-async function electPcm({ electorId, pcmId }) {
+async function electPcm({ electorId, pcmId, skipEmail }) {
   if (!electorId || !pcmId) throw new Error('electorId and pcmId required')
   if (electorId === pcmId) throw new Error('cannot elect self')
 
@@ -225,14 +227,14 @@ async function electPcm({ electorId, pcmId }) {
   // Look up names + email of PCM, name+email of elector
   const { data: pcm } = await sb.from('prep_users').select('name, email').eq('id', pcmId).single()
   const { data: elector } = await sb.from('prep_users').select('name, email').eq('id', electorId).single()
-  if (pcm?.email) {
+  if (!skipEmail && pcm?.email) {
     await sendEmail(pcm.email, 'You have been elected as a Personal Contact Minister',
       emailWrap('A new election',
         `<p>${elector?.name || 'A user'} has elected you as their Personal Contact Minister.</p>
          <p>Open the app to accept or decline. If you accept, you will be paired with them in messages and able to walk alongside their preparation.</p>`,
         'Open Preparing You', 'https://preparingyou.netlify.app'))
   }
-  if (elector?.email) {
+  if (!skipEmail && elector?.email) {
     await sendEmail(elector.email, 'Your election has been sent',
       emailWrap('Election sent',
         `<p>You have elected <strong>${pcm?.name || 'a Personal Contact Minister'}</strong>.</p>
@@ -244,7 +246,7 @@ async function electPcm({ electorId, pcmId }) {
   return row
 }
 
-async function respondPcm({ electionId, pcmId, accept }) {
+async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
   const { data: el, error: e1 } = await sb.from('prep_pcm_elections')
     .select('*').eq('id', electionId).maybeSingle()
   if (e1 || !el) throw new Error('election not found')
@@ -260,7 +262,7 @@ async function respondPcm({ electionId, pcmId, accept }) {
 
   const { data: elector } = await sb.from('prep_users').select('name, email').eq('id', el.elector_id).single()
   const { data: pcm } = await sb.from('prep_users').select('name').eq('id', pcmId).single()
-  if (elector?.email) {
+  if (!skipEmail && elector?.email) {
     if (accept) {
       await sendEmail(elector.email, 'Your PCM accepted your election',
         emailWrap('Accepted',
@@ -278,17 +280,29 @@ async function respondPcm({ electionId, pcmId, accept }) {
 
   // Auto-invite the PCM to TLN on their first accepted election (the
   // act of being chosen by another is the qualifying event).
+  let pcmAutoInvited = false
+  let pcmEmail = null
+  let pcmName = pcm?.name
   if (accept) {
     const { count } = await sb.from('prep_pcm_elections')
       .select('id', { count:'exact', head:true })
       .eq('pcm_id', pcmId).eq('status', 'accepted')
     if (count === 1) {
-      await inviteToTln(pcmId,
+      // Skip the server email (client will send via EmailJS); inviteToTln
+      // still records tln_invited_at + drops a notification.
+      const result = await inviteToTln(pcmId,
         `<p>${pcm?.name || 'Friend'},</p>
-         <p>You have been chosen by ${elector?.name || 'someone'} as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network.</p>`)
+         <p>You have been chosen by ${elector?.name || 'someone'} as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network.</p>`,
+        skipEmail)
+      if (result.ok) {
+        pcmAutoInvited = true
+        const { data: pcmFull } = await sb.from('prep_users').select('name, email').eq('id', pcmId).single()
+        pcmEmail = pcmFull?.email
+        pcmName = pcmFull?.name
+      }
     }
   }
-  return { status: newStatus }
+  return { status: newStatus, pcmAutoInvited, pcmEmail, pcmName, electorName: elector?.name }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -297,7 +311,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.8.2' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -308,14 +322,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/elect') {
-      const { electorId, pcmId } = await readJson(req)
-      const row = await electPcm({ electorId, pcmId })
+      const { electorId, pcmId, skipEmail } = await readJson(req)
+      const row = await electPcm({ electorId, pcmId, skipEmail })
       return send(res, 200, { election: row })
     }
 
     if (req.method === 'POST' && req.url === '/election/respond') {
-      const { electionId, pcmId, accept } = await readJson(req)
-      return send(res, 200, await respondPcm({ electionId, pcmId, accept }))
+      const { electionId, pcmId, accept, skipEmail } = await readJson(req)
+      return send(res, 200, await respondPcm({ electionId, pcmId, accept, skipEmail }))
     }
 
     if (req.method === 'POST' && req.url === '/call/start') {
@@ -327,20 +341,20 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/tln/invite') {
-      const { userId, fromName } = await readJson(req)
+      const { userId, fromName, skipEmail } = await readJson(req)
       if (!userId) return send(res, 400, { error: 'userId required' })
       const reason = fromName
         ? `<p>${fromName} has signed off on your readiness and invites you to enter The Living Network.</p>`
         : `<p>You have been invited to enter The Living Network.</p>`
-      const result = await inviteToTln(userId, reason)
+      const result = await inviteToTln(userId, reason, skipEmail)
       return send(res, 200, result)
     }
 
     if (req.method === 'POST' && req.url === '/welcome') {
-      const { userId } = await readJson(req)
+      const { userId, skipEmail } = await readJson(req)
       if (!userId) return send(res, 400, { error: 'userId required' })
       const { data: u } = await sb.from('prep_users').select('name, email').eq('id', userId).maybeSingle()
-      if (u?.email) {
+      if (!skipEmail && u?.email) {
         await sendEmail(u.email, 'Welcome to Preparing You',
           emailWrap('Welcome',
             `<p>Peace to you, ${u.name || 'friend'}.</p>
