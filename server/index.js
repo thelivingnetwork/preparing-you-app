@@ -349,7 +349,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.2' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.3' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -573,10 +573,20 @@ async function runTownhallReminders() {
 
       // 2) Emails via EmailJS REST — sequential with small delay
       const subject = `${title} starts in ${minsAway} minutes`
-      const message = `The townhall begins shortly.\n\n${title}${th.topic ? ' — ' + th.topic : ''}\nStarts at ${at.toUTCString()} (your local time is shown in the app).\n\nOpen the app to join when the moderator goes live: https://preparingyou.netlify.app`
+      const topicLine = th.topic ? `\n\n${title} — ${th.topic}` : `\n\n${title}`
       for (const u of list) {
         if (u.email) {
-          await sendEmailJS(u.name || 'Friend', u.email, subject, message)
+          const greet = u.name ? `Peace to you, ${u.name}.` : 'Peace to you.'
+          const message =
+`${greet}
+
+The townhall begins in ${minsAway} minutes.${topicLine}
+
+When the moderator opens the call, a "Townhall is live" banner will appear across the app. Tap it to join — or open Preparing You and your local start time will be shown.
+
+Open Preparing You: https://preparingyou.netlify.app`
+          const result = await sendEmailJS(u.name || 'Friend', u.email, subject, message)
+          if (!result.ok) console.warn(`[townhall-cron] email to ${u.email} failed:`, result)
           await new Promise(r => setTimeout(r, 200))
         }
       }
