@@ -694,7 +694,7 @@ async function buildBooksPage(){
             <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--terra-deep);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
             <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--teal);color:var(--teal);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
           </div>
-          ${b.description ? `<div style="flex:1;min-width:200px;font-size:13px;color:var(--walnut-mid);font-style:italic;line-height:1.45">${_esc(b.description)}</div>` : ''}
+          ${b.description ? `<div style="flex:1;min-width:200px;font-size:16px;color:var(--walnut);font-style:italic;line-height:1.5">${_esc(b.description)}</div>` : ''}
         </div>
       </div>
     </div>`;
