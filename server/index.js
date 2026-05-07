@@ -119,7 +119,7 @@ async function paulChat(userId, messages) {
 // ─── Email via EmailJS REST (shared with TLN) ───────────────────────────
 const EJS_SVC  = process.env.EMAILJS_SERVICE_ID || 'service_l43x4ow'
 const EJS_TMPL = process.env.EMAILJS_TEMPLATE_ID || 'template_xob8ydi'
-const EJS_PUB  = process.env.EMAILJS_PUBLIC_KEY || 'ij26ic2_drQTkg_f5'
+const EJS_PUB  = process.env.EMAILJS_PUBLIC_KEY || 'UXOmF9EejeF3j4EEZ'
 async function sendEmailJS(toName, toEmail, subject, message) {
   if (!process.env.EMAILJS_PRIVATE_KEY) { console.warn('[ejs] no EMAILJS_PRIVATE_KEY'); return { ok:false, reason:'no-key' } }
   if (!toEmail) return { ok:false, reason:'no-email' }
@@ -349,7 +349,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.1' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.2' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
