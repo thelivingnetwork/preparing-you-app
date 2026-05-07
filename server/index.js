@@ -119,7 +119,7 @@ async function paulChat(userId, messages) {
 // ─── Email via Resend ───────────────────────────────────────────────────
 const RESEND_FROM = process.env.RESEND_FROM || 'Preparing You <onboarding@resend.dev>'
 async function sendEmail(to, subject, html) {
-  if (!process.env.RESEND_API_KEY) { console.warn('[email] no RESEND_API_KEY'); return }
+  if (!process.env.RESEND_API_KEY) { console.warn('[email] no RESEND_API_KEY'); return { ok:false, reason:'no-key' } }
   try {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -129,8 +129,17 @@ async function sendEmail(to, subject, html) {
       },
       body: JSON.stringify({ from: RESEND_FROM, to, subject, html })
     })
-    if (!r.ok) console.error('[email] failed', r.status, await r.text())
-  } catch (e) { console.error('[email] threw', e) }
+    const text = await r.text()
+    if (!r.ok) {
+      console.error('[email] FAILED', r.status, '→', to, '|', text)
+      return { ok:false, status:r.status, body:text }
+    }
+    console.log('[email] sent →', to, '|', text.slice(0, 200))
+    return { ok:true, body:text }
+  } catch (e) {
+    console.error('[email] threw', e)
+    return { ok:false, error: String(e) }
+  }
 }
 
 function emailWrap(title, body, ctaText, ctaUrl) {
@@ -288,7 +297,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.8.1' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.8.2' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -380,6 +389,33 @@ const server = http.createServer(async (req, res) => {
       if (!userId) return false
       const { data } = await sb.from('prep_townhall_hosts').select('user_id').eq('user_id', userId).maybeSingle()
       return !!data
+    }
+
+    if (req.method === 'POST' && req.url === '/admin/delete-user') {
+      // Verify the caller is an admin, then delete from auth.users (cascades
+      // to prep_users + every other prep_* via FK ON DELETE CASCADE).
+      const auth = req.headers['authorization'] || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+      if (!token) return send(res, 401, { error: 'no_token' })
+      const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: 'Bearer ' + token } },
+        auth: { persistSession: false }
+      })
+      const { data: u } = await callerSb.auth.getUser(token)
+      const callerId = u?.user?.id
+      if (!callerId) return send(res, 401, { error: 'invalid_token' })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', callerId).maybeSingle()
+      if (!adminRow) return send(res, 403, { error: 'not_admin' })
+
+      const { userId } = await readJson(req)
+      if (!userId) return send(res, 400, { error: 'userId required' })
+      // Delete from auth.users — FK cascade will clean up prep_users etc.
+      const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY, 'Authorization': 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY }
+      })
+      if (!r.ok) return send(res, 500, { error: 'auth_delete_failed', status: r.status, body: await r.text() })
+      return send(res, 200, { ok: true })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
