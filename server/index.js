@@ -116,6 +116,44 @@ async function paulChat(userId, messages) {
   }
 }
 
+// ─── Email via EmailJS REST (shared with TLN) ───────────────────────────
+const EJS_SVC  = process.env.EMAILJS_SERVICE_ID || 'service_l43x4ow'
+const EJS_TMPL = process.env.EMAILJS_TEMPLATE_ID || 'template_xob8ydi'
+const EJS_PUB  = process.env.EMAILJS_PUBLIC_KEY || 'ij26ic2_drQTkg_f5'
+async function sendEmailJS(toName, toEmail, subject, message) {
+  if (!process.env.EMAILJS_PRIVATE_KEY) { console.warn('[ejs] no EMAILJS_PRIVATE_KEY'); return { ok:false, reason:'no-key' } }
+  if (!toEmail) return { ok:false, reason:'no-email' }
+  try {
+    const r = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: EJS_SVC,
+        template_id: EJS_TMPL,
+        user_id: EJS_PUB,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY,
+        template_params: {
+          to_name: toName || 'Friend',
+          email: toEmail,
+          minister_name: 'Preparing You',
+          message: message || '',
+          subject: subject || 'Preparing You',
+          company_name: 'Preparing You',
+          company_email: 'tofnotifications@gmail.com',
+          reply_to: 'tofnotifications@gmail.com'
+        }
+      })
+    })
+    const text = await r.text()
+    if (!r.ok) { console.error('[ejs] FAILED', r.status, '→', toEmail, '|', text); return { ok:false, status:r.status, body:text } }
+    console.log('[ejs] sent →', toEmail)
+    return { ok:true }
+  } catch (e) {
+    console.error('[ejs] threw', e)
+    return { ok:false, error: String(e) }
+  }
+}
+
 // ─── Email via Resend ───────────────────────────────────────────────────
 const RESEND_FROM = process.env.RESEND_FROM || 'Preparing You <onboarding@resend.dev>'
 async function sendEmail(to, subject, html) {
@@ -311,7 +349,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.1' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -533,16 +571,13 @@ async function runTownhallReminders() {
         await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
       }
 
-      // 2) Emails — sequential with small delay (Resend free tier rate)
+      // 2) Emails via EmailJS REST — sequential with small delay
       const subject = `${title} starts in ${minsAway} minutes`
-      const body = `<p>The townhall begins shortly.</p>
-        <p><strong>${title}</strong>${th.topic ? ' — <em>' + th.topic + '</em>' : ''}<br>
-        <span style="color:#6f5641;font-style:italic">Starts at ${at.toUTCString()} (your local time will be shown in the app).</span></p>
-        <p>Open the app to join when the moderator goes live.</p>`
+      const message = `The townhall begins shortly.\n\n${title}${th.topic ? ' — ' + th.topic : ''}\nStarts at ${at.toUTCString()} (your local time is shown in the app).\n\nOpen the app to join when the moderator goes live: https://preparingyou.netlify.app`
       for (const u of list) {
         if (u.email) {
-          await sendEmail(u.email, subject, emailWrap('Townhall starting soon', body, 'Open Preparing You', 'https://preparingyou.netlify.app'))
-          await new Promise(r => setTimeout(r, 100))
+          await sendEmailJS(u.name || 'Friend', u.email, subject, message)
+          await new Promise(r => setTimeout(r, 200))
         }
       }
 

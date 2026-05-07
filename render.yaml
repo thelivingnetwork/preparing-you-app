@@ -25,3 +25,5 @@ services:
         value: "Preparing You <onboarding@resend.dev>"
       - key: DAILY_API_KEY
         sync: false   # Daily.co — host-moderated video rooms (PCM calls + townhall)
+      - key: EMAILJS_PRIVATE_KEY
+        sync: false   # EmailJS server-side access token — used by townhall reminder cron
