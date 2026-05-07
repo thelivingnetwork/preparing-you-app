@@ -675,18 +675,27 @@ async function loadMessages(){
     .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${_msgPeerId}),and(sender_id.eq.${_msgPeerId},recipient_id.eq.${currentUser.id})`)
     .order('created_at');
   const list = document.getElementById('msg-list');
+  const CALL_TTL_MS = 10 * 60 * 1000;
   list.innerHTML = (msgs || []).map(m => {
     const mine = m.sender_id === currentUser.id;
+    const ageMs = Date.now() - new Date(m.created_at).getTime();
+    const isCallInvite = /daily\.co\//.test(m.body);
+    const expired = isCallInvite && ageMs > CALL_TTL_MS;
     // Auto-link URLs (https only). For Daily.co room URLs we route through joinDailyLink so
-    // the recipient mints their own token instead of joining as the caller.
-    const linked = _esc(m.body).replace(/(https?:\/\/[^\s]+)/g, (url) => {
+    // the recipient mints their own token instead of joining as the caller. Expired calls
+    // get a visual dim + strikethrough but remain technically clickable.
+    let linked = _esc(m.body).replace(/(https?:\/\/[^\s]+)/g, (url) => {
+      const linkColor = mine?'var(--cream)':'var(--terra-deep)';
+      const decor = expired ? 'line-through' : 'underline';
+      const op = expired ? 'opacity:.55;' : '';
       if(/daily\.co\//.test(url)){
         const room = (url.split('/').pop() || '').split('?')[0];
-        return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="color:${mine?'var(--cream)':'var(--terra-deep)'};text-decoration:underline">${url}</a>`;
+        return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
       }
-      return `<a href="${url}" target="_blank" rel="noopener" style="color:${mine?'var(--cream)':'var(--terra-deep)'};text-decoration:underline">${url}</a>`;
+      return `<a href="${url}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
     });
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:14px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word">${linked}</div>`;
+    if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:14px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${linked}</div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
 
