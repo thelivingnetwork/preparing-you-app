@@ -685,14 +685,16 @@ async function buildBooksPage(){
   wrap.innerHTML = _booksData.map(b => {
     const hasAudio = !!b.audio_overview_path;
     const hasPdf = !!b.pdf_storage_path;
-    return `<div class="card" style="display:flex;align-items:center;gap:14px">
-      <div style="font-size:24px;width:36px;text-align:center">📖</div>
+    return `<div class="card" style="display:flex;align-items:flex-start;gap:14px">
+      <div style="font-size:24px;width:36px;text-align:center;padding-top:2px">📖</div>
       <div style="flex:1;min-width:0">
-        <div class="card-title" style="margin:0;font-size:16px">${_esc(b.title)}</div>
-        ${b.description ? `<div style="font-size:12px;color:var(--walnut-mid);margin-top:2px">${_esc(b.description)}</div>` : ''}
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--terra-deep);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
-          <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--teal);color:var(--teal);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
+        <div class="card-title" style="margin:0 0 8px;font-size:16px">${_esc(b.title)}</div>
+        <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
+            <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--terra-deep);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
+            <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--teal);color:var(--teal);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
+          </div>
+          ${b.description ? `<div style="flex:1;min-width:200px;font-size:13px;color:var(--walnut-mid);font-style:italic;line-height:1.45">${_esc(b.description)}</div>` : ''}
         </div>
       </div>
     </div>`;
