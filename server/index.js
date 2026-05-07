@@ -288,7 +288,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.7.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.8.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -439,3 +439,65 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`[preparing-you] listening on :${PORT}`)
 })
+
+// ─── Townhall reminder cron ─────────────────────────────────────────────
+// Every 5 minutes, find any townhall scheduled within the next 30 minutes
+// that hasn't had its reminder sent yet. Send everyone a bell-notification
+// AND an email. Mark reminder_sent_at to prevent duplicates.
+const TOWNHALL_REMINDER_LEAD_MS = 30 * 60 * 1000
+
+async function runTownhallReminders() {
+  try {
+    const now = Date.now()
+    const upper = new Date(now + TOWNHALL_REMINDER_LEAD_MS).toISOString()
+    const lower = new Date(now).toISOString()
+    const { data: ths, error } = await sb.from('prep_townhalls')
+      .select('id, scheduled_at, title, topic')
+      .gte('scheduled_at', lower)
+      .lte('scheduled_at', upper)
+      .is('reminder_sent_at', null)
+    if (error) { console.warn('[townhall-cron] query failed', error); return }
+    if (!ths || !ths.length) return
+
+    for (const th of ths) {
+      const minsAway = Math.max(1, Math.round((new Date(th.scheduled_at).getTime() - Date.now()) / 60000))
+      const title = th.title || 'Weekly Townhall'
+      const text = `🎙 ${title} starts in ${minsAway} minutes` + (th.topic ? ` — ${th.topic}` : '')
+      const at = new Date(th.scheduled_at)
+
+      const { data: users } = await sb.from('prep_users').select('id, name, email')
+      const list = users || []
+
+      // 1) Bell notifications — bulk insert
+      const rows = list.map(u => ({
+        user_id: u.id, icon: '🎙', text,
+        action: { type: 'page', page: 'home' }
+      }))
+      for (let i = 0; i < rows.length; i += 100) {
+        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
+      }
+
+      // 2) Emails — sequential with small delay (Resend free tier rate)
+      const subject = `${title} starts in ${minsAway} minutes`
+      const body = `<p>The townhall begins shortly.</p>
+        <p><strong>${title}</strong>${th.topic ? ' — <em>' + th.topic + '</em>' : ''}<br>
+        <span style="color:#6f5641;font-style:italic">Starts at ${at.toUTCString()} (your local time will be shown in the app).</span></p>
+        <p>Open the app to join when the moderator goes live.</p>`
+      for (const u of list) {
+        if (u.email) {
+          await sendEmail(u.email, subject, emailWrap('Townhall starting soon', body, 'Open Preparing You', 'https://preparingyou.netlify.app'))
+          await new Promise(r => setTimeout(r, 100))
+        }
+      }
+
+      await sb.from('prep_townhalls').update({ reminder_sent_at: new Date().toISOString() }).eq('id', th.id)
+      console.log(`[townhall-cron] sent reminders for townhall ${th.id} to ${list.length} users`)
+    }
+  } catch (e) {
+    console.error('[townhall-cron]', e)
+  }
+}
+
+// Run on boot, then every 5 minutes
+setTimeout(runTownhallReminders, 5000)
+setInterval(runTownhallReminders, 5 * 60 * 1000)
