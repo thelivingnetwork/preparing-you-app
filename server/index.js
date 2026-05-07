@@ -175,6 +175,13 @@ async function dailyMintToken(roomName, { userName, isOwner }) {
   return (await r.json()).token
 }
 
+// ─── Notification helper ────────────────────────────────────────────────
+async function notify(userId, icon, text, action) {
+  if (!userId) return
+  const { error } = await sb.from('prep_notifications').insert({ user_id: userId, icon, text, action: action || null })
+  if (error) console.warn('[notify] insert failed', error)
+}
+
 // ─── PCM election ───────────────────────────────────────────────────────
 async function electPcm({ electorId, pcmId }) {
   if (!electorId || !pcmId) throw new Error('electorId and pcmId required')
@@ -203,6 +210,8 @@ async function electPcm({ electorId, pcmId }) {
          <p>They have been emailed and will respond shortly. We will email you again once they accept or decline.</p>`,
         'Open Preparing You', 'https://preparing-you.netlify.app'))
   }
+  await notify(pcmId, '⛪', `${elector?.name || 'A user'} has elected you as their PCM.`, { type:'page', page:'pcm' })
+  await notify(electorId, '⏳', `Your election to ${pcm?.name || 'a PCM'} has been sent.`, { type:'page', page:'pcm' })
   return row
 }
 
@@ -235,6 +244,8 @@ async function respondPcm({ electionId, pcmId, accept }) {
           'Choose another', 'https://preparing-you.netlify.app'))
     }
   }
+  if (accept) await notify(el.elector_id, '✓', `${pcm?.name || 'Your PCM'} accepted your election.`, { type:'page', page:'messages' })
+  else        await notify(el.elector_id, '⚠', `${pcm?.name || 'Your PCM'} is currently unavailable. Choose another.`, { type:'page', page:'pcm' })
   return { status: newStatus }
 }
 
@@ -244,7 +255,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.4.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.5.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -285,6 +296,7 @@ const server = http.createServer(async (req, res) => {
              <p>Begin where you are.</p>`,
             'Open Preparing You', 'https://preparing-you.netlify.app'))
       }
+      await notify(userId, '✝', 'Welcome. Begin with the introduction videos.', { type:'page', page:'video' })
       return send(res, 200, { ok: true })
     }
 
