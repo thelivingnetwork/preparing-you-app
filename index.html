@@ -430,7 +430,7 @@
     <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Library</button>
     <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
     <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM</button>
-    <button class="nav-btn" onclick="showPage('messages')" style="position:relative"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" style="display:none;position:absolute;top:2px;right:18px;background:var(--terra);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:600">●</span></button>
+    <button class="nav-btn" onclick="showPage('messages')" style="position:relative"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" style="display:none;position:absolute;top:0px;right:14px;background:var(--terra);color:#fff;font-size:10px;line-height:1;min-width:16px;height:16px;padding:0 5px;border-radius:8px;font-weight:600;text-align:center;align-items:center;justify-content:center"></span></button>
     <button class="nav-btn" onclick="signOut()"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Out</button>
   </div>
 </div>
@@ -734,7 +734,13 @@ async function refreshMessageBadge(){
     .select('id', { count:'exact', head:true })
     .eq('recipient_id', currentUser.id).is('read_at', null);
   const badge = document.getElementById('nav-msg-badge');
-  if(badge) badge.style.display = (count && count > 0) ? 'inline' : 'none';
+  if(!badge) return;
+  if(count && count > 0){
+    badge.style.display = 'inline-block';
+    badge.textContent = count > 9 ? '9+' : String(count);
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 // ═════════════════════════ BOOKS ═════════════════════════
