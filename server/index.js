@@ -288,7 +288,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.8.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.8.1' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -380,6 +380,12 @@ const server = http.createServer(async (req, res) => {
       if (!userId) return false
       const { data } = await sb.from('prep_townhall_hosts').select('user_id').eq('user_id', userId).maybeSingle()
       return !!data
+    }
+
+    if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
+      // Manual trigger — useful for ops/debugging the cron
+      runTownhallReminders().catch(e => console.error('manual reminder', e))
+      return send(res, 200, { ok: true, triggered: true })
     }
 
     if (req.method === 'GET' && req.url === '/townhall/state') {
