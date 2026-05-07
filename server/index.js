@@ -288,7 +288,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.6.0' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.7.0' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -361,15 +361,72 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { peers })
     }
 
+    // Pick the most relevant townhall: prefer the one currently live, else
+    // the next upcoming, else the most recent past.
+    async function pickTownhall() {
+      const { data: live } = await sb.from('prep_townhalls').select('*')
+        .not('live_at', 'is', null).is('ended_at', null).order('live_at', { ascending: false }).limit(1).maybeSingle()
+      if (live) return live
+      const nowIso = new Date().toISOString()
+      const { data: upcoming } = await sb.from('prep_townhalls').select('*')
+        .gte('scheduled_at', nowIso).order('scheduled_at', { ascending: true }).limit(1).maybeSingle()
+      if (upcoming) return upcoming
+      const { data: past } = await sb.from('prep_townhalls').select('*')
+        .order('scheduled_at', { ascending: false }).limit(1).maybeSingle()
+      return past
+    }
+
+    async function isHost(userId) {
+      if (!userId) return false
+      const { data } = await sb.from('prep_townhall_hosts').select('user_id').eq('user_id', userId).maybeSingle()
+      return !!data
+    }
+
+    if (req.method === 'GET' && req.url === '/townhall/state') {
+      const th = await pickTownhall()
+      if (!th) return send(res, 404, { error: 'no townhall' })
+      const isLive = !!th.live_at && !th.ended_at
+      return send(res, 200, {
+        id: th.id, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic,
+        live_at: th.live_at, ended_at: th.ended_at, isLive
+      })
+    }
+
+    if (req.method === 'POST' && req.url === '/townhall/start') {
+      const { userId, userName } = await readJson(req)
+      if (!await isHost(userId)) return send(res, 403, { error: 'host_only' })
+      const th = await pickTownhall()
+      if (!th) return send(res, 404, { error: 'no townhall' })
+      const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
+      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: true })
+      await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
+      return send(res, 200, { url: `${room.url}?t=${token}`, isOwner: true })
+    }
+
+    if (req.method === 'POST' && req.url === '/townhall/end') {
+      const { userId } = await readJson(req)
+      if (!await isHost(userId)) return send(res, 403, { error: 'host_only' })
+      const th = await pickTownhall()
+      if (!th) return send(res, 404, { error: 'no townhall' })
+      await sb.from('prep_townhalls').update({ ended_at: new Date().toISOString() }).eq('id', th.id)
+      return send(res, 200, { ok: true })
+    }
+
     if (req.method === 'POST' && req.url === '/townhall/join') {
       const { userId, userName } = await readJson(req)
-      const { data: th } = await sb.from('prep_townhalls').select('*').order('scheduled_at', { ascending: true }).limit(1).maybeSingle()
+      const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
-      const { data: hostRow } = userId ? await sb.from('prep_townhall_hosts').select('user_id').eq('user_id', userId).maybeSingle() : { data: null }
-      const isOwner = !!hostRow
+      const owner = await isHost(userId)
+      const isLive = !!th.live_at && !th.ended_at
+      // Non-hosts may only join after a moderator has started the call.
+      if (!isLive && !owner) return send(res, 403, { error: 'not_started', message: 'The townhall has not started yet. Please wait for a moderator to begin.' })
       const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
-      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner })
-      return send(res, 200, { url: `${room.url}?t=${token}`, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic, isOwner })
+      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: owner })
+      // If a host joins the join endpoint while not yet live, treat that as starting it.
+      if (!isLive && owner) {
+        await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
+      }
+      return send(res, 200, { url: `${room.url}?t=${token}`, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic, isOwner: owner })
     }
 
     send(res, 404, { error: 'not_found' })

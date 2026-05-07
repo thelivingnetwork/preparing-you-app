@@ -242,12 +242,16 @@
     </div>
 
     <!-- Townhall card -->
-    <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="joinTownhall()">
+    <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="onTownhallCardClick()">
       <div class="card-title" style="color:var(--terra-deep);display:flex;align-items:center;justify-content:space-between">
-        <span>🎙 Weekly Townhall</span>
+        <span id="townhall-title-text">🎙 Weekly Townhall</span>
         <span id="townhall-when" style="font-size:11px;font-weight:400;color:var(--walnut-mid);font-style:italic;text-transform:none">—</span>
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
+      <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
+        <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()">▶ Start Townhall</button>
+        <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()">⏹ End Townhall</button>
+      </div>
     </div>
     <div class="tile-row">
       <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Introduction Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
@@ -407,6 +411,13 @@
     </div>
     <div class="empty"><span class="ico">✝</span>Awaiting PCM sign-off.</div>
   </div>
+
+  <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
+  <div id="live-banner" onclick="joinTownhall()" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:linear-gradient(90deg,var(--terra),var(--terra-deep));color:#fff;padding:10px 16px;text-align:center;font-family:'Spectral',serif;font-size:14px;font-weight:500;letter-spacing:.04em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)">
+    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:8px;animation:livepulse 1.4s infinite"></span>
+    🎙 Townhall is live — tap to join
+  </div>
+  <style>@keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}</style>
 
   <!-- Paul: floating AI assistant -->
   <div class="paul-fab" onclick="openPaul()" title="Ask Paul">
@@ -579,9 +590,12 @@ function enterApp(){
   showPage('home');
   refreshMessageBadge();
   refreshNotifBell();
+  refreshTownhallCard();
   setInterval(refreshMessageBadge, 30000);
   if(_notifPollTimer) clearInterval(_notifPollTimer);
   _notifPollTimer = setInterval(refreshNotifBell, 30000);
+  if(_townhallPollTimer) clearInterval(_townhallPollTimer);
+  _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
 }
 
 function showPage(name){
@@ -604,16 +618,94 @@ function showPage(name){
 }
 
 // ═════════════════════════ TOWNHALL ═════════════════════════
+let _townhallState = null;        // last fetched state from /townhall/state
+let _townhallIsHost = false;      // am I in prep_townhall_hosts?
+let _townhallPollTimer = null;
+
 async function refreshTownhallCard(){
-  if(!_sb) return;
-  const { data: th } = await _sb.from('prep_townhalls').select('*').order('scheduled_at').limit(1).maybeSingle();
+  if(!_sb || !currentUser) return;
+
+  // Are we a host? (cached after first lookup)
+  if(_townhallIsHost === false){
+    const { data: hostRow } = await _sb.from('prep_townhall_hosts').select('user_id').eq('user_id', currentUser.id).maybeSingle();
+    _townhallIsHost = !!hostRow;
+  }
+
+  let st = null;
+  try {
+    const r = await fetch(_SERVER_URL + '/townhall/state');
+    if(r.ok) st = await r.json();
+  } catch(_){}
+  _townhallState = st;
+
   const card = document.getElementById('townhall-card');
-  if(!th){ if(card) card.style.display='none'; return; }
+  const banner = document.getElementById('live-banner');
+  if(!card) return;
+  if(!st){ card.style.display='none'; if(banner) banner.style.display='none'; return; }
+
   card.style.display = 'block';
-  const at = new Date(th.scheduled_at);
-  const isUpcoming = at.getTime() > Date.now() - 60*60*1000; // within last hour or future
-  document.getElementById('townhall-when').textContent = at.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
-  document.getElementById('townhall-text').textContent = th.topic ? th.topic + ' — tap to join' : 'Tap to join the call';
+  const at = new Date(st.scheduled_at);
+  const localTime = at.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+
+  if(st.isLive){
+    document.getElementById('townhall-title-text').textContent = '🔴 Townhall is LIVE';
+    document.getElementById('townhall-when').textContent = 'Started ' + new Date(st.live_at).toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+    document.getElementById('townhall-text').textContent = (st.topic || 'Townhall') + ' — tap to join';
+    if(banner) banner.style.display = 'block';
+  } else {
+    document.getElementById('townhall-title-text').textContent = '🎙 ' + (st.title || 'Weekly Townhall');
+    document.getElementById('townhall-when').textContent = localTime;
+    document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + (_townhallIsHost ? ' — start it when ready' : ' — moderator will start it on time');
+    if(banner) banner.style.display = 'none';
+  }
+
+  // Host-only controls
+  const actions = document.getElementById('townhall-actions');
+  const startBtn = document.getElementById('townhall-start-btn');
+  const endBtn = document.getElementById('townhall-end-btn');
+  if(_townhallIsHost){
+    actions.style.display = 'block';
+    startBtn.style.display = st.isLive ? 'none' : 'inline-block';
+    endBtn.style.display = st.isLive ? 'inline-block' : 'none';
+  } else {
+    actions.style.display = 'none';
+  }
+}
+
+function onTownhallCardClick(){
+  if(_townhallState?.isLive) joinTownhall();
+  else if(_townhallIsHost) startTownhall();
+  // non-host with non-live: nothing — they have to wait
+}
+
+async function startTownhall(){
+  if(!_sb || !currentUser) return;
+  try {
+    const r = await fetch(_SERVER_URL + '/townhall/start', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: currentUser.id, userName: currentUser.name || 'Host' })
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || 'start failed');
+    window.open(j.url, '_blank');
+    refreshTownhallCard();
+  } catch(e){
+    alert('Could not start: ' + e.message);
+  }
+}
+
+async function endTownhall(){
+  if(!confirm('End the townhall for everyone?')) return;
+  try {
+    const r = await fetch(_SERVER_URL + '/townhall/end', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    if(!r.ok){ const j = await r.json(); throw new Error(j.error || 'end failed'); }
+    refreshTownhallCard();
+  } catch(e){
+    alert('Could not end: ' + e.message);
+  }
 }
 
 async function joinTownhall(){
@@ -624,7 +716,11 @@ async function joinTownhall(){
       body: JSON.stringify({ userId: currentUser.id, userName: currentUser.name || 'Guest' })
     });
     const j = await r.json();
-    if(!r.ok) throw new Error(j.error || 'townhall failed');
+    if(!r.ok){
+      if(j.error === 'not_started') alert(j.message || 'The townhall has not started yet.');
+      else throw new Error(j.error || 'join failed');
+      return;
+    }
     window.open(j.url, '_blank');
   } catch(e){
     alert('Could not join: ' + e.message);
