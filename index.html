@@ -238,7 +238,7 @@
   <!-- Pages -->
   <div class="page active" id="page-home">
     <div class="card">
-      <div class="card-title">✝ Welcome</div>
+      <div class="card-title">Welcome</div>
       <div class="card-text">Begin by watching the introduction videos. Once they are finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
     </div>
 
@@ -256,14 +256,14 @@
     </div>
     <div class="tile-row">
       <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Introduction Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
-      <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">⛪</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
+      <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">👥</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
     </div>
     <div class="tile-row">
       <div class="tile" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
       <div class="tile" onclick="showPage('books')"><div class="tile-icon">📖</div><div class="tile-name">The Five Books</div><div class="tile-meta">Read · listen</div></div>
     </div>
     <div class="tile" style="grid-column:1/-1" onclick="showPage('join-tln')">
-      <div class="tile-icon">✝</div>
+      <div class="tile-icon">✦</div>
       <div class="tile-name">Join The Living Network</div>
       <div class="tile-meta">Available once your PCM signs off on your readiness</div>
     </div>
@@ -303,7 +303,7 @@
 
     <!-- Inbound elections (PCM viewing requests) -->
     <div class="card" id="pcm-inbound" style="display:none;border-color:var(--terra)">
-      <div class="card-title" style="color:var(--terra-deep)">⛪ Elections Awaiting Your Response</div>
+      <div class="card-title" style="color:var(--terra-deep)">✦ Elections Awaiting Your Response</div>
       <div data-inbound-list></div>
     </div>
 
@@ -315,7 +315,7 @@
 
     <!-- Volunteer status (only visible once user is a PCM themselves) -->
     <div class="card" id="pcm-mine" style="display:none;border-color:var(--gold)">
-      <div class="card-title">⛪ You Are a PCM</div>
+      <div class="card-title">✦ You Are a PCM</div>
       <div id="pcm-mine-body"></div>
       <div style="text-align:right;margin-top:8px">
         <button class="link-btn" onclick="openPcmVolunteer()">Edit contact details</button>
@@ -410,7 +410,7 @@
       <div class="card-title">Join The Living Network</div>
       <div class="card-text">When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.</div>
     </div>
-    <div class="empty"><span class="ico">✝</span>Awaiting PCM sign-off.</div>
+    <div class="empty"><span class="ico">✦</span>Awaiting PCM sign-off.</div>
   </div>
 
   <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
@@ -1334,7 +1334,7 @@ async function buildPcmPage(){
   // 4. Render the list
   const listEl = document.getElementById('pcm-list');
   if(!_pcmList.length){
-    listEl.innerHTML = '<div class="empty"><span class="ico">⛪</span>No PCMs have volunteered yet. Be the first.</div>';
+    listEl.innerHTML = '<div class="empty"><span class="ico">👥</span>No PCMs have volunteered yet. Be the first.</div>';
   } else {
     let html = '';
     if(myRegion && inRegion.length){

@@ -240,7 +240,7 @@ async function inviteToTln(userId, reasonHtml, skipEmail) {
   }
 
   await sb.from('prep_users').update({ tln_invited_at: new Date().toISOString() }).eq('id', userId)
-  await notify(userId, '✝', 'You have been invited to The Living Network. Check your email.', { type:'page', page:'join-tln' })
+  await notify(userId, '✦', 'You have been invited to The Living Network. Check your email.', { type:'page', page:'join-tln' })
   return { ok: true }
 }
 
@@ -279,7 +279,7 @@ async function electPcm({ electorId, pcmId, skipEmail }) {
          <p>They have been emailed and will respond shortly. We will email you again once they accept or decline.</p>`,
         'Open Preparing You', 'https://preparingyou.netlify.app'))
   }
-  await notify(pcmId, '⛪', `${elector?.name || 'A user'} has elected you as their PCM.`, { type:'page', page:'pcm' })
+  await notify(pcmId, '👥', `${elector?.name || 'A user'} has elected you as their PCM.`, { type:'page', page:'pcm' })
   await notify(electorId, '⏳', `Your election to ${pcm?.name || 'a PCM'} has been sent.`, { type:'page', page:'pcm' })
   return row
 }
@@ -400,7 +400,7 @@ const server = http.createServer(async (req, res) => {
              <p>Begin where you are.</p>`,
             'Open Preparing You', 'https://preparingyou.netlify.app'))
       }
-      await notify(userId, '✝', 'Welcome. Begin with the introduction videos.', { type:'page', page:'video' })
+      await notify(userId, '✦', 'Welcome. Begin with the introduction videos.', { type:'page', page:'video' })
       return send(res, 200, { ok: true })
     }
 
