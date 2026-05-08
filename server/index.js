@@ -168,6 +168,7 @@ async function sendEmailJS(toName, toEmail, subject, message) {
           minister_name: 'Preparing You',
           message: message || '',
           subject: subject || 'Preparing You',
+          from_name: 'Preparing You',
           company_name: 'Preparing You',
           company_email: 'tofnotifications@gmail.com',
           reply_to: 'tofnotifications@gmail.com'
@@ -379,7 +380,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.4' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.5' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
