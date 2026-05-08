@@ -408,9 +408,16 @@
   <div class="page" id="page-join-tln">
     <div class="card">
       <div class="card-title">Join The Living Network</div>
-      <div class="card-text">When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.</div>
+      <div class="card-text" id="join-tln-text">When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.</div>
     </div>
-    <div class="empty"><span class="ico">✦</span>Awaiting PCM sign-off.</div>
+    <div id="join-tln-cta" style="display:none">
+      <div class="card" style="border-color:var(--terra);background:var(--terra-soft);text-align:center">
+        <div style="font-family:'Spectral',serif;font-size:18px;color:var(--teal);margin-bottom:6px">You have been invited.</div>
+        <div style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin-bottom:14px" id="join-tln-when">—</div>
+        <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>
+      </div>
+    </div>
+    <div class="empty" id="join-tln-empty"><span class="ico">✦</span>Awaiting PCM sign-off.</div>
   </div>
 
   <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
@@ -636,6 +643,7 @@ function showPage(name){
   window.scrollTo(0,0);
   // Lazy-load page contents on entry
   if(name === 'pcm') buildPcmPage();
+  if(name === 'join-tln') buildJoinTlnPage();
   if(name === 'library') buildLibraryPage();
   if(name === 'video') buildGatewayPage();
   if(name !== 'video') stopGatewayPlayer();
@@ -643,6 +651,38 @@ function showPage(name){
   if(name === 'books') buildBooksPage();
   if(name !== 'books') closeBookListen();
   if(name === 'messages') buildMessagesPage();
+}
+
+// ═════════════════════════ JOIN TLN ═════════════════════════
+async function buildJoinTlnPage(){
+  if(!_sb || !currentUser) return;
+  // Refresh from server in case the invite came in since signin
+  const { data: u } = await _sb.from('prep_users').select('tln_invited_at').eq('id', currentUser.id).maybeSingle();
+  if(u) currentUser.tln_invited_at = u.tln_invited_at;
+  const cta = document.getElementById('join-tln-cta');
+  const empty = document.getElementById('join-tln-empty');
+  const text = document.getElementById('join-tln-text');
+  if(currentUser.tln_invited_at){
+    cta.style.display = 'block';
+    empty.style.display = 'none';
+    text.textContent = 'Your invitation has been issued. Tap the button below to open The Living Network — your name and email will be prefilled on the Join screen.';
+    const when = new Date(currentUser.tln_invited_at);
+    document.getElementById('join-tln-when').textContent = 'Invited ' + when.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  } else {
+    cta.style.display = 'none';
+    empty.style.display = 'flex';
+    text.textContent = 'When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.';
+  }
+}
+
+function openTlnHandoff(){
+  if(!currentUser) return;
+  // Same handoff URL shape used in the email
+  const handoff = 'https://livingnetwork.netlify.app/?'
+    + 'from=preparingyou'
+    + '&name=' + encodeURIComponent(currentUser.name || '')
+    + '&email=' + encodeURIComponent(currentUser.email || '');
+  window.open(handoff, '_blank');
 }
 
 // ═════════════════════════ TOWNHALL ═════════════════════════
