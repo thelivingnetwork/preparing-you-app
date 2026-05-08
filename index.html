@@ -1460,8 +1460,13 @@ async function signoffToTln(electorId, electorName){
     if(!r.ok) throw new Error(j.error || 'invite failed');
     if(!j.ok){ alert('Could not send: ' + (j.reason || 'unknown')); return; }
     if(electorEmail){
+      const handoff = 'https://livingnetwork.netlify.app/?'
+        + 'from=preparingyou'
+        + '&name=' + encodeURIComponent(electorName || '')
+        + '&email=' + encodeURIComponent(electorEmail)
+        + '&inviter=' + encodeURIComponent(currentUser?.name || '');
       sendEmail(electorName, electorEmail, 'You have been invited to The Living Network',
-        (currentUser?.name || 'Your PCM')+' has signed off on your readiness and invites you to enter The Living Network. Use the same email when you sign up so your records align.\n\nhttps://livingnetwork.netlify.app');
+        (currentUser?.name || 'Your PCM')+' has signed off on your readiness and invites you to enter The Living Network.\n\nThe link below will take you straight to the Join screen with your details prefilled:\n\n'+handoff);
     }
     alert('Invitation sent. They will receive an email with a TLN signup link.');
     buildPcmPage();
@@ -1611,8 +1616,13 @@ async function pcmRespondElection(electionId, accept){
     }
     // PCM auto-invited to TLN on their first accepted election
     if(j.pcmAutoInvited && j.pcmEmail){
+      const handoff = 'https://livingnetwork.netlify.app/?'
+        + 'from=preparingyou'
+        + '&name=' + encodeURIComponent(j.pcmName || '')
+        + '&email=' + encodeURIComponent(j.pcmEmail)
+        + '&inviter=' + encodeURIComponent(j.electorName || '');
       sendEmail(j.pcmName, j.pcmEmail, 'You have been invited to The Living Network',
-        'You have been chosen by '+(j.electorName||'someone')+' as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network. Use the same email when you sign up so your records align.\n\nhttps://livingnetwork.netlify.app');
+        'You have been chosen by '+(j.electorName||'someone')+' as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network.\n\nThe link below will take you straight to the Join screen with your details prefilled:\n\n'+handoff);
     }
     buildPcmPage();
   } catch(e){
