@@ -253,6 +253,9 @@
         <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()">▶ Start Townhall</button>
         <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()">⏹ End Townhall</button>
       </div>
+      <div id="townhall-replay" style="margin-top:10px;display:none;text-align:right">
+        <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()">▶ Replay last townhall</button>
+      </div>
     </div>
     <div class="tile-row">
       <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Introduction Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
@@ -739,6 +742,27 @@ async function refreshTownhallCard(){
   } else {
     actions.style.display = 'none';
   }
+
+  // Replay button — most recent ended townhall with a recording_url
+  const replayWrap = document.getElementById('townhall-replay');
+  if(replayWrap){
+    const { data: lastRec } = await _sb.from('prep_townhalls')
+      .select('id, recording_url, ended_at, title')
+      .not('recording_url', 'is', null).not('ended_at', 'is', null)
+      .order('ended_at', { ascending:false }).limit(1).maybeSingle();
+    if(lastRec?.recording_url){
+      replayWrap.style.display = 'block';
+      replayWrap.dataset.url = lastRec.recording_url;
+    } else {
+      replayWrap.style.display = 'none';
+      delete replayWrap.dataset.url;
+    }
+  }
+}
+
+function replayLastTownhall(){
+  const url = document.getElementById('townhall-replay')?.dataset?.url;
+  if(url) window.open(url, '_blank');
 }
 
 function onTownhallCardClick(){
