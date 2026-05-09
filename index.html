@@ -18,14 +18,16 @@
 
 <style>
   :root{
-    /* Palette tuned to the PreparingYou ark mark (deep royal purple) */
-    --teal:#4f2170;       /* primary brand purple (mapped to legacy --teal var name) */
-    --teal-deep:#371751;  /* darker purple */
-    --teal-soft:#6c3a92;  /* hovered purple */
-    --terra:#7a3aa6;      /* warm purple action accent */
-    --terra-deep:#5a2680; /* hovered action */
+    /* PreparingYou palette — parchment ground with royal-purple ink and aged gold.
+       Var names kept as `--teal/--terra` for now; they refer to the primary purple
+       and the lighter accent purple respectively. Rename in a later pass. */
+    --teal:#4f2170;       /* primary brand purple */
+    --teal-deep:#371751;  /* darker purple — bottom nav, deep surfaces */
+    --teal-soft:#6c3a92;  /* hover state for primary purple */
+    --terra:#7a3aa6;      /* lighter accent purple — buttons, FAB */
+    --terra-deep:#5a2680; /* hovered accent */
     --terra-soft:rgba(122,58,166,.12);
-    --gold:#a0772a;       /* aged gold — restrained warmth, kept */
+    --gold:#a0772a;       /* aged gold — restrained warmth */
     --gold-soft:rgba(160,119,42,.15);
     --parch:#faf6e9;      /* warm parchment — page background */
     --cream:#fefcf4;      /* card surface */
@@ -33,6 +35,7 @@
     --walnut-mid:#6f5641; /* secondary text */
     --walnut-soft:#a08a72;/* muted text */
     --line:#e8dec3;       /* card borders / dividers */
+    --success:#2d7a4f;    /* status / confirmation */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6}
@@ -40,8 +43,8 @@
   body{min-height:100vh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment */
     background-image:
-      radial-gradient(circle at 25% 15%, rgba(196,103,58,.04) 0, transparent 40%),
-      radial-gradient(circle at 75% 85%, rgba(31,74,79,.05) 0, transparent 50%);
+      radial-gradient(circle at 25% 15%, rgba(79,33,112,.045) 0, transparent 40%),
+      radial-gradient(circle at 75% 85%, rgba(160,119,42,.05) 0, transparent 50%);
     background-attachment:fixed;
   }
 
@@ -53,14 +56,14 @@
   .landing-quote{max-width:480px;color:var(--walnut-mid);font-size:14px;font-style:italic;text-align:center;margin:0 0 32px;padding:0 20px;line-height:1.6}
   .landing-quote::before, .landing-quote::after{content:'';display:inline-block;width:30px;height:1px;background:var(--gold);vertical-align:middle;margin:0 12px}
 
-  .auth-box{width:100%;max-width:400px;background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
+  .auth-box{width:100%;max-width:400px;background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
   .auth-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line)}
   .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:'Spectral',serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
   .auth-tab.active{color:var(--teal);border-bottom-color:var(--terra)}
   .form-label{display:block;font-size:12px;color:var(--walnut-mid);font-style:italic;margin:12px 0 4px;letter-spacing:.02em}
   .form-input{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:15px;outline:none;transition:border-color .15s}
   .form-input:focus{border-color:var(--terra)}
-  .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Spectral',serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
+  .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Spectral',serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
   .btn-primary:hover{background:var(--terra-deep)}
   .auth-error{display:none;background:rgba(159,57,28,.08);border:1px solid rgba(159,57,28,.3);color:#9c4a23;padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic}
   .auth-error.show{display:block}
@@ -77,13 +80,13 @@
   .page{display:none;flex:1;padding:24px 16px 100px}
   .page.active{display:block}
 
-  .card{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
+  .card{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
   .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--teal);margin:0 0 10px;text-transform:uppercase;font-weight:600}
   .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
   .tile-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
-  .tile{background:var(--cream);border:1px solid var(--line);border-radius:14px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
-  .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(196,103,58,.12)}
+  .tile{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+  .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
   .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600}
   .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
@@ -96,7 +99,7 @@
   .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* ── Paul (floating AI button) ──────────────────────────────── */
-  .paul-fab{position:fixed;right:14px;bottom:84px;display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;border-radius:34px;background:var(--terra);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(196,103,58,.4);z-index:60;border:2px solid var(--cream);letter-spacing:.04em;transition:transform .15s}
+  .paul-fab{position:fixed;right:14px;bottom:84px;display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;border-radius:999px;background:var(--terra);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(74,33,112,.32);z-index:60;border:2px solid var(--cream);letter-spacing:.04em;transition:transform .15s}
   .paul-fab:hover{transform:scale(1.04);background:var(--terra-deep)}
   .paul-fab svg{width:36px;height:36px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:2px;color:var(--walnut)}
 
@@ -105,45 +108,45 @@
 
   /* ── Modals ──────────────────────────────────────────────────── */
   .modal-overlay{position:fixed;inset:0;background:rgba(10,3,24,.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow-y:auto}
-  .modal-box{background:#fff;border:1px solid #e6dec0;border-radius:14px;max-width:440px;width:100%;color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.3)}
-  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e6dec0}
-  .modal-title{font-family:'Cinzel',serif;font-size:14px;letter-spacing:.06em;color:var(--royal);text-transform:uppercase}
-  .modal-close{background:none;border:none;font-size:18px;color:var(--text-muted);cursor:pointer;padding:4px 8px;line-height:1}
+  .modal-box{background:#fff;border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;color:var(--walnut);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .modal-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.06em;color:var(--teal);text-transform:uppercase}
+  .modal-close{background:none;border:none;font-size:18px;color:var(--walnut-mid);cursor:pointer;padding:4px 8px;line-height:1}
   .modal-body{padding:18px}
 
-  .btn-secondary{width:100%;background:#fff;color:var(--royal);border:1px solid var(--royal);border-radius:10px;padding:11px;font-family:'Cinzel',serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
+  .btn-secondary{width:100%;background:#fff;color:var(--teal);border:1px solid var(--teal);border-radius:12px;padding:11px;font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
   .btn-secondary:hover{background:#f5f0fa}
-  .link-btn{background:none;border:none;color:var(--royal);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
-  .link-btn:hover{color:var(--gold-dim);text-decoration:underline}
+  .link-btn{background:none;border:none;color:var(--teal);font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
+  .link-btn:hover{color:var(--gold);text-decoration:underline}
 
   /* ── PCM list rows ───────────────────────────────────────────── */
-  .pcm-row{background:#fff;border:1px solid #e6dec0;border-radius:10px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+  .pcm-row{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
   .pcm-row.chosen{border-color:#2d7a4f;background:rgba(45,122,79,.04)}
-  .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--royal);color:var(--gold-light);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:13px;flex-shrink:0}
+  .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
   .pcm-info{flex:1;min-width:0}
-  .pcm-name{font-family:'Cinzel',serif;font-size:13px;color:var(--royal);letter-spacing:.04em;margin-bottom:2px}
-  .pcm-meta{font-size:11px;color:var(--text-muted);font-style:italic}
-  .pcm-channels{font-size:10px;color:var(--text-muted);margin-top:4px;letter-spacing:.04em}
-  .pcm-pick{background:var(--royal);color:var(--gold-light);border:none;border-radius:8px;padding:8px 14px;font-family:'Cinzel',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
-  .pcm-pick:hover{background:var(--royal-light)}
+  .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--teal);letter-spacing:.04em;margin-bottom:2px}
+  .pcm-meta{font-size:11px;color:var(--walnut-mid);font-style:italic}
+  .pcm-channels{font-size:10px;color:var(--walnut-mid);margin-top:4px;letter-spacing:.04em}
+  .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
+  .pcm-pick:hover{background:var(--teal-soft)}
   .pcm-pick.chosen{background:#2d7a4f}
 
   /* ── Library ─────────────────────────────────────────────────── */
-  .lib-search{width:100%;background:#fff;border:1px solid #e6dec0;border-radius:10px;padding:11px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;margin-bottom:14px}
+  .lib-search{width:100%;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:14px;outline:none;margin-bottom:14px}
   .lib-search:focus{border-color:var(--gold)}
-  .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:#fff;border:1px solid #e6dec0;border-radius:10px}
-  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--royal);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:4px;text-transform:uppercase}
+  .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:12px}
+  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--teal);font-family:'Spectral',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
   .lib-letter:hover{background:rgba(61,31,122,.08)}
   .lib-letter.disabled{opacity:.25;cursor:default}
   .lib-letter.disabled:hover{background:none}
-  .lib-section{background:#fff;border:1px solid #e6dec0;border-radius:12px;padding:14px 16px;margin-bottom:10px}
-  .lib-section-hdr{font-family:'Cinzel',serif;font-size:18px;color:var(--royal);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid #f0e8d0}
+  .lib-section{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .lib-section-hdr{font-family:'Spectral',serif;font-size:18px;color:var(--teal);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .lib-topic{padding:8px 0;border-bottom:1px solid #f7f1de}
   .lib-topic:last-child{border-bottom:none}
-  .lib-topic-title{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--royal);text-decoration:none;font-weight:500}
-  .lib-topic-title:hover{color:var(--gold-dim);text-decoration:underline}
+  .lib-topic-title{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--teal);text-decoration:none;font-weight:500}
+  .lib-topic-title:hover{color:var(--gold);text-decoration:underline}
   .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
-  .lib-media a{font-size:10px;background:rgba(201,162,39,.12);border:1px solid rgba(201,162,39,.4);color:var(--gold-dim);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Cinzel',serif}
+  .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Spectral',serif}
   .lib-media a:hover{background:var(--gold);color:#fff}
 </style>
 </head>
@@ -227,7 +230,7 @@
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
         <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600">Notifications</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button onclick="markAllNotifsRead()" style="background:none;border:1px solid rgba(254,252,244,.4);color:var(--cream);font-size:11px;padding:5px 10px;border-radius:5px;cursor:pointer;font-family:'Spectral',serif">Mark all read</button>
+          <button onclick="markAllNotifsRead()" style="background:none;border:1px solid rgba(254,252,244,.4);color:var(--cream);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:'Spectral',serif">Mark all read</button>
           <button onclick="closeNotifDrawer()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:0 6px;line-height:1">×</button>
         </div>
       </div>
@@ -280,7 +283,7 @@
     <div id="gateway-list"></div>
     <div id="gateway-player-wrap" style="display:none;margin-top:14px">
       <div class="card-title" id="gateway-player-title" style="margin-bottom:8px"></div>
-      <video id="gateway-player" controls controlsList="nodownload noplaybackrate" disablepictureinpicture playsinline style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      <video id="gateway-player" controls controlsList="nodownload noplaybackrate" disablepictureinpicture playsinline style="width:100%;border-radius:12px;background:#000;display:block"></video>
       <div style="margin-top:6px;font-size:12px;color:var(--walnut-mid);font-style:italic">Seeking past unwatched portions is disabled. The video unlocks the next step when it reaches the end.</div>
     </div>
   </div>
@@ -328,7 +331,7 @@
     <!-- List of available PCMs -->
     <div id="pcm-list-section">
       <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 4px 8px">
-        <div style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:.10em;color:var(--royal);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
+        <div style="font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;color:var(--teal);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
         <button class="link-btn" onclick="openPcmVolunteer()" id="pcm-volunteer-btn">+ Volunteer as PCM</button>
       </div>
       <div id="pcm-list"></div>
@@ -346,16 +349,16 @@
         <div class="card-text" style="font-size:13px;margin-bottom:12px">
           A PCM walks alongside applicants as they prepare to enter The Living Network. Share whichever contact channels you're comfortable with — at minimum, your email.
         </div>
-        <label class="form-label" style="color:var(--text-muted)">Region (where applicants will see you)</label>
-        <input class="form-input" id="pcm-region" type="text" placeholder="e.g. Australia, Texas, England" style="background:#fff;color:var(--text);border-color:#e6dec0">
-        <label class="form-label" style="color:var(--text-muted)">Email *</label>
-        <input class="form-input" id="pcm-email" type="email" style="background:#fff;color:var(--text);border-color:#e6dec0">
-        <label class="form-label" style="color:var(--text-muted)">Phone (optional)</label>
-        <input class="form-input" id="pcm-phone" type="tel" placeholder="+61 ..." style="background:#fff;color:var(--text);border-color:#e6dec0">
-        <label class="form-label" style="color:var(--text-muted)">Telegram handle (optional)</label>
-        <input class="form-input" id="pcm-telegram" type="text" placeholder="@yourhandle" style="background:#fff;color:var(--text);border-color:#e6dec0">
-        <label class="form-label" style="color:var(--text-muted)">Messenger (optional)</label>
-        <input class="form-input" id="pcm-messenger" type="text" placeholder="Facebook profile or @handle" style="background:#fff;color:var(--text);border-color:#e6dec0">
+        <label class="form-label" style="color:var(--walnut-mid)">Region (where applicants will see you)</label>
+        <input class="form-input" id="pcm-region" type="text" placeholder="e.g. Australia, Texas, England" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Email *</label>
+        <input class="form-input" id="pcm-email" type="email" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Phone (optional)</label>
+        <input class="form-input" id="pcm-phone" type="tel" placeholder="+61 ..." style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Telegram handle (optional)</label>
+        <input class="form-input" id="pcm-telegram" type="text" placeholder="@yourhandle" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Messenger (optional)</label>
+        <input class="form-input" id="pcm-messenger" type="text" placeholder="Facebook profile or @handle" style="background:#fff;color:var(--walnut);border-color:var(--line)">
         <button class="btn-primary" onclick="savePcmVolunteer()" style="margin-top:14px">Save</button>
         <button class="btn-secondary" id="pcm-stop-btn" onclick="stopBeingPcm()" style="display:none;margin-top:8px">Stop being a PCM</button>
       </div>
@@ -856,7 +859,7 @@ async function buildMessagesPage(){
   }
   if(peers.length > 1){
     selector.style.display = 'flex';
-    selector.innerHTML = peers.map(p => `<button class="link-btn" onclick="selectMsgPeer('${p.id}')" style="padding:6px 12px;border:1px solid var(--line);border-radius:18px;background:${p.id===_msgPeerId?'var(--teal)':'var(--cream)'};color:${p.id===_msgPeerId?'var(--cream)':'var(--walnut)'};font-size:12px">${_esc(p.name)}</button>`).join('');
+    selector.innerHTML = peers.map(p => `<button class="link-btn" onclick="selectMsgPeer('${p.id}')" style="padding:6px 12px;border:1px solid var(--line);border-radius:16px;background:${p.id===_msgPeerId?'var(--teal)':'var(--cream)'};color:${p.id===_msgPeerId?'var(--cream)':'var(--walnut)'};font-size:12px">${_esc(p.name)}</button>`).join('');
   } else {
     selector.style.display = 'none';
   }
@@ -911,7 +914,7 @@ async function loadMessages(){
       return `<a href="${url}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
     });
     if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:14px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${linked}</div>`;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${linked}</div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
 
@@ -1014,7 +1017,7 @@ async function renderNotifList(){
     const unread = !n.read_at;
     const hasAction = !!(n.action && n.action.type === 'page' && n.action.page);
     const onclick = hasAction ? `onclick="handleNotifClick(${n.id}, '${n.action.page}')"` : `onclick="markNotifRead(${n.id})"`;
-    return `<div ${onclick} style="display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:${unread?'rgba(196,103,58,.06)':'transparent'};position:relative">
+    return `<div ${onclick} style="display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:${unread?'rgba(122,58,166,.07)':'transparent'};position:relative">
       ${unread ? '<div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--terra)"></div>' : ''}
       <div style="font-size:18px;flex-shrink:0;width:26px;text-align:center;padding-top:2px">${_esc(n.icon || '🔔')}</div>
       <div style="flex:1;min-width:0">
@@ -1141,7 +1144,7 @@ function _renderPaulMessage(role, text){
   const wrap = document.getElementById('paul-messages');
   const isUser = role === 'user';
   const div = document.createElement('div');
-  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:14px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
+  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
@@ -1375,7 +1378,7 @@ async function buildPcmPage(){
     mineCard.style.display = 'block';
     volBtn.textContent = 'Edit my PCM details';
     document.getElementById('pcm-mine-body').innerHTML =
-      '<div style="font-size:13px;color:var(--text);line-height:1.7">'
+      '<div style="font-size:13px;color:var(--walnut);line-height:1.7">'
       + (myPcm.region ? '<div><strong>Region:</strong> ' + _esc(myPcm.region) + '</div>' : '')
       + (myPcm.email ? '<div><strong>Email:</strong> ' + _esc(myPcm.email) + '</div>' : '')
       + (myPcm.phone ? '<div><strong>Phone:</strong> ' + _esc(myPcm.phone) + '</div>' : '')
@@ -1403,11 +1406,11 @@ async function buildPcmPage(){
   } else {
     let html = '';
     if(myRegion && inRegion.length){
-      html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin:6px 4px 4px">In your region (' + _esc(currentUser.region) + ')</div>';
+      html += '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin:6px 4px 4px">In your region (' + _esc(currentUser.region) + ')</div>';
       html += inRegion.map(p => _pcmRow(p)).join('');
     }
     if(outOfRegion.length){
-      html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin:14px 4px 4px">' + (myRegion ? 'Other regions' : 'All available') + '</div>';
+      html += '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin:14px 4px 4px">' + (myRegion ? 'Other regions' : 'All available') + '</div>';
       html += outOfRegion.map(p => _pcmRow(p)).join('');
     }
     listEl.innerHTML = html;
