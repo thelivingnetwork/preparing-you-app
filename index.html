@@ -1341,7 +1341,7 @@ function _renderPaulMessage(role, text){
   const wrap = document.getElementById('paul-messages');
   const isUser = role === 'user';
   const div = document.createElement('div');
-  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-size:14px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
+  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-size:16px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
