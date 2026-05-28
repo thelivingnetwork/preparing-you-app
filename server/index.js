@@ -434,8 +434,12 @@ async function paulChat(userId, messages, lang) {
   ).join('\n\n')
 
   let sys = PAUL_SYSTEM + '\n\nSource excerpts retrieved for this question:\n\n' + context
+  // Always auto-detect the user's language and respond in kind.
+  // If the user has explicitly chosen a language via the dropdown, that overrides auto-detection.
   if (lang && PAUL_LANGS.has(lang) && lang !== 'English') {
-    sys += `\n\nRespond in ${lang}. If the user's message is in another language, understand it and reply in ${lang} only. Do not include the English version.`
+    sys += `\n\nLanguage: The user has selected ${lang} as their preferred language. Always respond in ${lang} regardless of what language they write in.`
+  } else {
+    sys += `\n\nLanguage: Detect the language of the user's most recent message and respond in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Match whatever language they use.`
   }
 
   // Tool-use loop — Paul can call lookup_bible_passage before answering
