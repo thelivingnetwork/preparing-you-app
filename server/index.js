@@ -89,7 +89,6 @@ const BIBLE_TRANSLATIONS = {
   asv:      { name: 'American Standard Version',      provider: 'bibleapi' },
   web:      { name: 'World English Bible',            provider: 'bibleapi' },
   bbe:      { name: 'Bible in Basic English',         provider: 'bibleapi' },
-  darby:    { name: 'Darby Translation',              provider: 'bibleapi' },
   ylt:      { name: "Young's Literal Translation",    provider: 'bibleapi' },
   wb:       { name: "Webster's Bible",                provider: 'bibleapi' },
   'oeb-us': { name: 'Open English Bible (US)',        provider: 'bibleapi' },
