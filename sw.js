@@ -13,40 +13,59 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+function _setBadge(n) {
+  // iOS quirk: 'setAppBadge' in navigator returns false even when the API
+  // exists — skip the feature-detect and just try/catch directly.
+  try {
+    if (n > 0) navigator.setAppBadge(n);
+    else        navigator.clearAppBadge();
+  } catch (_) {}
+}
+
+function _notifyClients(count) {
+  // Forward the badge count to any open windows so they can call
+  // navigator.setAppBadge from the page context (belt-and-suspenders for iOS).
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(clients => clients.forEach(c => c.postMessage({ kind: 'set-badge', count })))
+    .catch(() => {});
+}
+
+// ── push ─────────────────────────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (_) {}
-  const title = data.title || 'Preparing You';
-  const body  = data.body  || 'You have a new notification.';
-  const unread = typeof data.unread === 'number' ? data.unread : null;
+  const title  = data.title  || 'Preparing You';
+  const body   = data.body   || 'You have a new notification.';
+  const unread = typeof data.unread === 'number' ? data.unread : 1;
   const action = data.action || null;
 
   const showPromise = self.registration.showNotification(title, {
     body,
-    icon: '/ark-purple.png',
-    badge: '/favicon.png',
-    tag: 'preparing-you-notif',
-    renotify: true,
-    data: { action }
+    icon:      '/icon-192.png',
+    badge:     '/favicon.png',
+    tag:       'preparing-you-notif',
+    renotify:  true,
+    data:      { action, unread }
   });
 
-  const badgePromise = (unread !== null && self.navigator && 'setAppBadge' in self.navigator)
-    ? (unread > 0 ? self.navigator.setAppBadge(unread) : self.navigator.clearAppBadge())
-    : Promise.resolve();
+  // Set the homescreen icon badge count.
+  _setBadge(unread);
+  _notifyClients(unread);
 
-  event.waitUntil(Promise.all([showPromise, badgePromise]));
+  event.waitUntil(showPromise);
 });
 
+// ── notification tap ─────────────────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const data = event.notification.data || {};
+  const data       = event.notification.data || {};
   const targetPage = data.action && data.action.type === 'page' ? data.action.page : null;
-  const url = new URL('/', self.location.origin);
+  const url        = new URL('/', self.location.origin);
   if (targetPage) url.hash = '#page=' + encodeURIComponent(targetPage);
 
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    // If an app window is already open, focus it and route inside.
     for (const c of all) {
       if (c.url.startsWith(self.location.origin)) {
         c.focus();
@@ -54,17 +73,16 @@ self.addEventListener('notificationclick', (event) => {
         return;
       }
     }
-    // Otherwise open a fresh one.
     await self.clients.openWindow(url.toString());
   })());
 });
 
-// Allow the page to clear the icon badge when the user marks notifications
-// read (sent from index.html via postMessage).
+// ── page messages ─────────────────────────────────────────────────────────────
+// Allow the page to push badge updates to the SW (e.g. when the user marks
+// notifications read and the foreground count drops to zero).
 self.addEventListener('message', (event) => {
   const msg = event.data || {};
-  if (msg.kind === 'set-badge' && self.navigator && 'setAppBadge' in self.navigator) {
-    const n = typeof msg.count === 'number' ? msg.count : 0;
-    if (n > 0) self.navigator.setAppBadge(n); else self.navigator.clearAppBadge();
+  if (msg.kind === 'set-badge') {
+    _setBadge(typeof msg.count === 'number' ? msg.count : 0);
   }
 });
