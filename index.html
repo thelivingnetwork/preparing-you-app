@@ -671,6 +671,7 @@ function enterApp(){
   _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
   _maybeOfferPushPrompt();
   _maybeShowIosInstallHint();
+  _maybeShowAndroidInstallHint();
 }
 
 function showPage(name){
@@ -1010,6 +1011,13 @@ async function joinDailyLink(roomName){
 // ═════════════════════════ PUSH + PWA INSTALL ═════════════════════════
 // Register the service worker as early as possible — needed for both the
 // home-screen install prompt and for Web Push.
+// Capture Android's deferred install prompt so we can trigger it on demand.
+let _androidInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _androidInstallPrompt = e;
+});
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW register failed', e));
@@ -1123,6 +1131,39 @@ function _maybeShowIosInstallHint() {
   document.body.appendChild(div);
   document.getElementById('ios-hint-close').onclick = () => {
     localStorage.setItem('pp_ios_hint_dismissed', '1');
+    div.remove();
+  };
+}
+
+function _maybeShowAndroidInstallHint() {
+  // Android Chrome: if the app isn't installed yet and the browser has
+  // signalled it's installable (beforeinstallprompt fired), nudge the user
+  // so the homescreen icon badge works after they install.
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  if (isStandalone) return; // already installed
+  const ua = navigator.userAgent || '';
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  if (isIos) return; // iOS handled separately
+  if (!_androidInstallPrompt) return; // not installable / already installed
+  if (localStorage.getItem('pp_android_hint_dismissed') === '1') return;
+  if (document.getElementById('android-hint')) return;
+  const div = document.createElement('div');
+  div.id = 'android-hint';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.innerHTML = '<div style="flex:1">Add to your home screen to get a badge on the app icon when messages arrive.</div>' +
+    '<button id="android-hint-install" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer;white-space:nowrap">Add</button>' +
+    '<button id="android-hint-close" style="background:transparent;color:var(--walnut);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;cursor:pointer">Not now</button>';
+  document.body.appendChild(div);
+  document.getElementById('android-hint-install').onclick = async () => {
+    div.remove();
+    if (_androidInstallPrompt) {
+      _androidInstallPrompt.prompt();
+      await _androidInstallPrompt.userChoice;
+      _androidInstallPrompt = null;
+    }
+  };
+  document.getElementById('android-hint-close').onclick = () => {
+    localStorage.setItem('pp_android_hint_dismissed', '1');
     div.remove();
   };
 }
