@@ -8,7 +8,8 @@ const fs = require('fs')
 const envPath = fs.existsSync('/etc/secrets/.env') ? '/etc/secrets/.env' : '.env'
 require('dotenv').config({ path: envPath })
 
-const http = require('http')
+const http  = require('http')
+const https = require('https')
 const Anthropic = require('@anthropic-ai/sdk')
 const { createClient } = require('@supabase/supabase-js')
 const webpush = require('web-push')
@@ -253,17 +254,127 @@ const BIBLE_TOOLS = [{
     },
     required: ['number']
   }
+}, {
+  name: 'search_church_articles',
+  description: 'Search for articles on preparingyou.com (7,000+ wiki articles) and hisholychurch.org. Use this when the user asks about a topic and you want to find relevant articles from those sites, or when you need to look something up that goes beyond the book excerpts.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'The search query, e.g. "covenant", "free church", "liberty and taxation"' }
+    },
+    required: ['query']
+  }
+}, {
+  name: 'fetch_church_article',
+  description: 'Fetch the full text of a specific article from preparingyou.com or hisholychurch.org. Use this after search_church_articles to read the full content of a relevant article, or when you already know the URL.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', description: 'Full URL of the article, e.g. "https://preparingyou.com/wiki/Covenant" or "https://hisholychurch.org/news/articles/covenant.php"' }
+    },
+    required: ['url']
+  }
 }]
+
+// ─── HisHolyChurch.org + PreparingYou.com article access ────────────────
+//
+// preparingyou.com  → MediaWiki API (7,236 articles; SSL cert issue → https module)
+// hisholychurch.org → WP REST API for blog (12 posts) + HTML scrape for main site
+
+function fetchInsecure(url) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    const opts = { hostname: u.hostname, path: u.pathname + u.search, rejectUnauthorized: false, headers: { 'User-Agent': 'PreparingYou-Paul/1.0' } }
+    https.get(opts, res => {
+      let buf = ''
+      res.on('data', c => { buf += c; if (buf.length > 500_000) res.destroy() })
+      res.on('end', () => resolve(buf))
+    }).on('error', reject)
+  })
+}
+
+function stripHtml(html) {
+  return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+             .replace(/<[^>]+>/g, ' ')
+             .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+             .replace(/\s{2,}/g, ' ').trim()
+}
+
+async function searchPreparingYou(query, limit = 5) {
+  const url = `https://preparingyou.com/wiki/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srwhat=text&srlimit=${limit}&srprop=snippet|size&format=json&formatversion=2`
+  const j = JSON.parse(await fetchInsecure(url))
+  return (j.query?.search || []).map(a => ({
+    title: a.title,
+    snippet: stripHtml(a.snippet || ''),
+    url: `https://preparingyou.com/wiki/${a.title.replace(/ /g, '_')}`
+  }))
+}
+
+async function searchHhcBlog(query, limit = 3) {
+  const url = `https://www.hisholychurch.org/blog/index.php?rest_route=/wp/v2/posts&search=${encodeURIComponent(query)}&per_page=${limit}&_fields=id,title,excerpt,link`
+  const r = await fetch(url)
+  if (!r.ok) return []
+  return (await r.json() || []).map(p => ({
+    title: stripHtml(p.title?.rendered || ''),
+    snippet: stripHtml(p.excerpt?.rendered || '').slice(0, 200),
+    url: p.link
+  }))
+}
+
+async function searchChurchArticles(query) {
+  const [wiki, blog] = await Promise.allSettled([searchPreparingYou(query, 5), searchHhcBlog(query)])
+  const results = [
+    ...(wiki.status === 'fulfilled' ? wiki.value : []),
+    ...(blog.status === 'fulfilled' ? blog.value : [])
+  ]
+  if (!results.length) return 'No articles found for that query.'
+  return results.map((a, i) => `${i + 1}. ${a.title}\n   ${a.snippet}\n   ${a.url}`).join('\n\n')
+}
+
+async function fetchChurchArticle(url) {
+  const u = new URL(url)
+  const host = u.hostname.replace(/^www\./, '')
+  if (!['preparingyou.com', 'hisholychurch.org'].includes(host)) {
+    throw new Error('Only hisholychurch.org and preparingyou.com URLs are allowed')
+  }
+  if (host === 'preparingyou.com') {
+    const title = decodeURIComponent(u.pathname.replace(/^\/wiki\//, '').replace(/_/g, ' '))
+    const apiUrl = `https://preparingyou.com/wiki/api.php?action=query&prop=extracts&titles=${encodeURIComponent(title)}&explaintext=1&exintro=0&format=json&formatversion=2`
+    const j = JSON.parse(await fetchInsecure(apiUrl))
+    const page = (j.query?.pages || [])[0]
+    if (!page || page.missing !== undefined) throw new Error(`Article not found: ${title}`)
+    const extract = (page.extract || '').trim()
+    return `${page.title} (preparingyou.com)\n\n${extract.slice(0, 4000)}${extract.length > 4000 ? '\n\n[article continues…]' : ''}`
+  }
+  if (u.pathname.includes('/blog/')) {
+    const slug = u.pathname.replace(/\/$/, '').split('/').pop()
+    const apiUrl = `https://www.hisholychurch.org/blog/index.php?rest_route=/wp/v2/posts&slug=${encodeURIComponent(slug)}&_fields=title,content`
+    const r = await fetch(apiUrl)
+    if (!r.ok) throw new Error(`Blog API returned ${r.status}`)
+    const posts = await r.json()
+    if (!posts?.length) throw new Error(`Blog post not found: ${slug}`)
+    const text = stripHtml(posts[0].content?.rendered || '').slice(0, 4000)
+    return `${stripHtml(posts[0].title?.rendered || '')} (hisholychurch.org)\n\n${text}`
+  }
+  // Main site — scrape <td id=content>
+  const html = await fetch(url).then(r => r.text())
+  const m = html.match(/<td[^>]*id=["']?content["']?[^>]*>([\s\S]*?)(?=<tr[^>]*><td[^>]*id=["']?cft|<\/table>)/i)
+  const text = stripHtml(m ? m[1] : html).slice(0, 4000)
+  if (!text.trim()) throw new Error('Could not extract article content from that URL')
+  return `${u.pathname} (hisholychurch.org)\n\n${text}`
+}
 
 const PAUL_SYSTEM = `You are Paul, a guide for someone preparing to enter "The Living Network."
 
 Tone: earnest, reverent, plain-spoken. You are speaking to someone discerning a covenant decision — not a casual chatbot user. Speak as a wise elder might, in the first person where it fits naturally.
 
-You can answer four kinds of questions:
+You can answer five kinds of questions:
 1. Substantive questions about preparation, covenants, contracts, liberty, the kingdom, ministers, etc. — drawn from the source excerpts provided below.
 2. Practical questions about how to use this app (Preparing You) — drawn from the App Guide below.
 3. Questions about scripture, Bible verses, or passages — use the lookup_bible_passage tool to fetch the actual text before answering.
 4. Word studies — questions about what a Greek or Hebrew word means, or what word underlies an English translation — use the lookup_strongs tool with the appropriate Strong's number (G for Greek, H for Hebrew).
+5. Questions that go beyond the book excerpts — use search_church_articles to find relevant articles on preparingyou.com (7,000+ articles) and hisholychurch.org, then fetch_church_article to read the full text before answering.
 
 App Guide — how the Preparing You app works:
 
@@ -293,7 +404,8 @@ Rules for answering:
 - For questions about the source material: use the excerpts below as your knowledge. Speak from them as your own understanding — do not say things like "drawn from the books," "according to the source," "the excerpt says," or name book titles. Just answer.
 - For questions about app operation: answer plainly using the App Guide above. You can name UI elements (e.g. "the PCM tab," "the bell icon").
 - For scripture questions: always call lookup_bible_passage to get the exact text before answering. Quote it directly. Default to KJV unless the user requests another translation. If a user asks for NIV, ESV, NLT, NKJV, NASB, MSG, AMP, or CSB and no API key is configured, tell them plainly that translation isn't available and offer KJV, ASV, WEB, or YLT instead.
-- For word studies: call lookup_strongs with the Strong's number. You know common numbers from your training (e.g. G26=agape, G3056=logos, G4151=pneuma, H430=Elohim, H3068=YHWH). If you are uncertain of the number, say so and invite the user to provide it, or look up the passage first and reason from context.
+- For word studies: call lookup_strongs with the Strong's number.
+- For deeper questions: first call search_church_articles, pick the most relevant result, then call fetch_church_article to read it fully before answering. Do not invent content — use what the article actually says. You know common numbers from your training (e.g. G26=agape, G3056=logos, G4151=pneuma, H430=Elohim, H3068=YHWH). If you are uncertain of the number, say so and invite the user to provide it, or look up the passage first and reason from context.
 - If a question is about backend systems, code, deployment, the admin panel, billing, or anything not user-facing — politely say that's not something you can help with here.
 - If neither the excerpts, App Guide, nor scripture cover a question, say plainly that you cannot speak to that here. Do not invent.
 - Keep answers focused. 2–4 short paragraphs is usually right.
@@ -344,6 +456,10 @@ async function paulChat(userId, messages, lang) {
     try {
       if (toolBlock.name === 'lookup_strongs') {
         toolResult = await fetchStrongsDefinition(toolBlock.input.number)
+      } else if (toolBlock.name === 'search_church_articles') {
+        toolResult = await searchChurchArticles(toolBlock.input.query)
+      } else if (toolBlock.name === 'fetch_church_article') {
+        toolResult = await fetchChurchArticle(toolBlock.input.url)
       } else {
         const { reference, translation = 'kjv' } = toolBlock.input
         toolResult = await fetchBiblePassage(reference, translation)
