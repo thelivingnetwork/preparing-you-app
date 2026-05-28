@@ -104,7 +104,12 @@ Rules for answering:
 - Keep answers focused. 2–4 short paragraphs is usually right.
 - Do not begin with "Peace to you" or other greetings — a greeting is offered by the interface.`
 
-async function paulChat(userId, messages) {
+const PAUL_LANGS = new Set([
+  'English','Spanish','French','Portuguese','German','Italian',
+  'Russian','Chinese (Simplified)','Arabic','Armenian','Hindi','Swahili','Filipino'
+])
+
+async function paulChat(userId, messages, lang) {
   // The last user message is what we retrieve against.
   const lastUser = [...messages].reverse().find(m => m.role === 'user')
   if (!lastUser) throw new Error('no user message')
@@ -121,7 +126,10 @@ async function paulChat(userId, messages) {
     `--- excerpt ${i + 1} from "${bookTitle(c.book_id)}" ---\n${c.chunk_text}`
   ).join('\n\n')
 
-  const sys = PAUL_SYSTEM + '\n\nSource excerpts retrieved for this question:\n\n' + context
+  let sys = PAUL_SYSTEM + '\n\nSource excerpts retrieved for this question:\n\n' + context
+  if (lang && PAUL_LANGS.has(lang) && lang !== 'English') {
+    sys += `\n\nRespond in ${lang}. If the user's message is in another language, understand it and reply in ${lang} only. Do not include the English version.`
+  }
 
   const resp = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',
@@ -385,9 +393,9 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
       const body = await readJson(req)
-      const { userId, messages } = body
+      const { userId, messages, lang } = body
       if (!Array.isArray(messages) || !messages.length) return send(res, 400, { error: 'messages required' })
-      return send(res, 200, await paulChat(userId, messages))
+      return send(res, 200, await paulChat(userId, messages, lang))
     }
 
     if (req.method === 'POST' && req.url === '/elect') {

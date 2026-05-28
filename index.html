@@ -464,16 +464,33 @@
   <!-- Paul drawer -->
   <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
     <div style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--cream);display:flex;flex-direction:column;border-left:1px solid var(--line)">
-      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--teal);color:var(--cream)">
         <div>
           <div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Paul</div>
           <div style="font-size:11px;font-style:italic;opacity:.85">Here to walk with you</div>
         </div>
-        <button onclick="closePaul()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 8px">×</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <select id="paul-lang" onchange="_paulLangChanged()" title="Language" style="background:var(--cream);color:var(--walnut);border:1px solid var(--teal-deep);border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12px;cursor:pointer">
+            <option value="English">English</option>
+            <option value="Spanish">Español</option>
+            <option value="French">Français</option>
+            <option value="Portuguese">Português</option>
+            <option value="German">Deutsch</option>
+            <option value="Italian">Italiano</option>
+            <option value="Russian">Русский</option>
+            <option value="Chinese (Simplified)">中文</option>
+            <option value="Arabic">العربية</option>
+            <option value="Armenian">Հայերեն</option>
+            <option value="Hindi">हिन्दी</option>
+            <option value="Swahili">Kiswahili</option>
+            <option value="Filipino">Filipino</option>
+          </select>
+          <button onclick="closePaul()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 8px">×</button>
+        </div>
       </div>
       <div id="paul-messages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px"></div>
       <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px">
-        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:inherit;font-size:14px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:inherit;font-size:16px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
         <button id="paul-send" onclick="sendPaul()" style="padding:10px 16px;background:var(--terra);color:#fff;border:none;border-radius:8px;font-family:'Spectral',serif;font-weight:500;cursor:pointer">Ask</button>
       </div>
     </div>
@@ -1156,10 +1173,40 @@ function closeBookAudiobook(){
 // ═════════════════════════ PAUL ═════════════════════════
 let _paulHistory = []; // [{role, content}]
 
+const PAUL_GREETINGS = {
+  'English': 'Peace to you. What would you like to ask?',
+  'Spanish': 'La paz sea contigo. ¿Qué te gustaría preguntar?',
+  'French': 'Que la paix soit avec toi. Que veux-tu demander ?',
+  'Portuguese': 'A paz esteja contigo. O que gostarias de perguntar?',
+  'German': 'Friede sei mit dir. Was möchtest du fragen?',
+  'Italian': 'La pace sia con te. Cosa vorresti chiedere?',
+  'Russian': 'Мир тебе. Что ты хотел бы спросить?',
+  'Chinese (Simplified)': '愿你平安。你想问什么?',
+  'Arabic': 'السلام عليك. ماذا تريد أن تسأل؟',
+  'Armenian': 'Խաղաղություն քեզ։ Ի՞նչ կցանկանայիր հարցնել։',
+  'Hindi': 'आप पर शांति हो। आप क्या पूछना चाहेंगे?',
+  'Swahili': 'Amani iwe nawe. Ungependa kuuliza nini?',
+  'Filipino': 'Sumaiyo ang kapayapaan. Ano ang nais mong itanong?'
+};
+
+function _paulLang(){
+  const sel = document.getElementById('paul-lang');
+  return (sel && sel.value) || localStorage.getItem('pp_paul_lang') || 'English';
+}
+
+function _paulLangChanged(){
+  const sel = document.getElementById('paul-lang');
+  if (sel) localStorage.setItem('pp_paul_lang', sel.value);
+}
+
 function openPaul(){
   document.getElementById('paul-drawer').style.display = 'block';
+  const sel = document.getElementById('paul-lang');
+  const saved = localStorage.getItem('pp_paul_lang');
+  if (sel && saved) sel.value = saved;
   if(!_paulHistory.length){
-    _renderPaulMessage('assistant', 'Peace to you. What would you like to ask?');
+    const greet = PAUL_GREETINGS[_paulLang()] || PAUL_GREETINGS.English;
+    _renderPaulMessage('assistant', greet);
   }
   setTimeout(() => document.getElementById('paul-input').focus(), 50);
 }
@@ -1193,7 +1240,7 @@ async function sendPaul(){
     const r = await fetch(_SERVER_URL + '/paul/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userId: currentUser?.id || null, messages: _paulHistory })
+      body: JSON.stringify({ userId: currentUser?.id || null, messages: _paulHistory, lang: _paulLang() })
     });
     const j = await r.json();
     if(!r.ok){ thinking.textContent = '⚠ ' + (j.error || 'Something went wrong.'); }
