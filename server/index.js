@@ -388,7 +388,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.5' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.6' })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
@@ -480,6 +480,78 @@ const server = http.createServer(async (req, res) => {
       if (!userId) return false
       const { data } = await sb.from('prep_townhall_hosts').select('user_id').eq('user_id', userId).maybeSingle()
       return !!data
+    }
+
+    if (req.method === 'POST' && req.url === '/webhooks/daily') {
+      // Daily.co fires this when a recording is ready. We match the
+      // townhall row by room_name and write the playback URL into
+      // prep_townhalls.recording_url so the admin log + the home
+      // 'Replay last townhall' button pick it up automatically.
+      const raw = await new Promise((resolve, reject) => {
+        let body = ''
+        req.on('data', c => { body += c; if (body.length > 1e6) { req.destroy(); reject(new Error('payload too large')) } })
+        req.on('end', () => resolve(body))
+        req.on('error', reject)
+      })
+      // Optional HMAC verification — Daily signs the body with the secret you
+      // configure in their dashboard. If DAILY_WEBHOOK_SECRET isn't set,
+      // accept the event (dev mode); set it in Render env once you've
+      // configured a signing secret in Daily.
+      if (process.env.DAILY_WEBHOOK_SECRET) {
+        const crypto = require('crypto')
+        const sig = req.headers['x-webhook-signature'] || req.headers['x-daily-signature'] || ''
+        const ts  = req.headers['x-webhook-timestamp'] || ''
+        const expected = crypto
+          .createHmac('sha256', process.env.DAILY_WEBHOOK_SECRET)
+          .update(ts + '.' + raw)
+          .digest('base64')
+        if (sig !== expected) {
+          console.warn('[daily-webhook] signature mismatch')
+          return send(res, 401, { error: 'bad_signature' })
+        }
+      }
+      let evt = {}
+      try { evt = JSON.parse(raw) } catch (_) {}
+      const type = evt.type || evt.event || ''
+      if (!/recording\.?ready/i.test(type)) {
+        return send(res, 200, { ok: true, ignored: type })
+      }
+      // Daily's payload shape varies slightly across versions. Common fields:
+      //   evt.payload.room_name, evt.payload.s3_url, evt.payload.recording_id
+      const payload = evt.payload || evt.data || evt
+      const roomName = payload.room_name || payload.roomName || evt.room_name
+      const directUrl = payload.s3_url || payload.download_link || payload.url || null
+      if (!roomName) return send(res, 400, { error: 'no_room_name' })
+
+      // If the webhook didn't include a direct URL, ask Daily's REST API for
+      // the most recent recording for this room and use its access link.
+      let recordingUrl = directUrl
+      if (!recordingUrl && process.env.DAILY_API_KEY) {
+        try {
+          const r = await fetch(`https://api.daily.co/v1/recordings?room_name=${encodeURIComponent(roomName)}&limit=1`, {
+            headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}` }
+          })
+          const j = await r.json()
+          const rec = (j && j.data && j.data[0]) || null
+          if (rec && rec.id) {
+            const lr = await fetch(`https://api.daily.co/v1/recordings/${rec.id}/access-link`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}` }
+            })
+            const lj = await lr.json()
+            if (lj && lj.download_link) recordingUrl = lj.download_link
+          }
+        } catch (e) { console.warn('[daily-webhook] api lookup failed', e) }
+      }
+      if (!recordingUrl) return send(res, 200, { ok: false, reason: 'no_url_resolved' })
+
+      // Update the townhall row matching this room
+      const { error } = await sb.from('prep_townhalls')
+        .update({ recording_url: recordingUrl })
+        .eq('daily_room', roomName)
+      if (error) console.warn('[daily-webhook] update failed', error)
+      console.log('[daily-webhook] recording.ready for', roomName, '→ url stored')
+      return send(res, 200, { ok: true })
     }
 
     if (req.method === 'POST' && req.url === '/admin/delete-user') {
