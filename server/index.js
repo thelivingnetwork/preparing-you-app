@@ -75,15 +75,125 @@ async function retrieveChunks(queryEmbedding, k = 6) {
   return data || []
 }
 
-// ─── Bible lookup via bible-api.com (free, no key required) ─────────────
-async function fetchBiblePassage(reference, translation = 'kjv') {
+// ─── Bible lookup ────────────────────────────────────────────────────────
+//
+// Two providers:
+//   1. bible-api.com  — no key required; public-domain translations only
+//   2. api.bible      — free key (API_BIBLE_KEY env var); 2500+ translations
+//                       Set key at: https://scripture.api.bible/
+//
+// Translations and which provider serves them:
+const BIBLE_TRANSLATIONS = {
+  // ── Available on bible-api.com (no key) ──────────────────────────────
+  kjv:      { name: 'King James Version',             provider: 'bibleapi' },
+  asv:      { name: 'American Standard Version',      provider: 'bibleapi' },
+  web:      { name: 'World English Bible',            provider: 'bibleapi' },
+  bbe:      { name: 'Bible in Basic English',         provider: 'bibleapi' },
+  darby:    { name: 'Darby Translation',              provider: 'bibleapi' },
+  ylt:      { name: "Young's Literal Translation",    provider: 'bibleapi' },
+  wb:       { name: "Webster's Bible",                provider: 'bibleapi' },
+  'oeb-us': { name: 'Open English Bible (US)',        provider: 'bibleapi' },
+  'oeb-cw': { name: 'Open English Bible (Commonwealth)', provider: 'bibleapi' },
+  weymouth: { name: 'Weymouth New Testament',         provider: 'bibleapi' },
+  // ── Available on api.bible (API_BIBLE_KEY required) ──────────────────
+  lsv:      { name: 'Literal Standard Version',      provider: 'apibible', id: '01b29f4b342acc35-01' },
+  niv:      { name: 'New International Version',     provider: 'apibible', id: '78a9f6124f344018-01' },
+  esv:      { name: 'English Standard Version',      provider: 'apibible', id: 'f72b840c1b9f8ef6-04' },
+  nlt:      { name: 'New Living Translation',        provider: 'apibible', id: '65eec8e0b60e656b-02' },
+  nasb:     { name: 'New American Standard Bible',   provider: 'apibible', id: 'c315fa9f71d4af3a-01' },
+  nkjv:     { name: 'New King James Version',        provider: 'apibible', id: '40072c4a5aba4022-01' },
+  msg:      { name: 'The Message',                   provider: 'apibible', id: '65eec8e0b60e656b-03' },
+  amp:      { name: 'Amplified Bible',               provider: 'apibible', id: '3f4dc4fdc30a2abb-01' },
+  csb:      { name: 'Christian Standard Bible',      provider: 'apibible', id: '55ec700d9e6d1977-01' },
+  nrsv:     { name: 'New Revised Standard Version',  provider: 'apibible', id: '2880202-1-01' },
+}
+
+// OSIS 3-letter book codes for api.bible reference parsing
+const BOOK_CODES = {
+  genesis:'GEN',gen:'GEN',exodus:'EXO',exo:'EXO',leviticus:'LEV',lev:'LEV',
+  numbers:'NUM',num:'NUM',deuteronomy:'DEU',deu:'DEU',deut:'DEU',
+  joshua:'JOS',jos:'JOS',josh:'JOS',judges:'JDG',jdg:'JDG',judg:'JDG',
+  ruth:'RUT',rut:'RUT',
+  '1samuel':'1SA','1sa':'1SA','1sam':'1SA','2samuel':'2SA','2sa':'2SA','2sam':'2SA',
+  '1kings':'1KI','1ki':'1KI','1kgs':'1KI','2kings':'2KI','2ki':'2KI','2kgs':'2KI',
+  '1chronicles':'1CH','1ch':'1CH','1chr':'1CH','2chronicles':'2CH','2ch':'2CH','2chr':'2CH',
+  ezra:'EZR',ezr:'EZR',nehemiah:'NEH',neh:'NEH',esther:'EST',est:'EST',
+  job:'JOB',psalms:'PSA',psalm:'PSA',psa:'PSA',ps:'PSA',
+  proverbs:'PRO',pro:'PRO',prov:'PRO',ecclesiastes:'ECC',ecc:'ECC',
+  'song of solomon':'SNG','song of songs':'SNG',sng:'SNG',sos:'SNG',
+  isaiah:'ISA',isa:'ISA',jeremiah:'JER',jer:'JER',lamentations:'LAM',lam:'LAM',
+  ezekiel:'EZK',ezk:'EZK',ezek:'EZK',daniel:'DAN',dan:'DAN',
+  hosea:'HOS',hos:'HOS',joel:'JOL',jol:'JOL',amos:'AMO',amo:'AMO',
+  obadiah:'OBA',oba:'OBA',jonah:'JON',jon:'JON',micah:'MIC',mic:'MIC',
+  nahum:'NAM',nam:'NAM',habakkuk:'HAB',hab:'HAB',zephaniah:'ZEP',zep:'ZEP',
+  haggai:'HAG',hag:'HAG',zechariah:'ZEC',zec:'ZEC',zech:'ZEC',malachi:'MAL',mal:'MAL',
+  matthew:'MAT',mat:'MAT',matt:'MAT',mark:'MRK',mrk:'MRK',mk:'MRK',
+  luke:'LUK',luk:'LUK',lk:'LUK',john:'JHN',jhn:'JHN',jn:'JHN',
+  acts:'ACT',act:'ACT',romans:'ROM',rom:'ROM',
+  '1corinthians':'1CO','1co':'1CO','1cor':'1CO','2corinthians':'2CO','2co':'2CO','2cor':'2CO',
+  galatians:'GAL',gal:'GAL',ephesians:'EPH',eph:'EPH',
+  philippians:'PHP',php:'PHP',phil:'PHP',colossians:'COL',col:'COL',
+  '1thessalonians':'1TH','1th':'1TH','1thes':'1TH','2thessalonians':'2TH','2th':'2TH','2thes':'2TH',
+  '1timothy':'1TI','1ti':'1TI','1tim':'1TI','2timothy':'2TI','2ti':'2TI','2tim':'2TI',
+  titus:'TIT',tit:'TIT',philemon:'PHM',phm:'PHM',hebrews:'HEB',heb:'HEB',
+  james:'JAS',jas:'JAS',
+  '1peter':'1PE','1pe':'1PE','1pet':'1PE','2peter':'2PE','2pe':'2PE','2pet':'2PE',
+  '1john':'1JN','1jn':'1JN','1jno':'1JN','2john':'2JN','2jn':'2JN','3john':'3JN','3jn':'3JN',
+  jude:'JUD',jud:'JUD',revelation:'REV',rev:'REV',revelations:'REV',
+}
+
+// Parse "John 3:16-18" or "Psalm 23" into an api.bible passage ID
+function toOsisPassageId(reference) {
+  const ref = reference.trim()
+  // Match: <book> <chapter>[:<verse>[-<verse>]]
+  const m = ref.match(/^((?:\d\s)?[a-z\s]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i)
+  if (!m) throw new Error(`Could not parse reference: ${reference}`)
+  const bookKey = m[1].trim().toLowerCase().replace(/\s+/g, '')
+  const code = BOOK_CODES[bookKey]
+  if (!code) throw new Error(`Unknown book: ${m[1]}`)
+  const ch = m[2]
+  if (!m[3]) return `${code}.${ch}` // whole chapter
+  const v1 = m[3], v2 = m[4]
+  return v2 ? `${code}.${ch}.${v1}-${code}.${ch}.${v2}` : `${code}.${ch}.${v1}`
+}
+
+// Fetch from bible-api.com (public-domain translations, no key)
+async function fetchFromBibleApi(reference, translation) {
   const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=${translation}`
   const r = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!r.ok) throw new Error(`Bible API returned ${r.status}`)
+  if (!r.ok) throw new Error(`bible-api.com returned ${r.status}`)
   const j = await r.json()
   if (j.error) throw new Error(j.error)
   return `${j.reference} (${j.translation_name})\n\n${j.text.trim()}`
 }
+
+// Fetch from api.bible (requires API_BIBLE_KEY)
+async function fetchFromApiBible(reference, bibleId, translationName) {
+  const key = process.env.API_BIBLE_KEY
+  if (!key) throw new Error('API_BIBLE_KEY not set — cannot fetch this translation')
+  const passageId = toOsisPassageId(reference)
+  const url = `https://api.scripture.api.bible/v1/bibles/${bibleId}/passages/${passageId}`
+    + '?content-type=text&include-notes=false&include-titles=false'
+    + '&include-chapter-numbers=false&include-verse-numbers=true'
+  const r = await fetch(url, { headers: { 'api-key': key, Accept: 'application/json' } })
+  if (!r.ok) throw new Error(`api.bible returned ${r.status} for ${translationName}`)
+  const j = await r.json()
+  if (!j.data) throw new Error('No data from api.bible')
+  const text = j.data.content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  return `${j.data.reference} (${translationName})\n\n${text}`
+}
+
+// Route to the right provider
+async function fetchBiblePassage(reference, translation = 'kjv') {
+  const t = BIBLE_TRANSLATIONS[translation.toLowerCase()]
+  if (!t) throw new Error(`Unknown translation: ${translation}`)
+  if (t.provider === 'apibible') return fetchFromApiBible(reference, t.id, t.name)
+  return fetchFromBibleApi(reference, translation)
+}
+
+const TRANSLATION_LIST = Object.entries(BIBLE_TRANSLATIONS)
+  .map(([k, v]) => `${k} (${v.name}${v.provider === 'apibible' ? ', requires API key' : ''})`)
+  .join(', ')
 
 const BIBLE_TOOLS = [{
   name: 'lookup_bible_passage',
@@ -93,12 +203,12 @@ const BIBLE_TOOLS = [{
     properties: {
       reference: {
         type: 'string',
-        description: 'The Bible reference, e.g. "John 3:16", "Romans 8:28-30", "Psalm 23:1-4"'
+        description: 'The Bible reference, e.g. "John 3:16", "Romans 8:28-30", "Psalm 23", "1 Corinthians 13:1-7"'
       },
       translation: {
         type: 'string',
-        enum: ['kjv', 'web', 'asv'],
-        description: 'Bible translation to use. Default: kjv (King James Version).'
+        enum: Object.keys(BIBLE_TRANSLATIONS),
+        description: `Bible translation abbreviation. Default: kjv. Available: ${TRANSLATION_LIST}`
       }
     },
     required: ['reference']
@@ -141,7 +251,7 @@ Forgot password. Link on the sign-in form sends a reset email; the user follows 
 Rules for answering:
 - For questions about the source material: use the excerpts below as your knowledge. Speak from them as your own understanding — do not say things like "drawn from the books," "according to the source," "the excerpt says," or name book titles. Just answer.
 - For questions about app operation: answer plainly using the App Guide above. You can name UI elements (e.g. "the PCM tab," "the bell icon").
-- For scripture questions: always call lookup_bible_passage to get the exact text before answering. Quote it directly. You may note the translation (KJV) if helpful.
+- For scripture questions: always call lookup_bible_passage to get the exact text before answering. Quote it directly. Default to KJV unless the user requests another translation. If a user asks for NIV, ESV, NLT, NKJV, NASB, MSG, AMP, or CSB and no API key is configured, tell them plainly that translation isn't available and offer KJV, ASV, WEB, or YLT instead.
 - If a question is about backend systems, code, deployment, the admin panel, billing, or anything not user-facing — politely say that's not something you can help with here.
 - If neither the excerpts, App Guide, nor scripture cover a question, say plainly that you cannot speak to that here. Do not invent.
 - Keep answers focused. 2–4 short paragraphs is usually right.
