@@ -925,6 +925,27 @@ const server = http.createServer(async (req, res) => {
       for (const e of (mine || [])) {
         if (!peers.find(p => p.id === e.id)) peers.push({ ...e, role: 'You are their PCM' })
       }
+      // Also surface anyone the user has exchanged direct messages with who
+      // isn't already a PCM peer (e.g. admin broadcasts), so those threads are
+      // reachable from the Messages page.
+      const { data: msgRows } = await sb.from('prep_messages')
+        .select('sender_id, recipient_id')
+        .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
+      const otherIds = new Set()
+      for (const m of (msgRows || [])) {
+        const other = m.sender_id === userId ? m.recipient_id : m.sender_id
+        if (other && other !== userId && !peers.find(p => p.id === other)) otherIds.add(other)
+      }
+      if (otherIds.size) {
+        const idArr = [...otherIds]
+        const { data: extraUsers } = await sb.from('prep_users').select('id, name, region').in('id', idArr)
+        const { data: adminRows } = await sb.from('prep_admins').select('user_id').in('user_id', idArr)
+        const adminSet = new Set((adminRows || []).map(a => a.user_id))
+        for (const eu of (extraUsers || [])) {
+          if (peers.find(p => p.id === eu.id)) continue
+          peers.push({ ...eu, role: adminSet.has(eu.id) ? 'Preparing You team' : 'Message' })
+        }
+      }
       return send(res, 200, { peers })
     }
 
@@ -1046,6 +1067,55 @@ const server = http.createServer(async (req, res) => {
       })
       if (!r.ok) return send(res, 500, { error: 'auth_delete_failed', status: r.status, body: await r.text() })
       return send(res, 200, { ok: true })
+    }
+
+    if (req.method === 'POST' && req.url === '/admin/broadcast') {
+      // Admin → message any/all selected users at once. Each recipient gets a
+      // normal prep_messages row from the admin, so it shows up in their
+      // Messages thread (see /peers, which surfaces message correspondents).
+      const auth = req.headers['authorization'] || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+      if (!token) return send(res, 401, { error: 'no_token' })
+      const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: 'Bearer ' + token } },
+        auth: { persistSession: false }
+      })
+      const { data: u } = await callerSb.auth.getUser(token)
+      const callerId = u?.user?.id
+      if (!callerId) return send(res, 401, { error: 'invalid_token' })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', callerId).maybeSingle()
+      if (!adminRow) return send(res, 403, { error: 'not_admin' })
+
+      const { recipientIds, toAll, body: msgBody } = await readJson(req)
+      if (!msgBody?.trim()) return send(res, 400, { error: 'body required' })
+
+      // Resolve the recipient list
+      let ids = []
+      if (toAll) {
+        const { data: all } = await sb.from('prep_users').select('id')
+        ids = (all || []).map(r => r.id)
+      } else if (Array.isArray(recipientIds)) {
+        ids = recipientIds
+      }
+      // De-dupe and never message the admin sender themselves
+      ids = [...new Set(ids.filter(id => id && id !== callerId))]
+      if (!ids.length) return send(res, 400, { error: 'no recipients' })
+
+      const text = msgBody.trim()
+      const rows = ids.map(rid => ({ sender_id: callerId, recipient_id: rid, body: text }))
+      const { error: insErr } = await sb.from('prep_messages').insert(rows)
+      if (insErr) return send(res, 500, { error: insErr.message })
+
+      // The DB trigger (prep_message_notification) creates the bell row for
+      // each inserted message, so we only fire the web push here.
+      const { data: sender } = await sb.from('prep_users').select('name').eq('id', callerId).maybeSingle()
+      const senderName = sender?.name || 'Preparing You'
+      const preview = text.length > 60 ? text.slice(0, 60) + '…' : text
+      for (const rid of ids) {
+        pushToUser(rid, { icon: '💬', text: `${senderName}: ${preview}`, action: { type: 'page', page: 'messages' } })
+          .catch(e => console.warn('[push] broadcast fanout failed', e))
+      }
+      return send(res, 200, { ok: true, sent: ids.length })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
