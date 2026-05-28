@@ -779,6 +779,29 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { key: VAPID_PUBLIC })
     }
 
+    // Debug-only: POST /push/test-send?userId=<uuid>
+    // Sends a real push to all subscriptions for that user and returns results.
+    if (req.method === 'POST' && req.url.startsWith('/push/test-send')) {
+      const uid = new URL('https://x.x' + req.url).searchParams.get('userId')
+      if (!uid) return send(res, 400, { error: 'userId required' })
+      const { data: subs } = await sb.from('prep_push_subscriptions')
+        .select('id, endpoint, p256dh, auth').eq('user_id', uid)
+      if (!subs || !subs.length) return send(res, 200, { ok: false, reason: 'no subscriptions found' })
+      const results = await Promise.all(subs.map(async s => {
+        try {
+          const r = await webpush.sendNotification(
+            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+            JSON.stringify({ title: 'Preparing You', body: '🔔 Push test — checking badge', unread: 1 }),
+            { TTL: 3600 }
+          )
+          return { id: s.id, endpoint: s.endpoint.slice(0, 50), status: r.statusCode, ok: true }
+        } catch (e) {
+          return { id: s.id, endpoint: s.endpoint.slice(0, 50), status: e.statusCode, ok: false, body: e.body }
+        }
+      }))
+      return send(res, 200, { results })
+    }
+
     if (req.method === 'POST' && req.url === '/push/subscribe') {
       const { userId, subscription } = await readJson(req)
       if (!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
