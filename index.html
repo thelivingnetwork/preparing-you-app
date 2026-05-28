@@ -414,7 +414,7 @@
         </div>
         <div id="msg-list" style="padding:14px 16px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
         <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px">
-          <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:inherit;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
       </div>
@@ -494,7 +494,7 @@
       </div>
       <div id="paul-messages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px"></div>
       <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px">
-        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:inherit;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
         <button id="paul-send" onclick="sendPaul()" style="padding:10px 16px;background:var(--terra);color:#fff;border:none;border-radius:8px;font-family:'Spectral',serif;font-weight:500;cursor:pointer">Ask</button>
       </div>
     </div>
@@ -946,7 +946,7 @@ async function loadMessages(){
       return `<a href="${url}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
     });
     if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${linked}</div>`;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${linked}</div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
 
@@ -1343,7 +1343,7 @@ function _renderPaulMessage(role, text){
   const wrap = document.getElementById('paul-messages');
   const isUser = role === 'user';
   const div = document.createElement('div');
-  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-size:18px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
+  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
