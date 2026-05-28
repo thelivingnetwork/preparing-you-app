@@ -11,6 +11,7 @@ require('dotenv').config({ path: envPath })
 const http = require('http')
 const Anthropic = require('@anthropic-ai/sdk')
 const { createClient } = require('@supabase/supabase-js')
+const webpush = require('web-push')
 
 const PORT = parseInt(process.env.PORT || '10000', 10)
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*'
@@ -19,6 +20,16 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false }
 })
+
+// Web Push — VAPID. If the keys aren't set, push fanout becomes a no-op.
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY || ''
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || ''
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:tofnotifications@gmail.com'
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE)
+} else {
+  console.warn('[push] VAPID keys missing — /paul-style chat works but push notifications are disabled')
+}
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
@@ -287,7 +298,42 @@ async function inviteToTln(userId, reasonHtml, skipEmail) {
 async function notify(userId, icon, text, action) {
   if (!userId) return
   const { error } = await sb.from('prep_notifications').insert({ user_id: userId, icon, text, action: action || null })
-  if (error) console.warn('[notify] insert failed', error)
+  if (error) { console.warn('[notify] insert failed', error); return }
+  // Fan out a Web Push to all of the user's subscribed devices so the
+  // home-screen icon badge updates and the OS shows a system notification
+  // even when the PWA is closed.
+  pushToUser(userId, { icon, text, action }).catch(e => console.warn('[push] fanout failed', e))
+}
+
+async function pushToUser(userId, { icon, text, action }) {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
+  const { data: subs } = await sb.from('prep_push_subscriptions')
+    .select('id, endpoint, p256dh, auth').eq('user_id', userId)
+  if (!subs || !subs.length) return
+  const { count: unread } = await sb.from('prep_notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId).is('read_at', null)
+  const payload = JSON.stringify({
+    title: 'Preparing You',
+    body: `${icon ? icon + ' ' : ''}${text}`,
+    action: action || null,
+    unread: unread || 0
+  })
+  const stale = []
+  await Promise.all(subs.map(async s => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        payload,
+        { TTL: 60 * 60 * 24 }
+      )
+    } catch (err) {
+      // 404/410 = subscription dead; prune it.
+      if (err && (err.statusCode === 404 || err.statusCode === 410)) stale.push(s.id)
+      else console.warn('[push] send failed', err.statusCode || err.message)
+    }
+  }))
+  if (stale.length) await sb.from('prep_push_subscriptions').delete().in('id', stale)
 }
 
 // ─── PCM election ───────────────────────────────────────────────────────
@@ -388,7 +434,34 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.6' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.7' })
+    }
+
+    if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
+      return send(res, 200, { key: VAPID_PUBLIC })
+    }
+
+    if (req.method === 'POST' && req.url === '/push/subscribe') {
+      const { userId, subscription } = await readJson(req)
+      if (!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+        return send(res, 400, { error: 'userId + subscription required' })
+      }
+      const { error } = await sb.from('prep_push_subscriptions').upsert({
+        user_id: userId,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+        last_seen: new Date().toISOString()
+      }, { onConflict: 'endpoint' })
+      if (error) return send(res, 500, { error: error.message })
+      return send(res, 200, { ok: true })
+    }
+
+    if (req.method === 'POST' && req.url === '/push/unsubscribe') {
+      const { endpoint } = await readJson(req)
+      if (!endpoint) return send(res, 400, { error: 'endpoint required' })
+      await sb.from('prep_push_subscriptions').delete().eq('endpoint', endpoint)
+      return send(res, 200, { ok: true })
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {

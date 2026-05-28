@@ -27,3 +27,9 @@ services:
         sync: false   # Daily.co — host-moderated video rooms (PCM calls + townhall)
       - key: EMAILJS_PRIVATE_KEY
         sync: false   # EmailJS server-side access token — used by townhall reminder cron
+      - key: VAPID_PUBLIC_KEY
+        sync: false   # web-push VAPID public key — also hardcoded in client index.html
+      - key: VAPID_PRIVATE_KEY
+        sync: false   # web-push VAPID private key — server-only
+      - key: VAPID_SUBJECT
+        value: "mailto:tofnotifications@gmail.com"

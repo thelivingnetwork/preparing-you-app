@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="description" content="Prepare your heart, mind, and household for entry into The Living Network.">
   <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/ark-purple.png">
+  <link rel="manifest" href="/manifest.json">
 
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -514,6 +516,9 @@ const _SB_URL  = 'https://qvcfgcwecykilbddgqzv.supabase.co';
 const _SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2Y2ZnY3dlY3lraWxiZGRncXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5NTQ2MzQsImV4cCI6MjA5MzUzMDYzNH0.cn-xvirE9JOG-m9vNFITVRiDLAZQQzE9yzoKEYUGUZg';
 const _SERVER_URL = 'https://preparing-you-server.onrender.com';
 
+// Web Push — VAPID public key. Safe to expose; private key lives on the server.
+const _VAPID_PUBLIC = 'BPWUdWr9Sf8hk1ydMdpRLIeH_ce8lNWyfMydf1bBfh0bJoP78o2JRG2GH28D33m4fuLXpBzdy8Vq9KKU14MaIvY';
+
 // ── EmailJS (shared with The Living Network) ──
 const EJS_PUB  = 'UXOmF9EejeF3j4EEZ';
 const EJS_SVC  = 'service_l43x4ow';
@@ -661,6 +666,8 @@ function enterApp(){
   _notifPollTimer = setInterval(refreshNotifBell, 30000);
   if(_townhallPollTimer) clearInterval(_townhallPollTimer);
   _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
+  _maybeOfferPushPrompt();
+  _maybeShowIosInstallHint();
 }
 
 function showPage(name){
@@ -992,6 +999,103 @@ async function joinDailyLink(roomName){
   }
 }
 
+// ═════════════════════════ PUSH + PWA INSTALL ═════════════════════════
+// Register the service worker as early as possible — needed for both the
+// home-screen install prompt and for Web Push.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW register failed', e));
+  });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const msg = event.data || {};
+    if (msg.kind === 'notif-click' && msg.action && msg.action.type === 'page') {
+      try { showPage(msg.action.page); } catch(_) {}
+    }
+  });
+}
+
+function _urlB64ToUint8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const s = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(s);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+async function _subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  if (!currentUser) return null;
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _urlB64ToUint8(_VAPID_PUBLIC)
+    });
+  }
+  await fetch(_SERVER_URL + '/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: currentUser.id, subscription: sub.toJSON() })
+  });
+  return sub;
+}
+
+async function _maybeOfferPushPrompt() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') { _subscribeToPush().catch(()=>{}); return; }
+  if (Notification.permission === 'denied') return;
+  // Soft prompt — don't auto-fire the browser dialog; require a tap so iOS
+  // counts it as a user gesture (required on iOS Safari).
+  if (localStorage.getItem('pp_push_dismissed') === '1') return;
+  _renderPushBanner();
+}
+
+function _renderPushBanner() {
+  if (document.getElementById('push-banner')) return;
+  const div = document.createElement('div');
+  div.id = 'push-banner';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:90;background:var(--teal);color:var(--cream);border:1px solid var(--teal-deep);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.innerHTML = '<div style="flex:1">Want a badge on your home-screen icon when you have new notifications?</div>' +
+    '<button id="push-banner-yes" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer">Enable</button>' +
+    '<button id="push-banner-no" style="background:transparent;color:var(--cream);border:1px solid var(--cream);border-radius:8px;padding:8px 10px;font-family:inherit;cursor:pointer">Not now</button>';
+  document.body.appendChild(div);
+  document.getElementById('push-banner-yes').onclick = async () => {
+    div.remove();
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') await _subscribeToPush();
+    } catch(e) { console.warn('push prompt', e); }
+  };
+  document.getElementById('push-banner-no').onclick = () => {
+    localStorage.setItem('pp_push_dismissed', '1');
+    div.remove();
+  };
+}
+
+function _maybeShowIosInstallHint() {
+  // iOS Safari requires the user to "Add to Home Screen" before
+  // notifications + badging work at all. If we're on iOS and not running
+  // as standalone, show a one-time hint.
+  const ua = navigator.userAgent || '';
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (!isIos || isStandalone) return;
+  if (localStorage.getItem('pp_ios_hint_dismissed') === '1') return;
+  if (document.getElementById('ios-hint')) return;
+  const div = document.createElement('div');
+  div.id = 'ios-hint';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.innerHTML = '<div style="flex:1">For home-screen alerts: tap <strong>Share</strong> in Safari, then <strong>Add to Home Screen</strong>.</div>' +
+    '<button id="ios-hint-close" style="background:transparent;color:var(--walnut);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;cursor:pointer">Got it</button>';
+  document.body.appendChild(div);
+  document.getElementById('ios-hint-close').onclick = () => {
+    localStorage.setItem('pp_ios_hint_dismissed', '1');
+    div.remove();
+  };
+}
+
 // ═════════════════════════ NOTIFICATIONS ═════════════════════════
 let _notifPollTimer = null;
 
@@ -1000,14 +1104,32 @@ async function refreshNotifBell(){
   const { count } = await _sb.from('prep_notifications')
     .select('id', { count:'exact', head:true })
     .eq('user_id', currentUser.id).is('read_at', null);
+  const n = count || 0;
   const dot = document.getElementById('hdr-bell-dot');
-  if(!dot) return;
-  if(count && count > 0){
-    dot.style.display = 'inline-block';
-    dot.textContent = count > 9 ? '9+' : String(count);
-  } else {
-    dot.style.display = 'none';
+  if(dot){
+    if(n > 0){
+      dot.style.display = 'inline-block';
+      dot.textContent = n > 9 ? '9+' : String(n);
+    } else {
+      dot.style.display = 'none';
+    }
   }
+  _setHomeScreenBadge(n);
+}
+
+function _setHomeScreenBadge(n){
+  // Update the installed-PWA home-screen icon badge. Foreground call works
+  // on Android Chrome; on iOS 16.4+ only if the user installed via Add to
+  // Home Screen and granted notification permission. The service worker
+  // updates this same badge from background push events.
+  try {
+    if (navigator && 'setAppBadge' in navigator) {
+      if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+    }
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ kind:'set-badge', count: n });
+    }
+  } catch(_) {}
 }
 
 async function toggleNotifDrawer(){
@@ -1833,6 +1955,22 @@ async function stopBeingPcm(){
 }
 
 async function signOut(){
+  // Drop the push subscription so a logged-out phone stops getting alerts.
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch(_SERVER_URL + '/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint })
+        }).catch(()=>{});
+        await sub.unsubscribe().catch(()=>{});
+      }
+    }
+  } catch(_) {}
+  _setHomeScreenBadge(0);
   if(_sb) await _sb.auth.signOut().catch(()=>{});
   currentUser = null;
   document.getElementById('screen-app').classList.remove('active');

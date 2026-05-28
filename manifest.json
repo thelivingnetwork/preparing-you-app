@@ -1,0 +1,31 @@
+{
+  "name": "Preparing You",
+  "short_name": "Preparing",
+  "description": "Walk the path of preparation — books, ministers, townhalls, and your guide Paul.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5efe4",
+  "theme_color": "#143034",
+  "icons": [
+    {
+      "src": "/ark-purple.png",
+      "sizes": "400x400",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ark.png",
+      "sizes": "400x460",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
