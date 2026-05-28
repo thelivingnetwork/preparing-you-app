@@ -854,6 +854,21 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true })
     }
 
+    if (req.method === 'POST' && req.url === '/messages/send') {
+      const { senderId, recipientId, body: msgBody } = await readJson(req)
+      if (!senderId || !recipientId || !msgBody?.trim()) return send(res, 400, { error: 'senderId, recipientId, and body required' })
+      // Insert message
+      const { error: insErr } = await sb.from('prep_messages').insert({ sender_id: senderId, recipient_id: recipientId, body: msgBody.trim() })
+      if (insErr) return send(res, 500, { error: insErr.message })
+      // Look up sender name for the notification
+      const { data: sender } = await sb.from('prep_users').select('name').eq('id', senderId).maybeSingle()
+      const senderName = sender?.name || 'Someone'
+      const preview = msgBody.trim().length > 60 ? msgBody.trim().slice(0, 60) + '…' : msgBody.trim()
+      // Notify recipient — fires both in-app bell + web push
+      await notify(recipientId, '💬', `${senderName}: ${preview}`, { type: 'page', page: 'messages' })
+      return send(res, 200, { ok: true })
+    }
+
     if (req.method === 'POST' && req.url === '/peers') {
       const { userId } = await readJson(req)
       if (!userId) return send(res, 400, { error: 'userId required' })

@@ -969,10 +969,15 @@ async function sendMessage(){
     return;
   }
   input.value = '';
-  const { error } = await _sb.from('prep_messages').insert({ sender_id: currentUser.id, recipient_id: _msgPeerId, body: text });
-  if(error){
+  const r = await fetch(_SERVER_URL + '/messages/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ senderId: currentUser.id, recipientId: _msgPeerId, body: text })
+  });
+  if(!r.ok){
+    const j = await r.json().catch(() => ({}));
     input.value = text; // restore so they don't lose their message
-    alert('Could not send: ' + error.message);
+    alert('Could not send: ' + (j.error || r.status));
     return;
   }
   await loadMessages();
