@@ -665,10 +665,25 @@ async function pushToUser(userId, { icon, text, action }) {
         payload,
         { TTL: 60 * 60 * 24 }
       )
+      // Successful delivery — reset fail counter.
+      await sb.from('prep_push_subscriptions')
+        .update({ fail_count: 0, last_seen: new Date().toISOString() }).eq('id', s.id)
     } catch (err) {
-      // 404/410 = subscription dead; prune it.
-      if (err && (err.statusCode === 404 || err.statusCode === 410)) stale.push(s.id)
-      else console.warn('[push] send failed', err.statusCode || err.message)
+      if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+        // Increment fail counter; only prune after 3 consecutive failures.
+        // iOS can transiently return 410 when the service worker updates —
+        // the client re-registers on next app open, so don't delete immediately.
+        const { data: row } = await sb.from('prep_push_subscriptions')
+          .select('fail_count').eq('id', s.id).maybeSingle()
+        const fails = (row?.fail_count || 0) + 1
+        if (fails >= 3) {
+          stale.push(s.id)
+        } else {
+          await sb.from('prep_push_subscriptions').update({ fail_count: fails }).eq('id', s.id)
+        }
+      } else {
+        console.warn('[push] send failed', err.statusCode || err.message)
+      }
     }
   }))
   if (stale.length) await sb.from('prep_push_subscriptions').delete().in('id', stale)

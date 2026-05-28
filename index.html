@@ -1014,6 +1014,29 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW register failed', e));
   });
+  // Re-register push subscription whenever the active service worker changes.
+  // iOS invalidates the previous push endpoint on SW update, so we must
+  // re-subscribe immediately to get a fresh endpoint into the server.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (Notification.permission === 'granted' && currentUser) {
+      navigator.serviceWorker.ready.then(async reg => {
+        try {
+          // Unsubscribe the now-stale endpoint, get a fresh one from Apple.
+          const old = await reg.pushManager.getSubscription();
+          if (old) await old.unsubscribe();
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: _urlB64ToUint8(_VAPID_PUBLIC)
+          });
+          await fetch(_SERVER_URL + '/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUser.id, subscription: sub.toJSON() })
+          });
+        } catch(e) { console.warn('[push] re-subscribe after SW update failed', e); }
+      });
+    }
+  });
   navigator.serviceWorker.addEventListener('message', (event) => {
     const msg = event.data || {};
     if (msg.kind === 'notif-click' && msg.action && msg.action.type === 'page') {
