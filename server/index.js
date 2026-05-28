@@ -860,12 +860,15 @@ const server = http.createServer(async (req, res) => {
       // Insert message
       const { error: insErr } = await sb.from('prep_messages').insert({ sender_id: senderId, recipient_id: recipientId, body: msgBody.trim() })
       if (insErr) return send(res, 500, { error: insErr.message })
-      // Look up sender name for the notification
+      // Look up sender name for the push notification payload
       const { data: sender } = await sb.from('prep_users').select('name').eq('id', senderId).maybeSingle()
       const senderName = sender?.name || 'Someone'
       const preview = msgBody.trim().length > 60 ? msgBody.trim().slice(0, 60) + '…' : msgBody.trim()
-      // Notify recipient — fires both in-app bell + web push
-      await notify(recipientId, '💬', `${senderName}: ${preview}`, { type: 'page', page: 'messages' })
+      // The DB trigger (prep_message_notification) creates the prep_notifications
+      // row automatically on every prep_messages INSERT, so we only need to fire
+      // the web push here — avoids a duplicate bell entry.
+      pushToUser(recipientId, { icon: '💬', text: `${senderName}: ${preview}`, action: { type: 'page', page: 'messages' } })
+        .catch(e => console.warn('[push] message fanout failed', e))
       return send(res, 200, { ok: true })
     }
 
