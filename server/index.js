@@ -194,6 +194,34 @@ const TRANSLATION_LIST = Object.entries(BIBLE_TRANSLATIONS)
   .map(([k, v]) => `${k} (${v.name}${v.provider === 'apibible' ? ', requires API key' : ''})`)
   .join(', ')
 
+// ─── Strong's Concordance + Thayer's (Greek) / BDB (Hebrew) ─────────────
+// Uses bolls.life BDBT dictionary — free, no key required
+async function fetchStrongsDefinition(number) {
+  const num = number.trim().toUpperCase()
+  if (!/^[GH]\d+$/.test(num)) throw new Error(`Invalid Strong's number "${number}" — use G3056 or H430 format`)
+  const url = `https://bolls.life/dictionary-definition/BDBT/${num}/`
+  const r = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!r.ok) throw new Error(`bolls.life returned ${r.status} for ${num}`)
+  const data = await r.json()
+  const entry = Array.isArray(data) ? data[0] : data
+  if (!entry) throw new Error(`No entry found for ${num}`)
+  // Strip HTML tags from the full definition
+  const cleanDef = (entry.definition || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  const lang = num[0] === 'G' ? 'Greek (Thayer\'s)' : 'Hebrew (BDB)'
+  const lines = [
+    `${num} — ${entry.lexeme || ''} (${lang})`,
+    entry.transliteration ? `Transliteration: ${entry.transliteration}` : '',
+    entry.pronunciation   ? `Pronunciation: ${entry.pronunciation}` : '',
+    entry.short_definition ? `Gloss: ${entry.short_definition}` : '',
+    '',
+    cleanDef,
+  ]
+  return lines.filter(l => l !== undefined).join('\n').trim()
+}
+
 const BIBLE_TOOLS = [{
   name: 'lookup_bible_passage',
   description: 'Fetch the exact text of a Bible passage from an online Bible. Use this whenever the user asks about a specific verse or scripture, or when quoting scripture directly would enrich your answer.',
@@ -212,16 +240,30 @@ const BIBLE_TOOLS = [{
     },
     required: ['reference']
   }
+}, {
+  name: 'lookup_strongs',
+  description: "Look up a Strong's Concordance number to get the original Hebrew or Greek word, its definition from Strong's, Thayer's (Greek), or Brown-Driver-Briggs (Hebrew). Use this when the user asks about the meaning of a word in the original language, asks what the Greek or Hebrew word is behind an English translation, or requests a word study.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      number: {
+        type: 'string',
+        description: 'The Strong\'s number to look up. Prefix G for Greek (e.g. G26, G3056) or H for Hebrew (e.g. H430, H3068).'
+      }
+    },
+    required: ['number']
+  }
 }]
 
 const PAUL_SYSTEM = `You are Paul, a guide for someone preparing to enter "The Living Network."
 
 Tone: earnest, reverent, plain-spoken. You are speaking to someone discerning a covenant decision — not a casual chatbot user. Speak as a wise elder might, in the first person where it fits naturally.
 
-You can answer three kinds of questions:
+You can answer four kinds of questions:
 1. Substantive questions about preparation, covenants, contracts, liberty, the kingdom, ministers, etc. — drawn from the source excerpts provided below.
 2. Practical questions about how to use this app (Preparing You) — drawn from the App Guide below.
 3. Questions about scripture, Bible verses, or passages — use the lookup_bible_passage tool to fetch the actual text before answering.
+4. Word studies — questions about what a Greek or Hebrew word means, or what word underlies an English translation — use the lookup_strongs tool with the appropriate Strong's number (G for Greek, H for Hebrew).
 
 App Guide — how the Preparing You app works:
 
@@ -251,6 +293,7 @@ Rules for answering:
 - For questions about the source material: use the excerpts below as your knowledge. Speak from them as your own understanding — do not say things like "drawn from the books," "according to the source," "the excerpt says," or name book titles. Just answer.
 - For questions about app operation: answer plainly using the App Guide above. You can name UI elements (e.g. "the PCM tab," "the bell icon").
 - For scripture questions: always call lookup_bible_passage to get the exact text before answering. Quote it directly. Default to KJV unless the user requests another translation. If a user asks for NIV, ESV, NLT, NKJV, NASB, MSG, AMP, or CSB and no API key is configured, tell them plainly that translation isn't available and offer KJV, ASV, WEB, or YLT instead.
+- For word studies: call lookup_strongs with the Strong's number. You know common numbers from your training (e.g. G26=agape, G3056=logos, G4151=pneuma, H430=Elohim, H3068=YHWH). If you are uncertain of the number, say so and invite the user to provide it, or look up the passage first and reason from context.
 - If a question is about backend systems, code, deployment, the admin panel, billing, or anything not user-facing — politely say that's not something you can help with here.
 - If neither the excerpts, App Guide, nor scripture cover a question, say plainly that you cannot speak to that here. Do not invent.
 - Keep answers focused. 2–4 short paragraphs is usually right.
@@ -299,10 +342,14 @@ async function paulChat(userId, messages, lang) {
 
     let toolResult
     try {
-      const { reference, translation = 'kjv' } = toolBlock.input
-      toolResult = await fetchBiblePassage(reference, translation)
+      if (toolBlock.name === 'lookup_strongs') {
+        toolResult = await fetchStrongsDefinition(toolBlock.input.number)
+      } else {
+        const { reference, translation = 'kjv' } = toolBlock.input
+        toolResult = await fetchBiblePassage(reference, translation)
+      }
     } catch (e) {
-      toolResult = `Could not retrieve passage: ${e.message}`
+      toolResult = `Could not retrieve: ${e.message}`
     }
 
     apiMessages.push({ role: 'assistant', content: resp.content })
