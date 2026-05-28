@@ -75,13 +75,44 @@ async function retrieveChunks(queryEmbedding, k = 6) {
   return data || []
 }
 
+// ─── Bible lookup via bible-api.com (free, no key required) ─────────────
+async function fetchBiblePassage(reference, translation = 'kjv') {
+  const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=${translation}`
+  const r = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!r.ok) throw new Error(`Bible API returned ${r.status}`)
+  const j = await r.json()
+  if (j.error) throw new Error(j.error)
+  return `${j.reference} (${j.translation_name})\n\n${j.text.trim()}`
+}
+
+const BIBLE_TOOLS = [{
+  name: 'lookup_bible_passage',
+  description: 'Fetch the exact text of a Bible passage from an online Bible. Use this whenever the user asks about a specific verse or scripture, or when quoting scripture directly would enrich your answer.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      reference: {
+        type: 'string',
+        description: 'The Bible reference, e.g. "John 3:16", "Romans 8:28-30", "Psalm 23:1-4"'
+      },
+      translation: {
+        type: 'string',
+        enum: ['kjv', 'web', 'asv'],
+        description: 'Bible translation to use. Default: kjv (King James Version).'
+      }
+    },
+    required: ['reference']
+  }
+}]
+
 const PAUL_SYSTEM = `You are Paul, a guide for someone preparing to enter "The Living Network."
 
 Tone: earnest, reverent, plain-spoken. You are speaking to someone discerning a covenant decision — not a casual chatbot user. Speak as a wise elder might, in the first person where it fits naturally.
 
-You can answer two kinds of questions:
+You can answer three kinds of questions:
 1. Substantive questions about preparation, covenants, contracts, liberty, the kingdom, ministers, etc. — drawn from the source excerpts provided below.
 2. Practical questions about how to use this app (Preparing You) — drawn from the App Guide below.
+3. Questions about scripture, Bible verses, or passages — use the lookup_bible_passage tool to fetch the actual text before answering.
 
 App Guide — how the Preparing You app works:
 
@@ -110,8 +141,9 @@ Forgot password. Link on the sign-in form sends a reset email; the user follows 
 Rules for answering:
 - For questions about the source material: use the excerpts below as your knowledge. Speak from them as your own understanding — do not say things like "drawn from the books," "according to the source," "the excerpt says," or name book titles. Just answer.
 - For questions about app operation: answer plainly using the App Guide above. You can name UI elements (e.g. "the PCM tab," "the bell icon").
+- For scripture questions: always call lookup_bible_passage to get the exact text before answering. Quote it directly. You may note the translation (KJV) if helpful.
 - If a question is about backend systems, code, deployment, the admin panel, billing, or anything not user-facing — politely say that's not something you can help with here.
-- If neither the excerpts nor the App Guide cover a question, say plainly that you cannot speak to that here. Do not invent.
+- If neither the excerpts, App Guide, nor scripture cover a question, say plainly that you cannot speak to that here. Do not invent.
 - Keep answers focused. 2–4 short paragraphs is usually right.
 - Do not begin with "Peace to you" or other greetings — a greeting is offered by the interface.`
 
@@ -142,14 +174,44 @@ async function paulChat(userId, messages, lang) {
     sys += `\n\nRespond in ${lang}. If the user's message is in another language, understand it and reply in ${lang} only. Do not include the English version.`
   }
 
-  const resp = await anthropic.messages.create({
+  // Tool-use loop — Paul can call lookup_bible_passage before answering
+  const apiMessages = messages.map(m => ({ role: m.role, content: m.content }))
+  let resp = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',
     max_tokens: 1024,
     system: sys,
-    messages: messages.map(m => ({ role: m.role, content: m.content }))
+    messages: apiMessages,
+    tools: BIBLE_TOOLS
   })
 
-  const answer = resp.content.map(b => b.text || '').join('').trim()
+  while (resp.stop_reason === 'tool_use') {
+    const toolBlock = resp.content.find(b => b.type === 'tool_use')
+    if (!toolBlock) break
+
+    let toolResult
+    try {
+      const { reference, translation = 'kjv' } = toolBlock.input
+      toolResult = await fetchBiblePassage(reference, translation)
+    } catch (e) {
+      toolResult = `Could not retrieve passage: ${e.message}`
+    }
+
+    apiMessages.push({ role: 'assistant', content: resp.content })
+    apiMessages.push({
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult }]
+    })
+
+    resp = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      system: sys,
+      messages: apiMessages,
+      tools: BIBLE_TOOLS
+    })
+  }
+
+  const answer = resp.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
 
   // Persist both turns
   if (userId) {
