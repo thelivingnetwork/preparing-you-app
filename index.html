@@ -666,6 +666,7 @@ function enterApp(){
   setInterval(refreshMessageBadge, 30000);
   if(_notifPollTimer) clearInterval(_notifPollTimer);
   _notifPollTimer = setInterval(refreshNotifBell, 30000);
+  _subscribeNotifRealtime();
   if(_townhallPollTimer) clearInterval(_townhallPollTimer);
   _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
   _maybeOfferPushPrompt();
@@ -1105,6 +1106,25 @@ function _maybeShowIosInstallHint() {
 
 // ═════════════════════════ NOTIFICATIONS ═════════════════════════
 let _notifPollTimer = null;
+let _notifChannel = null;
+
+function _subscribeNotifRealtime(){
+  if(!_sb || !currentUser) return;
+  // Tear down any previous channel (e.g. after sign-out/re-in)
+  if(_notifChannel){ _sb.removeChannel(_notifChannel); _notifChannel = null; }
+  _notifChannel = _sb
+    .channel('user-notifs-' + currentUser.id)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'prep_notifications',
+      filter: `user_id=eq.${currentUser.id}`
+    }, () => {
+      // New notification arrived — refresh bell and home-screen badge immediately
+      refreshNotifBell();
+    })
+    .subscribe();
+}
 
 async function refreshNotifBell(){
   if(!_sb || !currentUser) return;
@@ -1205,6 +1225,7 @@ async function markAllNotifsRead(){
   renderNotifList();
 }
 
+let _prevMsgCount = 0;
 async function refreshMessageBadge(){
   if(!_sb || !currentUser) return;
   const { count } = await _sb.from('prep_messages')
@@ -1212,12 +1233,16 @@ async function refreshMessageBadge(){
     .eq('recipient_id', currentUser.id).is('read_at', null);
   const badge = document.getElementById('nav-msg-badge');
   if(!badge) return;
-  if(count && count > 0){
+  const n = count || 0;
+  if(n > 0){
     badge.style.display = 'inline-block';
-    badge.textContent = count > 9 ? '9+' : String(count);
+    badge.textContent = n > 9 ? '9+' : String(n);
   } else {
     badge.style.display = 'none';
   }
+  // If new messages arrived since last check, also refresh the bell
+  if(n > _prevMsgCount) refreshNotifBell();
+  _prevMsgCount = n;
 }
 
 // ═════════════════════════ BOOKS ═════════════════════════
