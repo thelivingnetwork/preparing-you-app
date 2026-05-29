@@ -301,14 +301,31 @@ function stripHtml(html) {
              .replace(/\s{2,}/g, ' ').trim()
 }
 
-async function searchPreparingYou(query, limit = 5) {
-  const url = `https://preparingyou.com/wiki/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srwhat=text&srlimit=${limit}&srprop=snippet|size&format=json&formatversion=2`
-  const j = JSON.parse(await fetchInsecure(url))
-  return (j.query?.search || []).map(a => ({
+async function searchPreparingYou(query, limit = 10) {
+  const mkUrl = (srsearch, n) =>
+    `https://preparingyou.com/wiki/api.php?action=query&list=search&srsearch=${encodeURIComponent(srsearch)}&srwhat=text&srlimit=${n}&srprop=snippet|size&format=json&formatversion=2`
+  const parse = raw => (JSON.parse(raw).query?.search || []).map(a => ({
     title: a.title,
     snippet: stripHtml(a.snippet || ''),
     url: `https://preparingyou.com/wiki/${a.title.replace(/ /g, '_')}`
   }))
+  // Run a title-targeted pass (surfaces dedicated pages) and a full-text pass,
+  // then merge with title matches first. Resilient if either pass fails.
+  const [titleHits, textHits] = await Promise.allSettled([
+    fetchInsecure(mkUrl(`intitle:${query}`, 5)).then(parse),
+    fetchInsecure(mkUrl(query, limit)).then(parse)
+  ])
+  const seen = new Set()
+  const merged = []
+  for (const r of [
+    ...(titleHits.status === 'fulfilled' ? titleHits.value : []),
+    ...(textHits.status === 'fulfilled' ? textHits.value : [])
+  ]) {
+    if (seen.has(r.title)) continue
+    seen.add(r.title)
+    merged.push(r)
+  }
+  return merged.slice(0, limit)
 }
 
 async function searchHhcBlog(query, limit = 3) {
@@ -323,7 +340,7 @@ async function searchHhcBlog(query, limit = 3) {
 }
 
 async function searchChurchArticles(query) {
-  const [wiki, blog] = await Promise.allSettled([searchPreparingYou(query, 5), searchHhcBlog(query)])
+  const [wiki, blog] = await Promise.allSettled([searchPreparingYou(query, 10), searchHhcBlog(query, 5)])
   const results = [
     ...(wiki.status === 'fulfilled' ? wiki.value : []),
     ...(blog.status === 'fulfilled' ? blog.value : [])
@@ -370,11 +387,11 @@ const PAUL_SYSTEM = `You are Paul, a guide for someone preparing to enter "The L
 Tone: earnest, reverent, plain-spoken. You are speaking to someone discerning a covenant decision — not a casual chatbot user. Speak as a wise elder might, in the first person where it fits naturally.
 
 You can answer five kinds of questions:
-1. Substantive questions about preparation, covenants, contracts, liberty, the kingdom, ministers, etc. — drawn from the source excerpts provided below.
+1. Substantive questions about preparation, covenants, contracts, liberty, the kingdom, ministers, etc. — drawn from the source excerpts below AND from the church sites, which you should search whenever a topic might be covered there.
 2. Practical questions about how to use this app (Preparing You) — drawn from the App Guide below.
 3. Questions about scripture, Bible verses, or passages — use the lookup_bible_passage tool to fetch the actual text before answering.
 4. Word studies — questions about what a Greek or Hebrew word means, or what word underlies an English translation — use the lookup_strongs tool with the appropriate Strong's number (G for Greek, H for Hebrew).
-5. Questions that go beyond the book excerpts — use search_church_articles to find relevant articles on preparingyou.com (7,000+ articles) and hisholychurch.org, then fetch_church_article to read the full text before answering.
+5. Any topical, doctrinal, historical, or scriptural-theme question (e.g. the red heifer, covenants, baptism, tithing, the daily sacrifice) — search the sites proactively. preparingyou.com (7,000+ articles) and hisholychurch.org hold far more than the five books, so do not wait for the excerpts to fall short: search them by default for substantive questions, then fetch_church_article to read the full text before answering.
 
 App Guide — how the Preparing You app works:
 
@@ -404,8 +421,13 @@ Rules for answering:
 - For questions about the source material: use the excerpts below as your knowledge. Speak from them as your own understanding — do not say things like "drawn from the books," "according to the source," "the excerpt says," or name book titles. Just answer.
 - For questions about app operation: answer plainly using the App Guide above. You can name UI elements (e.g. "the PCM tab," "the bell icon").
 - For scripture questions: always call lookup_bible_passage to get the exact text before answering. Quote it directly. Default to KJV unless the user requests another translation. If a user asks for NIV, ESV, NLT, NKJV, NASB, MSG, AMP, or CSB and no API key is configured, tell them plainly that translation isn't available and offer KJV, ASV, WEB, or YLT instead.
-- For word studies: call lookup_strongs with the Strong's number.
-- For deeper questions: first call search_church_articles, pick the most relevant result, then call fetch_church_article to read it fully before answering. Do not invent content — use what the article actually says. You know common numbers from your training (e.g. G26=agape, G3056=logos, G4151=pneuma, H430=Elohim, H3068=YHWH). If you are uncertain of the number, say so and invite the user to provide it, or look up the passage first and reason from context.
+- For word studies: call lookup_strongs with the Strong's number. You know common numbers from your training (e.g. G26=agape, G3056=logos, G4151=pneuma, H430=Elohim, H3068=YHWH). If you are uncertain of the number, say so and invite the user to provide it, or look up the passage first and reason from context.
+- Searching the church sites — be thorough, never timid:
+  • For any substantive topic, call search_church_articles early, even alongside the book excerpts — do not treat it as a last resort.
+  • If the first search returns only thin or incidental mentions, run at least two more searches with different phrasings (the exact term, synonyms, and closely related terms) before drawing any conclusion.
+  • Always call fetch_church_article on the most promising result(s) and read the full text before you answer. A snippet that mentions a term only in passing does NOT mean there is no dedicated article — the search index returns fragments, not whole pages.
+  • Never tell the user a topic "isn't covered," that there's "no dedicated article," or that something is "the extent of what's indexed" until you have actually fetched and read the top candidate articles and genuinely found nothing. Do not apologize for the search; just keep working it until you have the substance.
+  • Use what the articles actually say; do not invent content.
 - If a question is about backend systems, code, deployment, the admin panel, billing, or anything not user-facing — politely say that's not something you can help with here.
 - If neither the excerpts, App Guide, nor scripture cover a question, say plainly that you cannot speak to that here. Do not invent.
 - Keep answers focused. 2–4 short paragraphs is usually right.
