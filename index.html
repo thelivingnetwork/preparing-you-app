@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Preparing You · His Holy Church</title>
-  <meta name="theme-color" content="#1f4a4f">
+  <meta name="theme-color" content="#4f2170">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Preparing You">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,6 +12,11 @@
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png">
   <link rel="manifest" href="/manifest.json">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash of light UI.
+    // Manual toggle only — we intentionally don't read prefers-color-scheme.
+    try { if (localStorage.getItem('pp_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,10 +45,31 @@
     --walnut-soft:#a08a72;/* muted text */
     --line:#e8dec3;       /* card borders / dividers */
     --success:#2d7a4f;    /* status / confirmation */
+    /* Semantic tokens so light/dark can flip surfaces and ink independently
+       of the brand colours above (which stay purple/gold in both themes). */
+    --surface:#fefcf4;    /* card / input fill (light = same as --cream) */
+    --brand-ink:#4f2170;  /* brand-coloured TEXT on surfaces (headings etc.) */
   }
+  /* ── Dark theme ──────────────────────────────────────────────
+     Manual toggle only (no prefers-color-scheme); the brand purple chrome
+     (header, bottom nav, buttons) stays, while parchment surfaces go dark
+     and the ink inverts to light. */
+  html[data-theme="dark"]{
+    --parch:#15121b;
+    --surface:#221d2b;
+    --cream:#f4f0fa;       /* light ink on the purple chrome */
+    --brand-ink:#c9a6f0;   /* light purple for headings on dark surfaces */
+    --walnut:#ece7f2;      /* primary text */
+    --walnut-mid:#b4aac3;  /* secondary text */
+    --walnut-soft:#8b8198; /* muted text */
+    --line:#352d45;        /* borders / dividers */
+    --terra-soft:rgba(160,120,210,.20); /* incoming chat bubbles */
+    --gold-soft:rgba(160,119,42,.22);
+  }
+  html{background:var(--parch)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6;overflow-x:hidden;max-width:100%}
-  h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--teal);font-weight:600;margin:0 0 8px}
+  h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
   body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment */
     background-image:
@@ -55,19 +81,19 @@
   /* ── Landing ────────────────────────────────────────────────── */
   .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px}
   .landing-ark{width:140px;height:auto;margin-bottom:20px;filter:drop-shadow(0 1px 2px rgba(58,40,24,.15))}
-  .landing-title{font-family:'Spectral',serif;font-size:38px;font-weight:600;color:var(--teal);margin:0 0 4px;text-align:center;letter-spacing:.02em}
+  .landing-title{font-family:'Spectral',serif;font-size:38px;font-weight:600;color:var(--brand-ink);margin:0 0 4px;text-align:center;letter-spacing:.02em}
   .landing-sub{font-size:14px;color:var(--walnut-mid);font-style:italic;margin:0 0 18px;text-align:center;letter-spacing:.04em}
   .landing-quote{max-width:480px;color:var(--walnut-mid);font-size:14px;font-style:italic;text-align:center;margin:0 0 32px;padding:0 20px;line-height:1.6}
   .landing-quote::before, .landing-quote::after{content:'';display:inline-block;width:30px;height:1px;background:var(--gold);vertical-align:middle;margin:0 12px}
 
-  .auth-box{width:100%;max-width:400px;background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
+  .auth-box{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
   .auth-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line)}
   .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:'Spectral',serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
-  .auth-tab.active{color:var(--teal);border-bottom-color:var(--terra)}
+  .auth-tab.active{color:var(--brand-ink);border-bottom-color:var(--terra)}
   .form-label{display:block;font-size:12px;color:var(--walnut-mid);font-style:italic;margin:12px 0 4px;letter-spacing:.02em}
   /* font-size must be >=16px: iOS Safari auto-zooms the page when a smaller
      input gets focus, and that zoom sticks (pushing the fixed nav off-frame). */
-  .form-input{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
+  .form-input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
   .form-input:focus{border-color:var(--terra)}
   .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Spectral',serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
   .btn-primary:hover{background:var(--terra-deep)}
@@ -80,22 +106,28 @@
   .hdr,.page{min-width:0;max-width:100%}
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--terra)}
-  .hdr-ark{width:40px;height:40px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:3px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  .hdr-ark{width:40px;height:40px;flex-shrink:0;background:#fefcf4;border-radius:50%;padding:3px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
   .hdr-name{font-family:'Spectral',serif;font-size:16px;letter-spacing:.02em;font-weight:500}
   .hdr-sub{font-size:12px;color:rgba(254,252,244,.65);font-style:italic;letter-spacing:.04em}
+  /* Dark-mode toggle (header). Moon shows in light mode, sun in dark mode. */
+  .hdr-theme{flex-shrink:0;background:none;border:none;color:var(--cream);cursor:pointer;padding:8px;line-height:0;display:inline-flex;align-items:center}
+  .hdr-theme svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .hdr-theme .ic-sun{display:none}
+  html[data-theme="dark"] .hdr-theme .ic-moon{display:none}
+  html[data-theme="dark"] .hdr-theme .ic-sun{display:inline}
 
   .page{display:none;flex:1;padding:24px 16px calc(96px + env(safe-area-inset-bottom))}
   .page.active{display:block}
 
-  .card{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
-  .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--teal);margin:0 0 10px;text-transform:uppercase;font-weight:600}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
+  .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--brand-ink);margin:0 0 10px;text-transform:uppercase;font-weight:600}
   .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
   .tile-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:14px}
-  .tile{min-width:0;background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+  .tile{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
   .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
-  .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
+  .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
   .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
 
   .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:10px 0 calc(20px + env(safe-area-inset-bottom));z-index:50}
@@ -125,23 +157,23 @@
 
   /* ── Modals ──────────────────────────────────────────────────── */
   .modal-overlay{position:fixed;inset:0;background:rgba(10,3,24,.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow-y:auto}
-  .modal-box{background:#fff;border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;color:var(--walnut);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;color:var(--walnut);box-shadow:0 10px 40px rgba(0,0,0,.3)}
   .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
-  .modal-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.06em;color:var(--teal);text-transform:uppercase}
+  .modal-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.06em;color:var(--brand-ink);text-transform:uppercase}
   .modal-close{background:none;border:none;font-size:18px;color:var(--walnut-mid);cursor:pointer;padding:4px 8px;line-height:1}
   .modal-body{padding:18px}
 
-  .btn-secondary{width:100%;background:#fff;color:var(--teal);border:1px solid var(--teal);border-radius:12px;padding:11px;font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
+  .btn-secondary{width:100%;background:var(--surface);color:var(--brand-ink);border:1px solid var(--brand-ink);border-radius:12px;padding:11px;font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
   .btn-secondary:hover{background:#f5f0fa}
-  .link-btn{background:none;border:none;color:var(--teal);font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
+  .link-btn{background:none;border:none;color:var(--brand-ink);font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
   .link-btn:hover{color:var(--gold);text-decoration:underline}
 
   /* ── PCM list rows ───────────────────────────────────────────── */
-  .pcm-row{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+  .pcm-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
   .pcm-row.chosen{border-color:#2d7a4f;background:rgba(45,122,79,.04)}
   .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
   .pcm-info{flex:1;min-width:0}
-  .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--teal);letter-spacing:.04em;margin-bottom:2px}
+  .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
   .pcm-meta{font-size:11px;color:var(--walnut-mid);font-style:italic}
   .pcm-channels{font-size:10px;color:var(--walnut-mid);margin-top:4px;letter-spacing:.04em}
   .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
@@ -149,18 +181,18 @@
   .pcm-pick.chosen{background:#2d7a4f}
 
   /* ── Library ─────────────────────────────────────────────────── */
-  .lib-search{width:100%;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;margin-bottom:14px}
+  .lib-search{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;margin-bottom:14px}
   .lib-search:focus{border-color:var(--gold)}
-  .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:12px}
-  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--teal);font-family:'Spectral',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
+  .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--brand-ink);font-family:'Spectral',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
   .lib-letter:hover{background:rgba(61,31,122,.08)}
   .lib-letter.disabled{opacity:.25;cursor:default}
   .lib-letter.disabled:hover{background:none}
-  .lib-section{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
-  .lib-section-hdr{font-family:'Spectral',serif;font-size:18px;color:var(--teal);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .lib-section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .lib-section-hdr{font-family:'Spectral',serif;font-size:18px;color:var(--brand-ink);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .lib-topic{padding:8px 0;border-bottom:1px solid #f7f1de}
   .lib-topic:last-child{border-bottom:none}
-  .lib-topic-title{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--teal);text-decoration:none;font-weight:500}
+  .lib-topic-title{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--brand-ink);text-decoration:none;font-weight:500}
   .lib-topic-title:hover{color:var(--gold);text-decoration:underline}
   .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
   .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Spectral',serif}
@@ -256,6 +288,10 @@
       </svg>
       <span>Ask Paul AI</span>
     </button>
+    <button class="hdr-theme" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="ic-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2 5.9 5.9M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8 5.9 18.1M18.1 5.9l1.7-1.7"/></svg>
+    </button>
     <button class="hdr-bell" onclick="toggleNotifDrawer()" aria-label="Notifications" style="position:relative;background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:8px;line-height:1">
       🔔
       <span id="hdr-bell-dot" style="display:none;position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;font-size:10px;line-height:1;min-width:16px;height:16px;padding:0 4px;border-radius:8px;font-weight:600;text-align:center"></span>
@@ -264,7 +300,7 @@
 
   <!-- Notification drawer -->
   <div id="notif-overlay" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.55)" onclick="if(event.target===this) closeNotifDrawer()">
-    <div style="position:absolute;top:0;right:0;width:min(100%,420px);max-height:100vh;background:var(--cream);display:flex;flex-direction:column;border-left:1px solid var(--line)">
+    <div style="position:absolute;top:0;right:0;width:min(100%,420px);max-height:100vh;background:var(--surface);display:flex;flex-direction:column;border-left:1px solid var(--line)">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
         <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600">Notifications</div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -352,7 +388,7 @@
 
     <!-- Electors I have accepted — ready for sign-off into TLN -->
     <div class="card" id="pcm-electors" style="display:none">
-      <div class="card-title" style="color:var(--teal)">📜 Your Electors</div>
+      <div class="card-title" style="color:var(--brand-ink)">📜 Your Electors</div>
       <div data-electors-list></div>
     </div>
 
@@ -368,7 +404,7 @@
     <!-- List of available PCMs -->
     <div id="pcm-list-section">
       <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 4px 8px">
-        <div style="font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;color:var(--teal);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
+        <div style="font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;color:var(--brand-ink);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
         <button class="link-btn" onclick="openPcmVolunteer()" id="pcm-volunteer-btn">+ Volunteer as PCM</button>
       </div>
       <div id="pcm-list"></div>
@@ -387,15 +423,15 @@
           A PCM walks alongside applicants as they prepare to enter The Living Network. Share whichever contact channels you're comfortable with — at minimum, your email.
         </div>
         <label class="form-label" style="color:var(--walnut-mid)">Region (where applicants will see you)</label>
-        <input class="form-input" id="pcm-region" type="text" placeholder="e.g. Australia, Texas, England" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <input class="form-input" id="pcm-region" type="text" placeholder="e.g. Australia, Texas, England" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Email *</label>
-        <input class="form-input" id="pcm-email" type="email" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <input class="form-input" id="pcm-email" type="email" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Phone (optional)</label>
-        <input class="form-input" id="pcm-phone" type="tel" placeholder="+61 ..." style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <input class="form-input" id="pcm-phone" type="tel" placeholder="+61 ..." style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Telegram handle (optional)</label>
-        <input class="form-input" id="pcm-telegram" type="text" placeholder="@yourhandle" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <input class="form-input" id="pcm-telegram" type="text" placeholder="@yourhandle" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Messenger (optional)</label>
-        <input class="form-input" id="pcm-messenger" type="text" placeholder="Facebook profile or @handle" style="background:#fff;color:var(--walnut);border-color:var(--line)">
+        <input class="form-input" id="pcm-messenger" type="text" placeholder="Facebook profile or @handle" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <button class="btn-primary" onclick="savePcmVolunteer()" style="margin-top:14px">Save</button>
         <button class="btn-secondary" id="pcm-stop-btn" onclick="stopBeingPcm()" style="display:none;margin-top:8px">Stop being a PCM</button>
       </div>
@@ -441,7 +477,7 @@
     <div id="msg-thread-wrap" style="display:none">
       <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--teal);color:var(--cream)">
-          <div class="pcm-av" id="msg-peer-av" style="background:var(--cream);color:var(--teal)">?</div>
+          <div class="pcm-av" id="msg-peer-av" style="background:var(--surface);color:var(--brand-ink)">?</div>
           <div style="flex:1"><div style="font-family:'Spectral',serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
           <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
         </div>
@@ -449,8 +485,8 @@
         <div id="msg-attach-chip" style="display:none;padding:0 16px;margin:8px 0 0;align-items:center;gap:8px"></div>
         <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
           <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
-          <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--cream);color:var(--walnut);font-size:18px;cursor:pointer" onclick="document.getElementById('msg-file').click()">📎</button>
-          <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-size:18px;cursor:pointer" onclick="document.getElementById('msg-file').click()">📎</button>
+          <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
       </div>
@@ -464,7 +500,7 @@
     </div>
     <div id="join-tln-cta" style="display:none">
       <div class="card" style="border-color:var(--terra);background:var(--terra-soft);text-align:center">
-        <div style="font-family:'Spectral',serif;font-size:18px;color:var(--teal);margin-bottom:6px">You have been invited.</div>
+        <div style="font-family:'Spectral',serif;font-size:18px;color:var(--brand-ink);margin-bottom:6px">You have been invited.</div>
         <div style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin-bottom:14px" id="join-tln-when">—</div>
         <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>
       </div>
@@ -482,7 +518,7 @@
 
   <!-- Paul drawer -->
   <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
-    <div id="paul-panel" style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--cream);display:flex;flex-direction:column;border-left:1px solid var(--line)">
+    <div id="paul-panel" style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--surface);display:flex;flex-direction:column;border-left:1px solid var(--line)">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--teal);color:var(--cream)">
         <div style="display:flex;align-items:center;gap:10px">
           <span class="paul-hero-av" aria-hidden="true">
@@ -504,7 +540,7 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <select id="paul-lang" onchange="_paulLangChanged()" title="Language" style="background:var(--cream);color:var(--walnut);border:1px solid var(--teal-deep);border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12px;cursor:pointer">
+          <select id="paul-lang" onchange="_paulLangChanged()" title="Language" style="background:var(--surface);color:var(--walnut);border:1px solid var(--teal-deep);border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12px;cursor:pointer">
             <option value="English">Auto-detect</option>
             <option value="Spanish">Español</option>
             <option value="French">Français</option>
@@ -524,7 +560,7 @@
       </div>
       <div id="paul-messages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px"></div>
       <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;flex-shrink:0">
-        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
         <button id="paul-send" onclick="sendPaul()" style="padding:10px 16px;background:var(--terra);color:#fff;border:none;border-radius:8px;font-family:'Spectral',serif;font-weight:500;cursor:pointer">Ask</button>
       </div>
     </div>
@@ -680,6 +716,15 @@ async function _loadProfile(authUser){
       await _sb.from('prep_users').insert(currentUser);
     }
   }
+}
+
+// ═════════════════════════ THEME ═════════════════════════
+function toggleTheme(){
+  const root = document.documentElement;
+  const goingDark = root.getAttribute('data-theme') !== 'dark';
+  if (goingDark) root.setAttribute('data-theme', 'dark');
+  else root.removeAttribute('data-theme');
+  try { localStorage.setItem('pp_theme', goingDark ? 'dark' : 'light'); } catch (e) {}
 }
 
 // ═════════════════════════ APP NAV ═════════════════════════
@@ -1076,7 +1121,7 @@ function _renderAttachChip(loadingLabel){
     ? `<img src="${a.url}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
     : `<span style="font-size:18px">📄</span>`;
   chip.style.display = 'flex';
-  chip.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--cream);max-width:100%">
+  chip.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-width:100%">
       ${thumb}
       <span style="font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(a.name)}</span>
       <button onclick="clearAttachment()" title="Remove" aria-label="Remove attachment" style="border:none;background:none;cursor:pointer;font-size:16px;color:var(--walnut);line-height:1">✕</button>
@@ -1235,7 +1280,7 @@ function _maybeShowIosInstallHint() {
   if (document.getElementById('ios-hint')) return;
   const div = document.createElement('div');
   div.id = 'ios-hint';
-  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--surface);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
   div.innerHTML = '<div style="flex:1">For home-screen alerts: tap <strong>Share</strong> in Safari, then <strong>Add to Home Screen</strong>.</div>' +
     '<button id="ios-hint-close" style="background:transparent;color:var(--walnut);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;cursor:pointer">Got it</button>';
   document.body.appendChild(div);
@@ -1259,7 +1304,7 @@ function _maybeShowAndroidInstallHint() {
   if (document.getElementById('android-hint')) return;
   const div = document.createElement('div');
   div.id = 'android-hint';
-  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--surface);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
   div.innerHTML = '<div style="flex:1">Add to your home screen to get a badge on the app icon when messages arrive.</div>' +
     '<button id="android-hint-install" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer;white-space:nowrap">Add</button>' +
     '<button id="android-hint-close" style="background:transparent;color:var(--walnut);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;cursor:pointer">Not now</button>';
@@ -1447,7 +1492,7 @@ async function buildBooksPage(){
         <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
           <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
             <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--terra-deep);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
-            <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--teal);color:var(--teal);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
+            <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--brand-ink);color:var(--brand-ink);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
             <button class="link-btn" ${hasAudiobook?'':'disabled'} onclick="openBookAudiobook(${b.id})" style="padding:6px 12px;border:1px solid var(--gold);color:var(--gold);border-radius:6px;background:var(--gold-soft);font-weight:500;${hasAudiobook?'':'opacity:.4;cursor:not-allowed'}">🎧 Audiobook</button>
           </div>
           ${b.description ? `<div style="flex:1;min-width:200px;font-size:16px;color:var(--walnut);font-style:italic;line-height:1.5">${_esc(b.description)}</div>` : ''}
