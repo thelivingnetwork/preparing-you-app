@@ -44,7 +44,7 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6;overflow-x:hidden;max-width:100%}
   h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--teal);font-weight:600;margin:0 0 8px}
-  body{min-height:100vh;display:flex;flex-direction:column;
+  body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment */
     background-image:
       radial-gradient(circle at 25% 15%, rgba(79,33,112,.045) 0, transparent 40%),
@@ -74,7 +74,7 @@
 
   /* ── App shell ───────────────────────────────────────────────── */
   .screen{display:none}
-  .screen.active{display:flex;flex-direction:column;min-height:100vh;min-width:0;max-width:100%;overflow-x:hidden}
+  .screen.active{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;min-width:0;max-width:100%;overflow-x:hidden}
   .hdr,.page{min-width:0;max-width:100%}
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--terra)}
@@ -82,7 +82,7 @@
   .hdr-name{font-family:'Spectral',serif;font-size:16px;letter-spacing:.02em;font-weight:500}
   .hdr-sub{font-size:12px;color:rgba(254,252,244,.65);font-style:italic;letter-spacing:.04em}
 
-  .page{display:none;flex:1;padding:24px 16px 100px}
+  .page{display:none;flex:1;padding:24px 16px calc(84px + env(safe-area-inset-bottom))}
   .page.active{display:block}
 
   .card{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
@@ -681,14 +681,6 @@ async function _loadProfile(authUser){
 }
 
 // ═════════════════════════ APP NAV ═════════════════════════
-function _diagOverflow(){
-  try {
-    const vv = window.visualViewport;
-    const sub = document.getElementById('hdr-sub');
-    if (sub) sub.textContent = `b14 iW${Math.round(window.innerWidth)} cW${document.documentElement.clientWidth} vv${vv?Math.round(vv.width):'-'} vs${vv?(Math.round(vv.scale*100)/100):'-'} sc${screen.width} dpr${window.devicePixelRatio}`;
-  } catch(e){}
-}
-
 function enterApp(){
   if(!currentUser) return;
   document.getElementById('hdr-name').textContent = currentUser.name || 'Friend';
@@ -696,10 +688,6 @@ function enterApp(){
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   showPage('home');
-  // TEMP diagnostic: find what overflows the viewport width and show it in the
-  // header subtitle so we can pinpoint the off-to-the-right issue on-device.
-  setTimeout(_diagOverflow, 400);
-  window.addEventListener('resize', () => setTimeout(_diagOverflow, 100));
   refreshMessageBadge();
   refreshNotifBell();
   refreshTownhallCard();
@@ -1215,7 +1203,7 @@ function _renderPushBanner() {
   if (document.getElementById('push-banner')) return;
   const div = document.createElement('div');
   div.id = 'push-banner';
-  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:90;background:var(--teal);color:var(--cream);border:1px solid var(--teal-deep);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--teal);color:var(--cream);border:1px solid var(--teal-deep);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
   div.innerHTML = '<div style="flex:1">Want a badge on your home-screen icon when you have new notifications?</div>' +
     '<button id="push-banner-yes" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer">Enable</button>' +
     '<button id="push-banner-no" style="background:transparent;color:var(--cream);border:1px solid var(--cream);border-radius:8px;padding:8px 10px;font-family:inherit;cursor:pointer">Not now</button>';
@@ -1245,7 +1233,7 @@ function _maybeShowIosInstallHint() {
   if (document.getElementById('ios-hint')) return;
   const div = document.createElement('div');
   div.id = 'ios-hint';
-  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
   div.innerHTML = '<div style="flex:1">For home-screen alerts: tap <strong>Share</strong> in Safari, then <strong>Add to Home Screen</strong>.</div>' +
     '<button id="ios-hint-close" style="background:transparent;color:var(--walnut);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;cursor:pointer">Got it</button>';
   document.body.appendChild(div);
@@ -1269,7 +1257,7 @@ function _maybeShowAndroidInstallHint() {
   if (document.getElementById('android-hint')) return;
   const div = document.createElement('div');
   div.id = 'android-hint';
-  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
+  div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--cream);color:var(--walnut);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
   div.innerHTML = '<div style="flex:1">Add to your home screen to get a badge on the app icon when messages arrive.</div>' +
     '<button id="android-hint-install" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer;white-space:nowrap">Add</button>' +
     '<button id="android-hint-close" style="background:transparent;color:var(--walnut);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-family:inherit;cursor:pointer">Not now</button>';
