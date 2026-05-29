@@ -74,7 +74,7 @@
 
   /* ── App shell ───────────────────────────────────────────────── */
   .screen{display:none}
-  .screen.active{display:flex;flex-direction:column;min-height:100vh}
+  .screen.active{display:flex;flex-direction:column;min-height:100vh;max-width:100%;overflow-x:hidden}
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--terra)}
   .hdr-ark{width:40px;height:40px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:3px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
@@ -88,11 +88,11 @@
   .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--teal);margin:0 0 10px;text-transform:uppercase;font-weight:600}
   .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
-  .tile-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .tile-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:14px}
   .tile{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
   .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
-  .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600}
+  .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
   .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
 
   .nav{position:fixed;bottom:0;left:0;right:0;max-width:100%;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:50}
