@@ -466,10 +466,6 @@
   </div>
 
   <div class="page" id="page-messages">
-    <div class="card">
-      <div class="card-title">💬 Messages</div>
-      <div class="card-text" id="msg-intro">Direct messages with your Personal Contact Minister.</div>
-    </div>
     <div id="msg-empty" class="empty" style="display:none"><span class="ico">💬</span>You'll be able to message your PCM here once your election is accepted.</div>
     <div id="msg-thread-wrap" style="display:none">
       <div class="card" style="padding:0;overflow:hidden">
@@ -965,7 +961,7 @@ async function buildMessagesPage(){
   }
   if(peers.length > 1){
     selector.style.display = 'flex';
-    selector.innerHTML = peers.map(p => `<button class="link-btn" onclick="selectMsgPeer('${p.id}')" style="padding:6px 12px;border:1px solid var(--line);border-radius:16px;background:${p.id===_msgPeerId?'var(--teal)':'var(--cream)'};color:${p.id===_msgPeerId?'var(--cream)':'var(--walnut)'};font-size:12px">${_esc(p.name)}</button>`).join('');
+    selector.innerHTML = peers.map(p => `<button class="link-btn" onclick="selectMsgPeer('${p.id}')" style="padding:6px 12px;border:1px solid var(--line);border-radius:16px;background:${p.id===_msgPeerId?'var(--teal)':'var(--surface)'};color:${p.id===_msgPeerId?'var(--cream)':'var(--walnut)'};font-size:12px">${_esc(p.name)}</button>`).join('');
   } else {
     selector.style.display = 'none';
   }
