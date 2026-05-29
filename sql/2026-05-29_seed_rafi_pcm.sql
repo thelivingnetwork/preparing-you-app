@@ -14,7 +14,7 @@ DECLARE
   -- ↓↓↓ EDIT THESE to match Rafi's account ↓↓↓
   v_email     TEXT := 'rafi.alla@live.ca';
   v_name      TEXT := 'Rafi';
-  v_region    TEXT := '';        -- e.g. 'Texas' (shown to applicants)
+  v_region    TEXT := 'Middle East, Canada';   -- shown to applicants
   v_phone     TEXT := NULL;      -- optional
   v_telegram  TEXT := NULL;      -- optional
   v_messenger TEXT := NULL;      -- optional
