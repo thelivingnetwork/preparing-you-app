@@ -12,7 +12,7 @@
 DO $$
 DECLARE
   -- ↓↓↓ EDIT THESE to match Rafi's account ↓↓↓
-  v_email     TEXT := 'rafi@example.com';   -- TODO: real email
+  v_email     TEXT := 'rafi.alla@live.ca';
   v_name      TEXT := 'Rafi';
   v_region    TEXT := '';        -- e.g. 'Texas' (shown to applicants)
   v_phone     TEXT := NULL;      -- optional
