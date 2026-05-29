@@ -310,7 +310,11 @@
 
   <!-- Pages -->
   <div class="page active" id="page-home">
-    <div class="card">
+    <!-- Journey tile — a single evolving card that guides the user through
+         each stage: watch videos → choose a PCM → listen to the Five Books
+         (in order) → join The Living Network → become a PCM. Rendered by
+         renderJourneyTile(). -->
+    <div class="card" id="journey-tile">
       <div class="card-title">Welcome</div>
       <div class="card-text">Begin by watching the introduction videos. Once they are finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
     </div>
@@ -330,18 +334,11 @@
         <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()">▶ Replay last townhall</button>
       </div>
     </div>
-    <div class="tile-row">
-      <div class="tile" onclick="showPage('video')"><div class="tile-icon">▶</div><div class="tile-name">Introduction Videos</div><div class="tile-meta" id="tile-video-meta">Step 1 · 3 films</div></div>
-      <div class="tile" onclick="showPage('pcm')"><div class="tile-icon">👥</div><div class="tile-name">Choose a PCM</div><div class="tile-meta">Step 2</div></div>
-    </div>
+    <!-- Always-available resource tiles (journey navigation lives in the
+         evolving journey tile above and the bottom nav bar). -->
     <div class="tile-row">
       <div class="tile" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
       <div class="tile" onclick="showPage('books')"><div class="tile-icon">📖</div><div class="tile-name">The Five Books</div><div class="tile-meta">Read · listen</div></div>
-    </div>
-    <div class="tile" style="grid-column:1/-1" onclick="showPage('join-tln')">
-      <div class="tile-icon">✦</div>
-      <div class="tile-name">Join The Living Network</div>
-      <div class="tile-meta">Available once your PCM signs off on your readiness</div>
     </div>
   </div>
 
@@ -1463,6 +1460,15 @@ async function refreshMessageBadge(){
 // ═════════════════════════ BOOKS ═════════════════════════
 let _booksData = null;
 
+// Is this book's audio still locked? Locked until every EARLIER book (by
+// order) has had its audio overview completed — enforces "listen in order".
+function _bookAudioLocked(idx){
+  for(let i = 0; i < idx; i++){
+    if(!_bookAudioDone.has(_booksData[i].id)) return true;
+  }
+  return false;
+}
+
 async function buildBooksPage(){
   const wrap = document.getElementById('books-list');
   if(!_booksData){
@@ -1471,31 +1477,53 @@ async function buildBooksPage(){
     if(error){ wrap.innerHTML = '<div class="empty">Error loading books.</div>'; return; }
     _booksData = data || [];
   }
+  await loadBookAudioProgress();
   if(!_booksData.length){ wrap.innerHTML = '<div class="empty">No books yet.</div>'; return; }
-  wrap.innerHTML = _booksData.map(b => {
+  wrap.innerHTML = _booksData.map((b, idx) => {
     const hasAudio = !!b.audio_overview_path;
     const hasAudiobook = !!b.audiobook_path;
     const hasPdf = !!b.pdf_storage_path;
+    const done = _bookAudioDone.has(b.id);
+    const locked = !done && _bookAudioLocked(idx);
+    // Listen button reflects sequential progress: done (✓), locked (🔒), or open.
+    let listenLabel, listenStyle, listenEnabled;
+    if(!hasAudio){ listenLabel = '▶ Listen'; listenStyle = 'opacity:.4;cursor:not-allowed'; listenEnabled = false; }
+    else if(done){ listenLabel = '✓ Listen again'; listenStyle = ''; listenEnabled = true; }
+    else if(locked){ listenLabel = '🔒 Listen'; listenStyle = 'opacity:.4;cursor:not-allowed'; listenEnabled = false; }
+    else { listenLabel = '▶ Listen'; listenStyle = ''; listenEnabled = true; }
+    const note = (hasAudio && locked)
+      ? '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin-top:6px">🔒 Finish the previous book\'s audio first</div>'
+      : (done ? '<div style="font-size:11px;color:#2d7a4f;font-style:italic;margin-top:6px">✓ Audio overview completed</div>' : '');
     return `<div class="card" style="display:flex;align-items:flex-start;gap:14px">
-      <div style="font-size:24px;width:36px;text-align:center;padding-top:2px">📖</div>
+      <div style="font-size:24px;width:36px;text-align:center;padding-top:2px">${done ? '✅' : '📖'}</div>
       <div style="flex:1;min-width:0">
         <div class="card-title" style="margin:0 0 8px;font-size:16px">${_esc(b.title)}</div>
         <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
           <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
-            <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--accent-ink);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
+            <button class="link-btn" ${listenEnabled?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--accent-ink);border-radius:6px;background:var(--terra-soft);font-weight:500;${listenStyle}">${listenLabel}</button>
             <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--brand-ink);color:var(--brand-ink);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
             <button class="link-btn" ${hasAudiobook?'':'disabled'} onclick="openBookAudiobook(${b.id})" style="padding:6px 12px;border:1px solid var(--gold);color:var(--gold);border-radius:6px;background:var(--gold-soft);font-weight:500;${hasAudiobook?'':'opacity:.4;cursor:not-allowed'}">🎧 Audiobook</button>
           </div>
           ${b.description ? `<div style="flex:1;min-width:200px;font-size:16px;color:var(--walnut);font-style:italic;line-height:1.5">${_esc(b.description)}</div>` : ''}
         </div>
+        ${note}
       </div>
     </div>`;
   }).join('');
 }
 
+let _bookListenMaxTime = 0;   // anti-skip ceiling (seconds) for current audio
+let _bookListenId = null;     // book_id currently playing in the overview player
+
 function openBookListen(bookId){
-  const b = _booksData.find(x => x.id === bookId);
+  const idx = _booksData.findIndex(x => x.id === bookId);
+  const b = idx >= 0 ? _booksData[idx] : null;
   if(!b || !b.audio_overview_path) return;
+  const done = _bookAudioDone.has(bookId);
+  // Block playing a still-locked book (must listen in order).
+  if(!done && _bookAudioLocked(idx)) return;
+  _bookListenId = bookId;
+  _bookListenMaxTime = done ? Infinity : 0;  // re-listening: free seek
   const wrap = document.getElementById('book-listen-wrap');
   const player = document.getElementById('book-listen-player');
   document.getElementById('book-listen-title').textContent = '🎧 ' + b.title + ' — Audio Overview';
@@ -1660,11 +1688,94 @@ async function sendPaul(){
   }
 }
 
-function refreshHomeTiles(){
-  const meta = document.getElementById('tile-video-meta');
-  if(!meta || !currentUser) return;
-  const { done } = gatewayProgress();
-  meta.textContent = done === 3 ? '✓ All 3 watched' : `Step 1 · ${done}/3 watched`;
+// ═══════════════════════ ONBOARDING JOURNEY ═══════════════════════
+// The home screen shows one evolving "journey" tile whose content depends on
+// how far the user has progressed. Stages:
+//   1  watch the 3 introduction videos
+//   2  choose a Personal Contact Minister
+//   3  listen to the Five Books' audio overviews, in order
+//   4  join The Living Network (awaiting PCM sign-off)
+//   5  granted access — open TLN and optionally become a PCM
+const TOTAL_BOOKS = 5;
+let _bookAudioDone = new Set();   // book_ids whose audio overview is complete
+
+async function loadBookAudioProgress(){
+  if(!_sb || !currentUser){ _bookAudioDone = new Set(); return; }
+  const { data } = await _sb.from('prep_book_audio_progress')
+    .select('book_id').eq('user_id', currentUser.id);
+  _bookAudioDone = new Set((data || []).map(r => r.book_id));
+}
+
+function _booksTotal(){
+  return (_booksData && _booksData.length) ? _booksData.length : TOTAL_BOOKS;
+}
+
+function journeyStage(){
+  if(!currentUser) return 1;
+  if(gatewayProgress().done < GATEWAY_VIDEOS.length) return 1;
+  if(!currentUser.pcm_id) return 2;
+  if(_bookAudioDone.size < _booksTotal()) return 3;
+  if(!currentUser.tln_invited_at) return 4;
+  return 5;
+}
+
+function _journeyCard(title, text, meta, ctaLabel, ctaOnclick, accent){
+  const titleColor = accent ? 'color:var(--accent-ink)' : '';
+  return '<div class="card-title" style="' + titleColor + '">' + _esc(title) + '</div>'
+    + '<div class="card-text">' + text + '</div>'
+    + (meta ? '<div style="margin-top:8px;font-size:12px;color:var(--walnut-mid);font-style:italic">' + _esc(meta) + '</div>' : '')
+    + '<div style="margin-top:14px;text-align:right">'
+    +   '<button class="btn-primary" style="margin:0;padding:9px 18px;width:auto" onclick="' + ctaOnclick + '">' + _esc(ctaLabel) + '</button>'
+    + '</div>';
+}
+
+function renderJourneyTile(){
+  const tile = document.getElementById('journey-tile');
+  if(!tile || !currentUser) return;
+  const stage = journeyStage();
+  let html = '';
+  if(stage === 1){
+    const done = gatewayProgress().done;
+    html = _journeyCard('Welcome',
+      'Begin by watching the introduction videos. Once all three are finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.',
+      done + '/3 videos watched',
+      done > 0 ? 'Continue watching' : 'Watch the videos', "showPage('video')");
+  } else if(stage === 2){
+    html = _journeyCard('Choose a Personal Contact Minister',
+      'You have finished the introduction videos. Now choose a Personal Contact Minister &mdash; someone who will walk this preparation alongside you.',
+      '', 'Choose your PCM', "showPage('pcm')", true);
+  } else if(stage === 3){
+    html = _journeyCard('Listen to the Five Books',
+      'With your PCM alongside you, listen to the audio overview of each of the Five Books &mdash; in order. Each one unlocks the next.',
+      _bookAudioDone.size + '/' + _booksTotal() + ' audios completed',
+      _bookAudioDone.size > 0 ? 'Continue listening' : 'Start listening', "showPage('books')", true);
+  } else if(stage === 4){
+    html = _journeyCard('Join The Living Network',
+      'You have completed your preparation. When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.',
+      '', 'View status', "showPage('join-tln')", true);
+  } else {
+    html = '<div class="card-title" style="color:var(--accent-ink)">✦ The Living Network</div>'
+      + '<div class="card-text">You have been granted access to The Living Network. You may also choose to become a Personal Contact Minister yourself and walk this preparation alongside others.</div>'
+      + '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'
+      +   '<button class="link-btn" onclick="showPage(\'pcm\')">Become a PCM</button>'
+      +   '<button class="btn-primary" style="margin:0;padding:9px 18px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>'
+      + '</div>';
+  }
+  tile.innerHTML = html;
+}
+
+async function refreshHomeTiles(){
+  if(!currentUser) return;
+  // Pull the fields that gate the journey in case they changed since sign-in
+  // (e.g. a PCM signed the user off into TLN while they were away).
+  if(_sb){
+    const { data: u } = await _sb.from('prep_users')
+      .select('pcm_id, tln_invited_at, joined_tln_at, gateway_v1_at, gateway_v2_at, gateway_v3_at')
+      .eq('id', currentUser.id).maybeSingle();
+    if(u) Object.assign(currentUser, u);
+  }
+  await loadBookAudioProgress();
+  renderJourneyTile();
 }
 
 // ═════════════════════════ GATEWAY VIDEOS ═════════════════════════
@@ -1773,6 +1884,39 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// Book audio-overview player: anti-skip + record completion so the "in order"
+// gate and the journey advance. Mirrors the gateway video behaviour.
+document.addEventListener('DOMContentLoaded', () => {
+  const player = document.getElementById('book-listen-player');
+  if(!player) return;
+  player.addEventListener('timeupdate', () => {
+    if(_bookListenMaxTime === Infinity) return;
+    if(player.currentTime > _bookListenMaxTime + 0.5){
+      player.currentTime = _bookListenMaxTime;
+    } else if(player.currentTime > _bookListenMaxTime){
+      _bookListenMaxTime = player.currentTime;
+    }
+  });
+  player.addEventListener('seeking', () => {
+    if(_bookListenMaxTime === Infinity) return;
+    if(player.currentTime > _bookListenMaxTime + 0.5){
+      player.currentTime = _bookListenMaxTime;
+    }
+  });
+  player.addEventListener('ended', async () => {
+    if(_bookListenId == null || !_sb || !currentUser) return;
+    if(_bookAudioDone.has(_bookListenId)) return; // already recorded
+    const bookId = _bookListenId;
+    const { error } = await _sb.from('prep_book_audio_progress')
+      .upsert({ user_id: currentUser.id, book_id: bookId, completed_at: new Date().toISOString() },
+              { onConflict: 'user_id,book_id' });
+    if(!error){
+      _bookAudioDone.add(bookId);
+      buildBooksPage();   // unlock the next book
+    }
+  });
+});
+
 // ═════════════════════════ LIBRARY ═════════════════════════
 let _libData = null;
 
@@ -1869,6 +2013,10 @@ async function buildPcmPage(){
     mineCard.style.display = 'none';
     volBtn.textContent = '+ Volunteer as PCM';
   }
+  // Only those granted access to The Living Network (or existing PCMs) may
+  // become a PCM — this drives the multiplication loop.
+  const canBecomePcm = !!currentUser.tln_invited_at || _pcmAmIPcm;
+  volBtn.style.display = canBecomePcm ? '' : 'none';
 
   // 3. Pull all active PCMs and partition by region match
   const { data: rows } = await _sb.from('prep_pcms')
@@ -1882,7 +2030,7 @@ async function buildPcmPage(){
   // 4. Render the list
   const listEl = document.getElementById('pcm-list');
   if(!_pcmList.length){
-    listEl.innerHTML = '<div class="empty"><span class="ico">👥</span>No PCMs have volunteered yet. Be the first.</div>';
+    listEl.innerHTML = '<div class="empty"><span class="ico">👥</span>No Personal Contact Ministers are available yet. Please check back soon.</div>';
   } else {
     let html = '';
     if(myRegion && inRegion.length){
@@ -2210,6 +2358,11 @@ function closePcmVolunteer(){
 
 async function savePcmVolunteer(){
   if(!_sb || !currentUser) return;
+  // Becoming a PCM is reserved for those granted access to The Living Network.
+  if(!currentUser.tln_invited_at && !_pcmAmIPcm){
+    alert('Becoming a Personal Contact Minister is available once you have been granted access to The Living Network.');
+    return;
+  }
   const region    = document.getElementById('pcm-region').value.trim();
   const email     = document.getElementById('pcm-email').value.trim().toLowerCase();
   const phone     = document.getElementById('pcm-phone').value.trim();

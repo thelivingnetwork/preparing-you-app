@@ -1114,6 +1114,57 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true })
     }
 
+    if (req.method === 'POST' && req.url === '/admin/reset-journey') {
+      // "Clear the deck" — reset every NON-admin user back to a fresh start
+      // so the onboarding workflow runs from the beginning for everyone:
+      //   • clears gateway video progress, chosen PCM, and TLN invite/join state
+      //   • deletes all book-audio progress and all PCM elections
+      //   • removes all PCM registrations EXCEPT admins (who remain seed PCMs)
+      // Admins are exempt from the reset so they can bootstrap the chain.
+      const auth = req.headers['authorization'] || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+      if (!token) return send(res, 401, { error: 'no_token' })
+      const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: 'Bearer ' + token } },
+        auth: { persistSession: false }
+      })
+      const { data: cu } = await callerSb.auth.getUser(token)
+      const callerId = cu?.user?.id
+      if (!callerId) return send(res, 401, { error: 'invalid_token' })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', callerId).maybeSingle()
+      if (!adminRow) return send(res, 403, { error: 'not_admin' })
+
+      // Require explicit confirmation so this can't be triggered by accident.
+      const body = await readJson(req)
+      if (!body || body.confirm !== 'RESET') return send(res, 400, { error: 'confirm_required' })
+
+      const { data: admins } = await sb.from('prep_admins').select('user_id')
+      const adminIds = (admins || []).map(a => a.user_id)
+      // Postgres `not.in` needs a non-empty list; fall back to a sentinel UUID.
+      const exclude = adminIds.length ? adminIds : ['00000000-0000-0000-0000-000000000000']
+      const inList = '(' + exclude.join(',') + ')'
+
+      // 1. Reset progress columns on every non-admin user.
+      const { error: uErr, count: usersReset } = await sb.from('prep_users')
+        .update({
+          gateway_v1_at: null, gateway_v2_at: null, gateway_v3_at: null,
+          gateway_watched_at: null, pcm_id: null,
+          joined_tln_at: null, tln_invited_at: null
+        }, { count: 'exact' })
+        .not('id', 'in', inList)
+      if (uErr) return send(res, 500, { error: 'users_reset_failed', detail: uErr.message })
+
+      // 2. Wipe all book-audio progress and all elections (fresh start for all).
+      await sb.from('prep_book_audio_progress').delete().not('user_id', 'in', inList)
+      await sb.from('prep_pcm_elections').delete().neq('id', 0)
+
+      // 3. Remove all PCM registrations except admins (seed PCMs).
+      const { error: pErr } = await sb.from('prep_pcms').delete().not('id', 'in', inList)
+      if (pErr) return send(res, 500, { error: 'pcms_reset_failed', detail: pErr.message })
+
+      return send(res, 200, { ok: true, usersReset: usersReset ?? null, adminsExempt: adminIds.length })
+    }
+
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
       // Manual trigger — useful for ops/debugging the cron
       runTownhallReminders().catch(e => console.error('manual reminder', e))
