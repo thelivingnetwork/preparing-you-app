@@ -90,7 +90,7 @@
   .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
   .tile-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:14px}
-  .tile{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+  .tile{min-width:0;background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
   .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
   .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
@@ -696,7 +696,7 @@ function _diagOverflow(){
     const o = cands[0];
     const who = o ? (o.el.id ? '#'+o.el.id : (typeof o.el.className==='string' && o.el.className ? '.'+o.el.className.split(' ')[0] : o.el.tagName.toLowerCase())) : 'none';
     const sub = document.getElementById('hdr-sub');
-    if (sub) sub.textContent = `b9 w${W} ovf:${who}@${o ? Math.round(o.right) : 0}`;
+    if (sub) sub.textContent = `b10 w${W} ovf:${who}@${o ? Math.round(o.right) : 0}`;
   } catch(e){}
 }
 
