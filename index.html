@@ -106,6 +106,15 @@
   .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--gold);border:none;cursor:pointer;padding:4px 12px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:12.5px;font-weight:600;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
   .hdr-paul:hover{background:#b8862f}
   .hdr-paul svg{width:34px;height:34px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  /* Paul portrait at the top of the drawer */
+  .paul-hero-av{flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(20,48,52,.35);border:2px solid var(--cream);display:inline-flex}
+  .paul-hero-av svg{width:100%;height:100%;display:block}
+  /* Thinking dots — wave */
+  .paul-thinking{display:inline-flex;align-items:flex-end;gap:5px;height:14px}
+  .paul-dot{width:8px;height:8px;border-radius:50%;background:var(--terra);display:inline-block;animation:paul-wave 1.2s ease-in-out infinite}
+  .paul-dot:nth-child(2){animation-delay:.18s}
+  .paul-dot:nth-child(3){animation-delay:.36s}
+  @keyframes paul-wave{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-7px);opacity:1}}
 
   .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-style:italic;font-size:15px}
   .empty .ico{font-size:42px;margin-bottom:12px;display:block;opacity:.6}
@@ -471,9 +480,24 @@
   <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
     <div style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--cream);display:flex;flex-direction:column;border-left:1px solid var(--line)">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--teal);color:var(--cream)">
-        <div>
-          <div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Paul</div>
-          <div style="font-size:11px;font-style:italic;opacity:.85">Here to walk with you</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="paul-hero-av" aria-hidden="true">
+            <svg viewBox="0 0 64 64">
+              <circle cx="32" cy="30" r="24" fill="#6b4f37"/>
+              <ellipse cx="32" cy="36" rx="19" ry="22" fill="#f2cba3"/>
+              <path d="M13 36c3.5 4.5 11 7 19 7s15.5-2.5 19-7c0 10-2.5 17.5-6.5 22.5C40.7 63 36.3 64.5 32 64.5s-8.7-1.5-12.5-6C15.5 53.5 13 46 13 36z" fill="#6b4f37"/>
+              <path d="M22.5 41c3.2 2.6 6.2 3.6 9.5 3.6s6.3-1 9.5-3.6" fill="none" stroke="#56412c" stroke-width="2.6" stroke-linecap="round"/>
+              <path d="M21.5 28.5c2.2-1.6 5.3-1.6 7.5 0" fill="none" stroke="#6b4f37" stroke-width="2.1" stroke-linecap="round"/>
+              <path d="M35 28.5c2.2-1.6 5.3-1.6 7.5 0" fill="none" stroke="#6b4f37" stroke-width="2.1" stroke-linecap="round"/>
+              <circle cx="25.5" cy="33" r="2.1" fill="#3a2a1c"/>
+              <circle cx="38.5" cy="33" r="2.1" fill="#3a2a1c"/>
+              <path d="M32 34v6" fill="none" stroke="#dca57e" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <div>
+            <div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Paul</div>
+            <div style="font-size:11px;font-style:italic;opacity:.85">Here to walk with you</div>
+          </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <select id="paul-lang" onchange="_paulLangChanged()" title="Language" style="background:var(--cream);color:var(--walnut);border:1px solid var(--teal-deep);border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12px;cursor:pointer">
@@ -1531,6 +1555,17 @@ function _renderPaulMessage(role, text){
   return div;
 }
 
+function _renderPaulThinking(){
+  const wrap = document.getElementById('paul-messages');
+  const div = document.createElement('div');
+  div.style.cssText = `align-self:flex-start;max-width:85%;padding:12px 16px;border-radius:16px;background:var(--terra-soft);color:var(--walnut);font-family:'Spectral',serif;border:1px solid var(--terra-soft)`;
+  // Three wave-animated dots. Setting textContent later (with the answer) clears these.
+  div.innerHTML = '<span class="paul-thinking"><span class="paul-dot"></span><span class="paul-dot"></span><span class="paul-dot"></span></span>';
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+  return div;
+}
+
 async function sendPaul(){
   const input = document.getElementById('paul-input');
   const sendBtn = document.getElementById('paul-send');
@@ -1540,7 +1575,7 @@ async function sendPaul(){
   sendBtn.disabled = true; sendBtn.textContent = '…';
   _renderPaulMessage('user', text);
   _paulHistory.push({ role:'user', content:text });
-  const thinking = _renderPaulMessage('assistant', '…');
+  const thinking = _renderPaulThinking();
   try {
     const r = await fetch(_SERVER_URL + '/paul/chat', {
       method:'POST',
