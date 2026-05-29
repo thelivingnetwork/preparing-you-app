@@ -15,7 +15,12 @@ const { createClient } = require('@supabase/supabase-js')
 const webpush = require('web-push')
 
 const PORT = parseInt(process.env.PORT || '10000', 10)
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*'
+// Comma-separated allow-list, e.g.
+//   ALLOWED_ORIGIN=https://preparingyou.netlify.app,https://preparingyou-admin.netlify.app
+// Use "*" to allow any origin. The matching request origin is echoed back so
+// both the main app and the admin app can call the server.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
+  .split(',').map(s => s.trim()).filter(Boolean)
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -32,8 +37,14 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   console.warn('[push] VAPID keys missing — /paul-style chat works but push notifications are disabled')
 }
 
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+function cors(res, req) {
+  const reqOrigin = req && req.headers ? req.headers.origin : null
+  let allow
+  if (ALLOWED_ORIGINS.includes('*')) allow = '*'
+  else if (reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin)) allow = reqOrigin
+  else allow = ALLOWED_ORIGINS[0]
+  res.setHeader('Access-Control-Allow-Origin', allow)
+  res.setHeader('Vary', 'Origin')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 }
@@ -838,7 +849,7 @@ async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
 }
 
 const server = http.createServer(async (req, res) => {
-  cors(res)
+  cors(res, req)
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
 
   try {
@@ -1112,6 +1123,44 @@ const server = http.createServer(async (req, res) => {
       })
       if (!r.ok) return send(res, 500, { error: 'auth_delete_failed', status: r.status, body: await r.text() })
       return send(res, 200, { ok: true })
+    }
+
+    if (req.method === 'POST' && req.url === '/admin/broadcast') {
+      // One-way announcement from an admin to every user: bell notification
+      // + web-push to all devices, plus a row in prep_broadcasts (history).
+      const auth = req.headers['authorization'] || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+      if (!token) return send(res, 401, { error: 'no_token' })
+      const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: 'Bearer ' + token } },
+        auth: { persistSession: false }
+      })
+      const { data: cu } = await callerSb.auth.getUser(token)
+      const callerId = cu?.user?.id
+      if (!callerId) return send(res, 401, { error: 'invalid_token' })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', callerId).maybeSingle()
+      if (!adminRow) return send(res, 403, { error: 'not_admin' })
+
+      const body = await readJson(req)
+      const text = (body.text || '').trim()
+      if (!text) return send(res, 400, { error: 'text_required' })
+      const icon = (body.icon || '📢').trim() || '📢'
+      const action = { type: 'page', page: 'home' }
+
+      const { data: users } = await sb.from('prep_users').select('id')
+      const list = users || []
+
+      // 1) Bell notifications — bulk insert in chunks.
+      const rows = list.map(u => ({ user_id: u.id, icon, text, action }))
+      for (let i = 0; i < rows.length; i += 100) {
+        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
+      }
+      // 2) Web-push fanout (best-effort, don't block on individual failures).
+      await Promise.allSettled(list.map(u => pushToUser(u.id, { icon, text, action })))
+      // 3) History row.
+      await sb.from('prep_broadcasts').insert({ sender_id: callerId, icon, text, recipient_count: list.length })
+
+      return send(res, 200, { ok: true, recipients: list.length })
     }
 
     if (req.method === 'POST' && req.url === '/admin/reset-journey') {
