@@ -315,6 +315,8 @@ async function searchPreparingYou(query, limit = 10) {
     fetchInsecure(mkUrl(`intitle:${query}`, 5)).then(parse),
     fetchInsecure(mkUrl(query, limit)).then(parse)
   ])
+  if (titleHits.status === 'rejected') console.warn(`[paul] preparingyou intitle search failed: ${titleHits.reason?.message || titleHits.reason}`)
+  if (textHits.status === 'rejected')  console.warn(`[paul] preparingyou text search failed: ${textHits.reason?.message || textHits.reason}`)
   const seen = new Set()
   const merged = []
   for (const r of [
@@ -341,10 +343,13 @@ async function searchHhcBlog(query, limit = 3) {
 
 async function searchChurchArticles(query) {
   const [wiki, blog] = await Promise.allSettled([searchPreparingYou(query, 10), searchHhcBlog(query, 5)])
+  if (wiki.status === 'rejected') console.warn(`[paul] preparingyou search failed: ${wiki.reason?.message || wiki.reason}`)
+  if (blog.status === 'rejected') console.warn(`[paul] hisholychurch search failed: ${blog.reason?.message || blog.reason}`)
   const results = [
     ...(wiki.status === 'fulfilled' ? wiki.value : []),
     ...(blog.status === 'fulfilled' ? blog.value : [])
   ]
+  console.log(`[paul] search_church_articles "${query}" -> ${results.length} results`)
   if (!results.length) return 'No articles found for that query.'
   return results.map((a, i) => `${i + 1}. ${a.title}\n   ${a.snippet}\n   ${a.url}`).join('\n\n')
 }
@@ -478,6 +483,8 @@ async function paulChat(userId, messages, lang) {
     const toolBlock = resp.content.find(b => b.type === 'tool_use')
     if (!toolBlock) break
 
+    const _t0 = Date.now()
+    console.log(`[paul] tool ${toolBlock.name} input=${JSON.stringify(toolBlock.input)}`)
     let toolResult
     try {
       if (toolBlock.name === 'lookup_strongs') {
@@ -490,7 +497,9 @@ async function paulChat(userId, messages, lang) {
         const { reference, translation = 'kjv' } = toolBlock.input
         toolResult = await fetchBiblePassage(reference, translation)
       }
+      console.log(`[paul] tool ${toolBlock.name} ok in ${Date.now() - _t0}ms, ${String(toolResult).length} chars`)
     } catch (e) {
+      console.warn(`[paul] tool ${toolBlock.name} FAILED in ${Date.now() - _t0}ms: ${e.message}`)
       toolResult = `Could not retrieve: ${e.message}`
     }
 
