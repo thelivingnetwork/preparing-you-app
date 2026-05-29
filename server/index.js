@@ -15,7 +15,12 @@ const { createClient } = require('@supabase/supabase-js')
 const webpush = require('web-push')
 
 const PORT = parseInt(process.env.PORT || '10000', 10)
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*'
+// Comma-separated allow-list, e.g.
+//   ALLOWED_ORIGIN=https://preparingyou.netlify.app,https://preparingyou-admin.netlify.app
+// Use "*" to allow any origin. The matching request origin is echoed back so
+// both the main app and the admin app can call the server.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
+  .split(',').map(s => s.trim()).filter(Boolean)
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -32,8 +37,14 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   console.warn('[push] VAPID keys missing — /paul-style chat works but push notifications are disabled')
 }
 
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN)
+function cors(res, req) {
+  const reqOrigin = req && req.headers ? req.headers.origin : null
+  let allow
+  if (ALLOWED_ORIGINS.includes('*')) allow = '*'
+  else if (reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin)) allow = reqOrigin
+  else allow = ALLOWED_ORIGINS[0]
+  res.setHeader('Access-Control-Allow-Origin', allow)
+  res.setHeader('Vary', 'Origin')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 }
@@ -838,7 +849,7 @@ async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
 }
 
 const server = http.createServer(async (req, res) => {
-  cors(res)
+  cors(res, req)
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
 
   try {
