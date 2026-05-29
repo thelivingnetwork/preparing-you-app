@@ -102,10 +102,10 @@
   .nav-btn{position:relative}
   .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
 
-  /* ── Paul (floating AI button) ──────────────────────────────── */
-  .paul-fab{position:fixed;right:14px;bottom:84px;display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;border-radius:999px;background:var(--terra);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 4px 16px rgba(74,33,112,.32);z-index:60;border:2px solid var(--cream);letter-spacing:.04em;transition:transform .15s}
-  .paul-fab:hover{transform:scale(1.04);background:var(--terra-deep)}
-  .paul-fab svg{width:36px;height:36px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:2px;color:var(--walnut)}
+  /* ── Paul (header AI button) ──────────────────────────────── */
+  .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--cream);cursor:pointer;padding:4px 6px;font-family:'Spectral',serif;font-size:13px;font-weight:500;letter-spacing:.04em;line-height:1}
+  .hdr-paul:hover{opacity:.85}
+  .hdr-paul svg{width:32px;height:32px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:3px;color:var(--walnut);box-shadow:0 1px 3px rgba(55,23,81,.3)}
 
   .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-style:italic;font-size:15px}
   .empty .ico{font-size:42px;margin-bottom:12px;display:block;opacity:.6}
@@ -222,6 +222,19 @@
       <div class="hdr-name" id="hdr-name">—</div>
       <div class="hdr-sub" id="hdr-sub">Preparing You</div>
     </div>
+    <button class="hdr-paul" onclick="openPaul()" aria-label="Ask Paul" title="Ask Paul">
+      <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 26c0-7 5.4-12 12-12s12 5 12 12v6"/>
+        <path d="M20 22c2-3 6-6 12-6s10 3 12 6"/>
+        <circle cx="27" cy="27" r="1.2" fill="currentColor"/>
+        <circle cx="37" cy="27" r="1.2" fill="currentColor"/>
+        <path d="M32 28v5"/>
+        <path d="M26 36c2 1.2 4 1.6 6 1.6s4-.4 6-1.6"/>
+        <path d="M20 32c0 6 2 12 4 16 2 3 5 5 8 5s6-2 8-5c2-4 4-10 4-16"/>
+        <path d="M26 42v6M32 44v8M38 42v6"/>
+      </svg>
+      <span>Paul</span>
+    </button>
     <button class="hdr-bell" onclick="toggleNotifDrawer()" aria-label="Notifications" style="position:relative;background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:8px;line-height:1">
       🔔
       <span id="hdr-bell-dot" style="display:none;position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;font-size:10px;line-height:1;min-width:16px;height:16px;padding:0 4px;border-radius:8px;font-weight:600;text-align:center"></span>
@@ -442,27 +455,6 @@
   </div>
   <style>@keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}</style>
 
-  <!-- Paul: floating AI assistant -->
-  <div class="paul-fab" onclick="openPaul()" title="Ask Paul">
-    <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <!-- head -->
-      <path d="M20 26c0-7 5.4-12 12-12s12 5 12 12v6"/>
-      <!-- hair / forehead line -->
-      <path d="M20 22c2-3 6-6 12-6s10 3 12 6"/>
-      <!-- eyes -->
-      <circle cx="27" cy="27" r="1.2" fill="currentColor"/>
-      <circle cx="37" cy="27" r="1.2" fill="currentColor"/>
-      <!-- nose -->
-      <path d="M32 28v5"/>
-      <!-- mustache -->
-      <path d="M26 36c2 1.2 4 1.6 6 1.6s4-.4 6-1.6"/>
-      <!-- beard outline -->
-      <path d="M20 32c0 6 2 12 4 16 2 3 5 5 8 5s6-2 8-5c2-4 4-10 4-16"/>
-      <!-- beard texture lines -->
-      <path d="M26 42v6M32 44v8M38 42v6"/>
-    </svg>
-    <span>Ask Paul</span>
-  </div>
 
   <!-- Paul drawer -->
   <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
