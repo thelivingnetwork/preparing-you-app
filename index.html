@@ -107,8 +107,6 @@
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--terra)}
   .hdr-ark{width:40px;height:40px;flex-shrink:0;background:#fefcf4;border-radius:50%;padding:3px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
-  .hdr-name{font-family:'Spectral',serif;font-size:16px;letter-spacing:.02em;font-weight:500}
-  .hdr-sub{font-size:12px;color:rgba(254,252,244,.65);font-style:italic;letter-spacing:.04em}
   /* Dark-mode toggle (header). Moon shows in light mode, sun in dark mode. */
   .hdr-theme{flex-shrink:0;background:none;border:none;color:var(--cream);cursor:pointer;padding:8px;line-height:0;display:inline-flex;align-items:center}
   .hdr-theme svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -263,10 +261,7 @@
 <div id="screen-app" class="screen">
   <div class="hdr">
     <img class="hdr-ark" src="/ark-purple.png" alt="">
-    <div style="flex:1;min-width:0">
-      <div class="hdr-name" id="hdr-name" style="overflow:hidden;text-overflow:ellipsis">—</div>
-      <div class="hdr-sub" id="hdr-sub">Preparing You</div>
-    </div>
+    <div style="flex:1;min-width:0"></div>
     <button class="hdr-paul" onclick="openPaul()" aria-label="Ask Paul AI" title="Ask Paul AI">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <!-- hair (sits behind the face) -->
@@ -730,8 +725,6 @@ function toggleTheme(){
 // ═════════════════════════ APP NAV ═════════════════════════
 function enterApp(){
   if(!currentUser) return;
-  document.getElementById('hdr-name').textContent = currentUser.name || 'Friend';
-  document.getElementById('hdr-sub').textContent  = (currentUser.region || 'Preparing You');
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   showPage('home');
