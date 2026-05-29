@@ -20,7 +20,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -70,7 +70,7 @@
   }
   html{background:var(--parch)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6;overflow-x:hidden;max-width:100%}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55;overflow-x:hidden;max-width:100%}
   h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
   body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment */
@@ -92,7 +92,7 @@
   .auth-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line)}
   .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:'Spectral',serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
   .auth-tab.active{color:var(--brand-ink);border-bottom-color:var(--terra)}
-  .form-label{display:block;font-size:12px;color:var(--walnut-mid);font-style:italic;margin:12px 0 4px;letter-spacing:.02em}
+  .form-label{display:block;font-size:13px;color:var(--walnut-mid);margin:12px 0 4px;letter-spacing:.02em}
   /* font-size must be >=16px: iOS Safari auto-zooms the page when a smaller
      input gets focus, and that zoom sticks (pushing the fixed nav off-frame). */
   .form-input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
@@ -128,7 +128,7 @@
   .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
   .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
-  .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
+  .tile-meta{font-size:13px;color:var(--walnut-mid);margin-top:6px;font-weight:500}
 
   .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:10px 0 calc(20px + env(safe-area-inset-bottom));z-index:50}
   .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:'Spectral',serif;font-size:9px;letter-spacing:.02em;padding:6px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:500}
@@ -152,7 +152,7 @@
   .paul-dot:nth-child(3){animation-delay:.36s}
   @keyframes paul-wave{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-7px);opacity:1}}
 
-  .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-style:italic;font-size:15px}
+  .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-size:15px}
   .empty .ico{font-size:42px;margin-bottom:12px;display:block;opacity:.6}
 
   /* ── Modals ──────────────────────────────────────────────────── */
@@ -174,7 +174,7 @@
   .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
   .pcm-info{flex:1;min-width:0}
   .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
-  .pcm-meta{font-size:11px;color:var(--walnut-mid);font-style:italic}
+  .pcm-meta{font-size:12px;color:var(--walnut-mid)}
   .pcm-channels{font-size:10px;color:var(--walnut-mid);margin-top:4px;letter-spacing:.04em}
   .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
   .pcm-pick:hover{background:var(--teal-soft)}
@@ -192,7 +192,7 @@
   .lib-section-hdr{font-family:'Spectral',serif;font-size:18px;color:var(--brand-ink);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .lib-topic{padding:8px 0;border-bottom:1px solid #f7f1de}
   .lib-topic:last-child{border-bottom:none}
-  .lib-topic-title{display:block;font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--brand-ink);text-decoration:none;font-weight:500}
+  .lib-topic-title{display:block;font-family:'Spectral',serif;font-size:16px;color:var(--brand-ink);text-decoration:none;font-weight:500}
   .lib-topic-title:hover{color:var(--gold);text-decoration:underline}
   .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
   .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Spectral',serif}
@@ -319,7 +319,7 @@
     <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="onTownhallCardClick()">
       <div class="card-title" style="color:var(--accent-ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px 10px;min-width:0">
         <span id="townhall-title-text" style="min-width:0">🎙 Weekly Townhall</span>
-        <span id="townhall-when" style="font-size:11px;font-weight:400;color:var(--walnut-mid);font-style:italic;text-transform:none">—</span>
+        <span id="townhall-when" style="font-size:12px;font-weight:500;color:var(--walnut-mid);text-transform:none">—</span>
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
       <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
@@ -498,7 +498,7 @@
     <div id="join-tln-cta" style="display:none">
       <div class="card" style="border-color:var(--terra);background:var(--terra-soft);text-align:center">
         <div style="font-family:'Spectral',serif;font-size:18px;color:var(--brand-ink);margin-bottom:6px">You have been invited.</div>
-        <div style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin-bottom:14px" id="join-tln-when">—</div>
+        <div style="font-size:13px;color:var(--walnut-mid);margin-bottom:14px" id="join-tln-when">—</div>
         <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>
       </div>
     </div>
