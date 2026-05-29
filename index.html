@@ -340,10 +340,9 @@
     </div>
     <!-- Always-available resource tiles (journey navigation lives in the
          evolving journey tile above and the bottom nav bar). -->
-    <div class="tile-row">
-      <div class="tile" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
-      <div class="tile" onclick="showPage('books')"><div class="tile-icon">📖</div><div class="tile-name">The Five Books</div><div class="tile-meta">Read · listen</div></div>
-    </div>
+    <!-- Topical Library is a standalone reference; the Five Books now lives in the
+         guided journey (stage 3) and the bottom nav, so it's not duplicated here. -->
+    <div class="tile" style="grid-column:1/-1" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
   </div>
 
   <div class="page" id="page-video">
