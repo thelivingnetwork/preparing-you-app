@@ -38,6 +38,8 @@
     --terra-soft:rgba(122,58,166,.12);
     --gold:#a0772a;       /* aged gold — restrained warmth */
     --gold-soft:rgba(160,119,42,.15);
+    --warn:#e07b1a;       /* priority orange — the active "next step" tile */
+    --warn-soft:rgba(224,123,26,.10);
     --parch:#faf6e9;      /* warm parchment — page background */
     --cream:#fefcf4;      /* card surface */
     --walnut:#3a2818;     /* primary text */
@@ -120,6 +122,8 @@
   .page.active{display:block}
 
   .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
+  /* The journey tile is the user's active priority — give it a thick orange border so it reads as the next thing to do. */
+  #journey-tile{border:3px solid var(--warn);background:var(--warn-soft);box-shadow:0 2px 12px rgba(224,123,26,.18)}
   .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--brand-ink);margin:0 0 10px;text-transform:uppercase;font-weight:600}
   .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
