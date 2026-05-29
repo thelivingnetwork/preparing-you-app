@@ -28,6 +28,12 @@ BEGIN
     RAISE EXCEPTION 'No prep_users row for %. Create the login in Supabase Auth first, then re-run.', v_email;
   END IF;
 
+  -- Normalise his profile name/region (the auth trigger defaults name to the
+  -- email local-part, e.g. 'gregory').
+  UPDATE public.prep_users
+    SET name = v_name, region = COALESCE(NULLIF(v_region, ''), region)
+    WHERE id = v_uid;
+
   -- Full admin access (also makes him exempt from /admin/reset-journey).
   INSERT INTO public.prep_admins (user_id) VALUES (v_uid)
   ON CONFLICT (user_id) DO NOTHING;
