@@ -42,7 +42,7 @@
     --success:#2d7a4f;    /* status / confirmation */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;line-height:1.6;overflow-x:hidden;max-width:100%}
   h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--teal);font-weight:600;margin:0 0 8px}
   body{min-height:100vh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment */
@@ -227,8 +227,8 @@
 <div id="screen-app" class="screen">
   <div class="hdr">
     <img class="hdr-ark" src="/ark-purple.png" alt="">
-    <div style="flex:1">
-      <div class="hdr-name" id="hdr-name">—</div>
+    <div style="flex:1;min-width:0">
+      <div class="hdr-name" id="hdr-name" style="overflow:hidden;text-overflow:ellipsis">—</div>
       <div class="hdr-sub" id="hdr-sub">Preparing You</div>
     </div>
     <button class="hdr-paul" onclick="openPaul()" aria-label="Ask Paul AI" title="Ask Paul AI">
