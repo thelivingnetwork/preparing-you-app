@@ -49,6 +49,7 @@
        of the brand colours above (which stay purple/gold in both themes). */
     --surface:#fefcf4;    /* card / input fill (light = same as --cream) */
     --brand-ink:#4f2170;  /* brand-coloured TEXT on surfaces (headings etc.) */
+    --accent-ink:#5a2680; /* accent TEXT on the --terra-soft tinted cards */
   }
   /* ── Dark theme ──────────────────────────────────────────────
      Manual toggle only (no prefers-color-scheme); the brand purple chrome
@@ -63,6 +64,7 @@
     --walnut-mid:#b4aac3;  /* secondary text */
     --walnut-soft:#8b8198; /* muted text */
     --line:#352d45;        /* borders / dividers */
+    --accent-ink:#fff;     /* white reads clearly on the tinted cards in dark */
     --terra-soft:rgba(160,120,210,.20); /* incoming chat bubbles */
     --gold-soft:rgba(160,119,42,.22);
   }
@@ -315,7 +317,7 @@
 
     <!-- Townhall card -->
     <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="onTownhallCardClick()">
-      <div class="card-title" style="color:var(--terra-deep);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px 10px;min-width:0">
+      <div class="card-title" style="color:var(--accent-ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px 10px;min-width:0">
         <span id="townhall-title-text" style="min-width:0">🎙 Weekly Townhall</span>
         <span id="townhall-when" style="font-size:11px;font-weight:400;color:var(--walnut-mid);font-style:italic;text-transform:none">—</span>
       </div>
@@ -377,7 +379,7 @@
 
     <!-- Inbound elections (PCM viewing requests) -->
     <div class="card" id="pcm-inbound" style="display:none;border-color:var(--terra)">
-      <div class="card-title" style="color:var(--terra-deep)">✦ Elections Awaiting Your Response</div>
+      <div class="card-title" style="color:var(--accent-ink)">✦ Elections Awaiting Your Response</div>
       <div data-inbound-list></div>
     </div>
 
@@ -1008,7 +1010,7 @@ async function loadMessages(){
     // the recipient mints their own token instead of joining as the caller. Expired calls
     // get a visual dim + strikethrough but remain technically clickable.
     let linked = _esc(m.body).replace(/(https?:\/\/[^\s]+)/g, (url) => {
-      const linkColor = mine?'var(--cream)':'var(--terra-deep)';
+      const linkColor = mine?'var(--cream)':'var(--accent-ink)';
       const decor = expired ? 'line-through' : 'underline';
       const op = expired ? 'opacity:.55;' : '';
       if(/daily\.co\//.test(url)){
@@ -1129,7 +1131,7 @@ function _renderAttachment(m, mine){
   if(isImg){
     return `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${_esc(name)}" style="max-width:100%;border-radius:10px;display:block"></a>`;
   }
-  const linkColor = mine ? 'var(--cream)' : 'var(--terra-deep)';
+  const linkColor = mine ? 'var(--cream)' : 'var(--accent-ink)';
   return `<a href="${url}" target="_blank" rel="noopener" download style="display:inline-flex;align-items:center;gap:6px;color:${linkColor};text-decoration:underline">📄 ${_esc(name)}</a>`;
 }
 
@@ -1484,7 +1486,7 @@ async function buildBooksPage(){
         <div class="card-title" style="margin:0 0 8px;font-size:16px">${_esc(b.title)}</div>
         <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
           <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
-            <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--terra-deep);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
+            <button class="link-btn" ${hasAudio?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--accent-ink);border-radius:6px;background:var(--terra-soft);font-weight:500;${hasAudio?'':'opacity:.4;cursor:not-allowed'}">▶ Listen</button>
             <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--brand-ink);color:var(--brand-ink);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
             <button class="link-btn" ${hasAudiobook?'':'disabled'} onclick="openBookAudiobook(${b.id})" style="padding:6px 12px;border:1px solid var(--gold);color:var(--gold);border-radius:6px;background:var(--gold-soft);font-weight:500;${hasAudiobook?'':'opacity:.4;cursor:not-allowed'}">🎧 Audiobook</button>
           </div>
@@ -1707,7 +1709,7 @@ function buildGatewayPage(){
   });
   if(done === GATEWAY_VIDEOS.length){
     html += `<div class="card" style="border-color:var(--terra);background:var(--terra-soft)">
-      <div class="card-title" style="color:var(--terra-deep)">✓ Introduction Complete</div>
+      <div class="card-title" style="color:var(--accent-ink)">✓ Introduction Complete</div>
       <div class="card-text">All three videos watched. You may continue to the next step on the home page.</div>
     </div>`;
   }
