@@ -1140,11 +1140,16 @@ const server = http.createServer(async (req, res) => {
 
       const { data: admins } = await sb.from('prep_admins').select('user_id')
       const adminIds = (admins || []).map(a => a.user_id)
+      // Seed PCMs (is_seed = true) are exempt too — they keep their PCM row
+      // and progress so they can keep bootstrapping the chain after a reset.
+      const { data: seeds } = await sb.from('prep_pcms').select('id').eq('is_seed', true)
+      const seedIds = (seeds || []).map(s => s.id)
+      const exemptIds = Array.from(new Set([...adminIds, ...seedIds]))
       // Postgres `not.in` needs a non-empty list; fall back to a sentinel UUID.
-      const exclude = adminIds.length ? adminIds : ['00000000-0000-0000-0000-000000000000']
+      const exclude = exemptIds.length ? exemptIds : ['00000000-0000-0000-0000-000000000000']
       const inList = '(' + exclude.join(',') + ')'
 
-      // 1. Reset progress columns on every non-admin user.
+      // 1. Reset progress columns on every non-exempt user.
       const { error: uErr, count: usersReset } = await sb.from('prep_users')
         .update({
           gateway_v1_at: null, gateway_v2_at: null, gateway_v3_at: null,
@@ -1158,11 +1163,11 @@ const server = http.createServer(async (req, res) => {
       await sb.from('prep_book_audio_progress').delete().not('user_id', 'in', inList)
       await sb.from('prep_pcm_elections').delete().neq('id', 0)
 
-      // 3. Remove all PCM registrations except admins (seed PCMs).
+      // 3. Remove all PCM registrations except admins and seed PCMs.
       const { error: pErr } = await sb.from('prep_pcms').delete().not('id', 'in', inList)
       if (pErr) return send(res, 500, { error: 'pcms_reset_failed', detail: pErr.message })
 
-      return send(res, 200, { ok: true, usersReset: usersReset ?? null, adminsExempt: adminIds.length })
+      return send(res, 200, { ok: true, usersReset: usersReset ?? null, adminsExempt: adminIds.length, seedPcmsExempt: seedIds.length })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
