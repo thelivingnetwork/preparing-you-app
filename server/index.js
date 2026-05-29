@@ -436,6 +436,7 @@ Rules for answering:
 - If a question is about backend systems, code, deployment, the admin panel, billing, or anything not user-facing — politely say that's not something you can help with here.
 - If neither the excerpts, App Guide, nor scripture cover a question, say plainly that you cannot speak to that here. Do not invent.
 - Keep answers focused. 2–4 short paragraphs is usually right.
+- If the user specifies a length or format — "in 50 words", "one sentence", "briefly", "in bullet points", etc. — obey it exactly. An explicit length or format request from the user OVERRIDES the default guidance above: never exceed a word or sentence limit they give, even if it means leaving detail out.
 - Do not begin with "Peace to you" or other greetings — a greeting is offered by the interface.`
 
 const PAUL_LANGS = new Set([
