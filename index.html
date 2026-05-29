@@ -2216,9 +2216,9 @@ async function signOut(){
   _setHomeScreenBadge(0);
   if(_sb) await _sb.auth.signOut().catch(()=>{});
   currentUser = null;
-  document.getElementById('screen-app').classList.remove('active');
-  document.getElementById('screen-landing').classList.add('active');
-  document.getElementById('si-pw').value='';
+  // Reload the document so logging back in always lands on the latest deployed
+  // version rather than the cached page this session launched with.
+  window.location.reload();
 }
 
 // ═════════════════════════ INIT ═════════════════════════
