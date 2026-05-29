@@ -478,7 +478,7 @@
 
   <!-- Paul drawer -->
   <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
-    <div style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--cream);display:flex;flex-direction:column;border-left:1px solid var(--line)">
+    <div id="paul-panel" style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--cream);display:flex;flex-direction:column;border-left:1px solid var(--line)">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--teal);color:var(--cream)">
         <div style="display:flex;align-items:center;gap:10px">
           <span class="paul-hero-av" aria-hidden="true">
@@ -1528,6 +1528,19 @@ function _paulLangChanged(){
   if (sel) localStorage.setItem('pp_paul_lang', sel.value);
 }
 
+// Keep the drawer sized to the visible viewport so the input stays above the
+// on-screen keyboard (which otherwise overlaps fixed elements on iOS/Android).
+function _paulFitViewport(){
+  const vv = window.visualViewport;
+  const panel = document.getElementById('paul-panel');
+  if(!vv || !panel) return;
+  panel.style.top = vv.offsetTop + 'px';
+  panel.style.bottom = 'auto';
+  panel.style.height = vv.height + 'px';
+  const wrap = document.getElementById('paul-messages');
+  if(wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+
 function openPaul(){
   document.getElementById('paul-drawer').style.display = 'block';
   const sel = document.getElementById('paul-lang');
@@ -1537,11 +1550,23 @@ function openPaul(){
     const greet = PAUL_GREETINGS[_paulLang()] || PAUL_GREETINGS.English;
     _renderPaulMessage('assistant', greet);
   }
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', _paulFitViewport);
+    window.visualViewport.addEventListener('scroll', _paulFitViewport);
+    _paulFitViewport();
+  }
   setTimeout(() => document.getElementById('paul-input').focus(), 50);
 }
 
 function closePaul(){
   document.getElementById('paul-drawer').style.display = 'none';
+  if(window.visualViewport){
+    window.visualViewport.removeEventListener('resize', _paulFitViewport);
+    window.visualViewport.removeEventListener('scroll', _paulFitViewport);
+  }
+  // Restore the full-height layout for next open.
+  const panel = document.getElementById('paul-panel');
+  if(panel){ panel.style.top = '0'; panel.style.bottom = '0'; panel.style.height = ''; }
 }
 
 function _renderPaulMessage(role, text){
