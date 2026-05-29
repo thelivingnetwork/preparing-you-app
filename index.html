@@ -683,28 +683,9 @@ async function _loadProfile(authUser){
 function _diagOverflow(){
   try {
     const W = Math.round(window.innerWidth);
-    const cands = [];
-    document.querySelectorAll('body *').forEach(el => {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0 && r.right > W + 0.5) {
-        let d = 0, p = el; while (p) { d++; p = p.parentElement; }
-        cands.push({ el, right: r.right, d });
-      }
-    });
-    // Report the DEEPEST overflowing element (the real culprit, not its wrappers).
-    cands.sort((a, b) => (b.d - a.d) || (b.right - a.right));
-    const o = cands[0];
-    const name = el => !el ? '-' : (el.id ? '#'+el.id : (typeof el.className==='string' && el.className ? '.'+el.className.split(' ')[0] : el.tagName.toLowerCase()));
+    const gw = sel => { const e = (typeof sel==='string') ? document.querySelector(sel) : sel; return e ? Math.round(e.getBoundingClientRect().width) : -1; };
     const sub = document.getElementById('hdr-sub');
-    if (sub) {
-      if (!o) { sub.textContent = `b11 w${W} ovf:none`; }
-      else {
-        const r = o.el.getBoundingClientRect();
-        const par = o.el.parentElement;
-        const pr = par ? par.getBoundingClientRect() : null;
-        sub.textContent = `b11 w${W} ${name(o.el)} L${Math.round(r.left)} w${Math.round(r.width)} in ${name(par)}@${pr?Math.round(pr.right):0}`;
-      }
-    }
+    if (sub) sub.textContent = `b12 W${W} bd${gw('html')}/${gw('body')} app${gw('#screen-app')} pg${gw('#page-home')} row${gw('#page-home .tile-row')} hd${gw('.hdr')}`;
   } catch(e){}
 }
 
