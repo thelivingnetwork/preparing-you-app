@@ -433,7 +433,10 @@
           <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
         </div>
         <div id="msg-list" style="padding:14px 16px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
-        <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px">
+        <div id="msg-attach-chip" style="display:none;padding:0 16px;margin:8px 0 0;align-items:center;gap:8px"></div>
+        <div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
+          <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
+          <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--cream);color:var(--walnut);font-size:18px;cursor:pointer" onclick="document.getElementById('msg-file').click()">📎</button>
           <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
@@ -861,6 +864,8 @@ let _msgPeerId = null;
 let _msgPollTimer = null;
 
 let _msgPeers = [];
+let _pendingAttachment = null; // { url, name, type }
+const _ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 
 async function buildMessagesPage(){
   if(!_sb || !currentUser) return;
@@ -947,7 +952,10 @@ async function loadMessages(){
       return `<a href="${url}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
     });
     if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${linked}</div>`;
+    const att = _renderAttachment(m, mine);
+    const hasBody = !!(m.body && m.body.trim());
+    const inner = (hasBody ? linked : '') + (hasBody && att ? '<div style="height:8px"></div>' : '') + att;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${inner}</div>`;
   }).join('');
   list.scrollTop = list.scrollHeight;
 
@@ -960,7 +968,8 @@ async function loadMessages(){
 async function sendMessage(){
   const input = document.getElementById('msg-input');
   const text = (input.value || '').trim();
-  if(!text){ return; }
+  const attach = _pendingAttachment;
+  if(!text && !attach){ return; } // nothing to send
   if(!_msgPeerId){
     alert('No peer selected. Refresh the page.');
     return;
@@ -970,18 +979,92 @@ async function sendMessage(){
     return;
   }
   input.value = '';
+  clearAttachment();
   const r = await fetch(_SERVER_URL + '/messages/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ senderId: currentUser.id, recipientId: _msgPeerId, body: text })
+    body: JSON.stringify({
+      senderId: currentUser.id, recipientId: _msgPeerId, body: text,
+      attachmentUrl: attach?.url || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
+    })
   });
   if(!r.ok){
     const j = await r.json().catch(() => ({}));
     input.value = text; // restore so they don't lose their message
+    if(attach){ _pendingAttachment = attach; _renderAttachChip(); } // restore attachment too
     alert('Could not send: ' + (j.error || r.status));
     return;
   }
   await loadMessages();
+}
+
+// ── Attachments ───────────────────────────────────────────
+async function onAttachSelected(inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  inputEl.value = ''; // allow re-picking the same file later
+  if(!file) return;
+  if(!currentUser?.id){ alert('You appear to be signed out. Refresh and sign in again.'); return; }
+  if(file.size > _ATTACH_MAX_BYTES){ alert('That file is too large (max 25 MB).'); return; }
+
+  const btn = document.getElementById('msg-attach-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳'; }
+  _pendingAttachment = null;
+  _renderAttachChip('Uploading ' + file.name + '…');
+  try {
+    const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-100);
+    const path = currentUser.id + '/' + Date.now() + '-' + safe;
+    const { error: upErr } = await _sb.storage.from('message-attachments')
+      .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+    if(upErr) throw upErr;
+    const { data: pub } = _sb.storage.from('message-attachments').getPublicUrl(path);
+    _pendingAttachment = { url: pub.publicUrl, name: file.name, type: file.type || '' };
+    _renderAttachChip();
+  } catch(e){
+    _pendingAttachment = null;
+    _renderAttachChip();
+    alert('Could not upload: ' + (e.message || e));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '📎'; }
+  }
+}
+
+function clearAttachment(){
+  _pendingAttachment = null;
+  _renderAttachChip();
+}
+
+function _renderAttachChip(loadingLabel){
+  const chip = document.getElementById('msg-attach-chip');
+  if(!chip) return;
+  if(loadingLabel){
+    chip.style.display = 'flex';
+    chip.innerHTML = `<span style="font-size:13px;font-style:italic;opacity:.8">${_esc(loadingLabel)}</span>`;
+    return;
+  }
+  if(!_pendingAttachment){ chip.style.display = 'none'; chip.innerHTML = ''; return; }
+  const a = _pendingAttachment;
+  const isImg = (a.type || '').startsWith('image/');
+  const thumb = isImg
+    ? `<img src="${a.url}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
+    : `<span style="font-size:18px">📄</span>`;
+  chip.style.display = 'flex';
+  chip.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--cream);max-width:100%">
+      ${thumb}
+      <span style="font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(a.name)}</span>
+      <button onclick="clearAttachment()" title="Remove" aria-label="Remove attachment" style="border:none;background:none;cursor:pointer;font-size:16px;color:var(--walnut);line-height:1">✕</button>
+    </div>`;
+}
+
+function _renderAttachment(m, mine){
+  if(!m.attachment_url) return '';
+  const url = m.attachment_url;
+  const name = m.attachment_name || 'attachment';
+  const isImg = (m.attachment_type || '').startsWith('image/');
+  if(isImg){
+    return `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${_esc(name)}" style="max-width:100%;border-radius:10px;display:block"></a>`;
+  }
+  const linkColor = mine ? 'var(--cream)' : 'var(--terra-deep)';
+  return `<a href="${url}" target="_blank" rel="noopener" download style="display:inline-flex;align-items:center;gap:6px;color:${linkColor};text-decoration:underline">📄 ${_esc(name)}</a>`;
 }
 
 async function _pairRoomName(a, b){

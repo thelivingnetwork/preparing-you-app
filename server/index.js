@@ -893,15 +893,25 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/messages/send') {
-      const { senderId, recipientId, body: msgBody } = await readJson(req)
-      if (!senderId || !recipientId || !msgBody?.trim()) return send(res, 400, { error: 'senderId, recipientId, and body required' })
-      // Insert message
-      const { error: insErr } = await sb.from('prep_messages').insert({ sender_id: senderId, recipient_id: recipientId, body: msgBody.trim() })
+      const { senderId, recipientId, body: msgBody, attachmentUrl, attachmentName, attachmentType } = await readJson(req)
+      const trimmedBody = (msgBody || '').trim()
+      if (!senderId || !recipientId || (!trimmedBody && !attachmentUrl)) {
+        return send(res, 400, { error: 'senderId, recipientId, and a body or attachment required' })
+      }
+      // Insert message (body may be empty when an attachment is present)
+      const { error: insErr } = await sb.from('prep_messages').insert({
+        sender_id: senderId, recipient_id: recipientId,
+        body: trimmedBody || null,
+        attachment_url: attachmentUrl || null,
+        attachment_name: attachmentName || null,
+        attachment_type: attachmentType || null
+      })
       if (insErr) return send(res, 500, { error: insErr.message })
       // Look up sender name for the push notification payload
       const { data: sender } = await sb.from('prep_users').select('name').eq('id', senderId).maybeSingle()
       const senderName = sender?.name || 'Someone'
-      const preview = msgBody.trim().length > 60 ? msgBody.trim().slice(0, 60) + '…' : msgBody.trim()
+      const previewText = trimmedBody || ('📎 ' + (attachmentName || 'Attachment'))
+      const preview = previewText.length > 60 ? previewText.slice(0, 60) + '…' : previewText
       // The DB trigger (prep_message_notification) creates the prep_notifications
       // row automatically on every prep_messages INSERT, so we only need to fire
       // the web push here — avoids a duplicate bell entry.
