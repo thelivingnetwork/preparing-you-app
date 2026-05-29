@@ -74,7 +74,8 @@
 
   /* ── App shell ───────────────────────────────────────────────── */
   .screen{display:none}
-  .screen.active{display:flex;flex-direction:column;min-height:100vh;max-width:100%;overflow-x:hidden}
+  .screen.active{display:flex;flex-direction:column;min-height:100vh;min-width:0;max-width:100%;overflow-x:hidden}
+  .hdr,.page{min-width:0;max-width:100%}
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--terra)}
   .hdr-ark{width:40px;height:40px;flex-shrink:0;background:var(--cream);border-radius:50%;padding:3px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
@@ -682,15 +683,20 @@ async function _loadProfile(authUser){
 function _diagOverflow(){
   try {
     const W = Math.round(window.innerWidth);
-    const vv = window.visualViewport ? Math.round(window.visualViewport.width) : W;
-    let worst = null, worstR = W + 0.5;
+    const cands = [];
     document.querySelectorAll('body *').forEach(el => {
       const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0 && r.right > worstR) { worstR = r.right; worst = el; }
+      if (r.width > 0 && r.height > 0 && r.right > W + 0.5) {
+        let d = 0, p = el; while (p) { d++; p = p.parentElement; }
+        cands.push({ el, right: r.right, d });
+      }
     });
-    const who = worst ? (worst.id ? '#'+worst.id : (worst.className && typeof worst.className==='string' ? '.'+worst.className.split(' ')[0] : worst.tagName.toLowerCase())) : 'none';
+    // Report the DEEPEST overflowing element (the real culprit, not its wrappers).
+    cands.sort((a, b) => (b.d - a.d) || (b.right - a.right));
+    const o = cands[0];
+    const who = o ? (o.el.id ? '#'+o.el.id : (typeof o.el.className==='string' && o.el.className ? '.'+o.el.className.split(' ')[0] : o.el.tagName.toLowerCase())) : 'none';
     const sub = document.getElementById('hdr-sub');
-    if (sub) sub.textContent = `w${W}/vv${vv} ovf:${who}@${Math.round(worstR)}`;
+    if (sub) sub.textContent = `b9 w${W} ovf:${who}@${o ? Math.round(o.right) : 0}`;
   } catch(e){}
 }
 
