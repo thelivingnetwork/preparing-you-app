@@ -479,35 +479,41 @@ async function paulChat(userId, messages, lang) {
     tools: BIBLE_TOOLS
   })
 
-  while (resp.stop_reason === 'tool_use') {
-    const toolBlock = resp.content.find(b => b.type === 'tool_use')
-    if (!toolBlock) break
+  let toolRounds = 0
+  while (resp.stop_reason === 'tool_use' && toolRounds < 8) {
+    toolRounds++
+    // Claude may emit several tool_use blocks in one turn (parallel tool calls).
+    // Every tool_use MUST get a matching tool_result in the next message, or the
+    // API rejects the follow-up with a 400. So handle ALL of them, not just the first.
+    const toolBlocks = resp.content.filter(b => b.type === 'tool_use')
+    if (!toolBlocks.length) break
 
-    const _t0 = Date.now()
-    console.log(`[paul] tool ${toolBlock.name} input=${JSON.stringify(toolBlock.input)}`)
-    let toolResult
-    try {
-      if (toolBlock.name === 'lookup_strongs') {
-        toolResult = await fetchStrongsDefinition(toolBlock.input.number)
-      } else if (toolBlock.name === 'search_church_articles') {
-        toolResult = await searchChurchArticles(toolBlock.input.query)
-      } else if (toolBlock.name === 'fetch_church_article') {
-        toolResult = await fetchChurchArticle(toolBlock.input.url)
-      } else {
-        const { reference, translation = 'kjv' } = toolBlock.input
-        toolResult = await fetchBiblePassage(reference, translation)
+    const toolResults = []
+    for (const toolBlock of toolBlocks) {
+      const _t0 = Date.now()
+      console.log(`[paul] tool ${toolBlock.name} input=${JSON.stringify(toolBlock.input)}`)
+      let toolResult
+      try {
+        if (toolBlock.name === 'lookup_strongs') {
+          toolResult = await fetchStrongsDefinition(toolBlock.input.number)
+        } else if (toolBlock.name === 'search_church_articles') {
+          toolResult = await searchChurchArticles(toolBlock.input.query)
+        } else if (toolBlock.name === 'fetch_church_article') {
+          toolResult = await fetchChurchArticle(toolBlock.input.url)
+        } else {
+          const { reference, translation = 'kjv' } = toolBlock.input
+          toolResult = await fetchBiblePassage(reference, translation)
+        }
+        console.log(`[paul] tool ${toolBlock.name} ok in ${Date.now() - _t0}ms, ${String(toolResult).length} chars`)
+      } catch (e) {
+        console.warn(`[paul] tool ${toolBlock.name} FAILED in ${Date.now() - _t0}ms: ${e.message}`)
+        toolResult = `Could not retrieve: ${e.message}`
       }
-      console.log(`[paul] tool ${toolBlock.name} ok in ${Date.now() - _t0}ms, ${String(toolResult).length} chars`)
-    } catch (e) {
-      console.warn(`[paul] tool ${toolBlock.name} FAILED in ${Date.now() - _t0}ms: ${e.message}`)
-      toolResult = `Could not retrieve: ${e.message}`
+      toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: String(toolResult) })
     }
 
     apiMessages.push({ role: 'assistant', content: resp.content })
-    apiMessages.push({
-      role: 'user',
-      content: [{ type: 'tool_result', tool_use_id: toolBlock.id, content: toolResult }]
-    })
+    apiMessages.push({ role: 'user', content: toolResults })
 
     resp = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
@@ -515,6 +521,24 @@ async function paulChat(userId, messages, lang) {
       system: sys,
       messages: apiMessages,
       tools: BIBLE_TOOLS
+    })
+  }
+
+  // If we hit the tool-round cap while Claude still wanted to call tools, make one
+  // final pass with tools withheld so it answers from what it has gathered.
+  if (resp.stop_reason === 'tool_use') {
+    console.warn(`[paul] hit tool-round cap (${toolRounds}); forcing a final answer`)
+    const capBlocks = resp.content.filter(b => b.type === 'tool_use')
+    apiMessages.push({ role: 'assistant', content: resp.content })
+    apiMessages.push({ role: 'user', content: capBlocks.map(b => ({
+      type: 'tool_result', tool_use_id: b.id,
+      content: 'Search budget reached — answer the user now with what you have already gathered.'
+    })) })
+    resp = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      system: sys,
+      messages: apiMessages
     })
   }
 
