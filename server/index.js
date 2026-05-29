@@ -1125,6 +1125,44 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true })
     }
 
+    if (req.method === 'POST' && req.url === '/admin/broadcast') {
+      // One-way announcement from an admin to every user: bell notification
+      // + web-push to all devices, plus a row in prep_broadcasts (history).
+      const auth = req.headers['authorization'] || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+      if (!token) return send(res, 401, { error: 'no_token' })
+      const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: 'Bearer ' + token } },
+        auth: { persistSession: false }
+      })
+      const { data: cu } = await callerSb.auth.getUser(token)
+      const callerId = cu?.user?.id
+      if (!callerId) return send(res, 401, { error: 'invalid_token' })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', callerId).maybeSingle()
+      if (!adminRow) return send(res, 403, { error: 'not_admin' })
+
+      const body = await readJson(req)
+      const text = (body.text || '').trim()
+      if (!text) return send(res, 400, { error: 'text_required' })
+      const icon = (body.icon || '📢').trim() || '📢'
+      const action = { type: 'page', page: 'home' }
+
+      const { data: users } = await sb.from('prep_users').select('id')
+      const list = users || []
+
+      // 1) Bell notifications — bulk insert in chunks.
+      const rows = list.map(u => ({ user_id: u.id, icon, text, action }))
+      for (let i = 0; i < rows.length; i += 100) {
+        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
+      }
+      // 2) Web-push fanout (best-effort, don't block on individual failures).
+      await Promise.allSettled(list.map(u => pushToUser(u.id, { icon, text, action })))
+      // 3) History row.
+      await sb.from('prep_broadcasts').insert({ sender_id: callerId, icon, text, recipient_count: list.length })
+
+      return send(res, 200, { ok: true, recipients: list.length })
+    }
+
     if (req.method === 'POST' && req.url === '/admin/reset-journey') {
       // "Clear the deck" — reset every NON-admin user back to a fresh start
       // so the onboarding workflow runs from the beginning for everyone:
