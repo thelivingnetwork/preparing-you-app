@@ -679,13 +679,32 @@ async function _loadProfile(authUser){
 }
 
 // ═════════════════════════ APP NAV ═════════════════════════
+function _diagOverflow(){
+  try {
+    const W = Math.round(window.innerWidth);
+    const vv = window.visualViewport ? Math.round(window.visualViewport.width) : W;
+    let worst = null, worstR = W + 0.5;
+    document.querySelectorAll('body *').forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.right > worstR) { worstR = r.right; worst = el; }
+    });
+    const who = worst ? (worst.id ? '#'+worst.id : (worst.className && typeof worst.className==='string' ? '.'+worst.className.split(' ')[0] : worst.tagName.toLowerCase())) : 'none';
+    const sub = document.getElementById('hdr-sub');
+    if (sub) sub.textContent = `w${W}/vv${vv} ovf:${who}@${Math.round(worstR)}`;
+  } catch(e){}
+}
+
 function enterApp(){
   if(!currentUser) return;
   document.getElementById('hdr-name').textContent = currentUser.name || 'Friend';
-  document.getElementById('hdr-sub').textContent  = (currentUser.region || 'Preparing You') + ' · build 7';
+  document.getElementById('hdr-sub').textContent  = (currentUser.region || 'Preparing You');
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   showPage('home');
+  // TEMP diagnostic: find what overflows the viewport width and show it in the
+  // header subtitle so we can pinpoint the off-to-the-right issue on-device.
+  setTimeout(_diagOverflow, 400);
+  window.addEventListener('resize', () => setTimeout(_diagOverflow, 100));
   refreshMessageBadge();
   refreshNotifBell();
   refreshTownhallCard();
