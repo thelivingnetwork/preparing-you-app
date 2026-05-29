@@ -234,7 +234,6 @@
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
         <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600">Notifications</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button onclick="markAllNotifsRead()" style="background:none;border:1px solid rgba(254,252,244,.4);color:var(--cream);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:'Spectral',serif">Mark all read</button>
           <button onclick="closeNotifDrawer()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:0 6px;line-height:1">×</button>
         </div>
       </div>
@@ -1228,6 +1227,10 @@ async function toggleNotifDrawer(){
   if(ov.style.display === 'block'){ closeNotifDrawer(); return; }
   ov.style.display = 'block';
   await renderNotifList();
+  // Opening the drawer counts as seeing them: clear the badge right away
+  // instead of making the user tap "Mark all read". The unread highlights
+  // already on screen stay put for this viewing.
+  markAllSeen();
 }
 function closeNotifDrawer(){ document.getElementById('notif-overlay').style.display = 'none'; }
 
@@ -1281,12 +1284,13 @@ async function markNotifRead(id){
   if(document.getElementById('notif-overlay').style.display === 'block') renderNotifList();
 }
 
-async function markAllNotifsRead(){
+// Mark everything read in the background so the bell/home-screen badge clears,
+// but leave the list as rendered so the user can still see what was new.
+async function markAllSeen(){
   if(!_sb || !currentUser) return;
   await _sb.from('prep_notifications').update({ read_at: new Date().toISOString() })
     .eq('user_id', currentUser.id).is('read_at', null);
   refreshNotifBell();
-  renderNotifList();
 }
 
 let _prevMsgCount = 0;
