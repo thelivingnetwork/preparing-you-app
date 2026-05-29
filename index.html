@@ -65,7 +65,9 @@
   .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:'Spectral',serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
   .auth-tab.active{color:var(--teal);border-bottom-color:var(--terra)}
   .form-label{display:block;font-size:12px;color:var(--walnut-mid);font-style:italic;margin:12px 0 4px;letter-spacing:.02em}
-  .form-input{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:15px;outline:none;transition:border-color .15s}
+  /* font-size must be >=16px: iOS Safari auto-zooms the page when a smaller
+     input gets focus, and that zoom sticks (pushing the fixed nav off-frame). */
+  .form-input{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
   .form-input:focus{border-color:var(--terra)}
   .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Spectral',serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
   .btn-primary:hover{background:var(--terra-deep)}
@@ -82,7 +84,7 @@
   .hdr-name{font-family:'Spectral',serif;font-size:16px;letter-spacing:.02em;font-weight:500}
   .hdr-sub{font-size:12px;color:rgba(254,252,244,.65);font-style:italic;letter-spacing:.04em}
 
-  .page{display:none;flex:1;padding:24px 16px calc(84px + env(safe-area-inset-bottom))}
+  .page{display:none;flex:1;padding:24px 16px calc(96px + env(safe-area-inset-bottom))}
   .page.active{display:block}
 
   .card{background:var(--cream);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
@@ -96,7 +98,7 @@
   .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--teal);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
   .tile-meta{font-size:12px;color:var(--walnut-mid);font-style:italic;margin-top:6px}
 
-  .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:50}
+  .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:10px 0 calc(20px + env(safe-area-inset-bottom));z-index:50}
   .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:'Spectral',serif;font-size:9px;letter-spacing:.02em;padding:6px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:500}
   .nav-btn span,.nav-btn{white-space:nowrap}
   .nav-btn.active{color:var(--cream)}
@@ -147,7 +149,7 @@
   .pcm-pick.chosen{background:#2d7a4f}
 
   /* ── Library ─────────────────────────────────────────────────── */
-  .lib-search{width:100%;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:14px;outline:none;margin-bottom:14px}
+  .lib-search{width:100%;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;margin-bottom:14px}
   .lib-search:focus{border-color:var(--gold)}
   .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:#fff;border:1px solid var(--line);border-radius:12px}
   .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--teal);font-family:'Spectral',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
