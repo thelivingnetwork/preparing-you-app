@@ -683,10 +683,9 @@ async function _loadProfile(authUser){
 // ═════════════════════════ APP NAV ═════════════════════════
 function _diagOverflow(){
   try {
-    const W = Math.round(window.innerWidth);
-    const gw = sel => { const e = (typeof sel==='string') ? document.querySelector(sel) : sel; return e ? Math.round(e.getBoundingClientRect().width) : -1; };
+    const vv = window.visualViewport;
     const sub = document.getElementById('hdr-sub');
-    if (sub) sub.textContent = `b13 W${W} bd${gw('html')}/${gw('body')} app${gw('#screen-app')} nav${gw('.nav')}`;
+    if (sub) sub.textContent = `b14 iW${Math.round(window.innerWidth)} cW${document.documentElement.clientWidth} vv${vv?Math.round(vv.width):'-'} vs${vv?(Math.round(vv.scale*100)/100):'-'} sc${screen.width} dpr${window.devicePixelRatio}`;
   } catch(e){}
 }
 
