@@ -16,7 +16,7 @@ DECLARE
   -- ↓↓↓ EDIT THESE to match the account you created in Supabase ↓↓↓
   v_email     TEXT := 'gregory@hisholychurch.org';
   v_name      TEXT := 'Gregory Williams';
-  v_region    TEXT := '';        -- e.g. 'Australia' (shown to applicants)
+  v_region    TEXT := 'Oregon, USA';   -- shown to applicants
   v_phone     TEXT := NULL;      -- optional
   v_telegram  TEXT := NULL;      -- optional, e.g. '@gregw'
   v_messenger TEXT := NULL;      -- optional
