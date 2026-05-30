@@ -2298,16 +2298,32 @@ let _libAllTitles = null;    // full wiki title list (loaded live, cached for th
 let _libTitlesLoading = false;
 const _WIKI_API = 'https://preparingyou.com/wiki/api.php';
 
-// Pull every article title from the wiki once per session (paginated, live).
-// Gives true title-substring search across all ~7,000 articles. Until this
-// finishes, search falls back to the wiki's prefix (opensearch) endpoint.
+// Pull every article title from the wiki (paginated, live). Gives true
+// title-substring search across all ~7,800 articles. Cached in localStorage
+// for 12h so repeat visits search instantly; refreshed live once stale.
+// Until a load finishes, search falls back to the wiki's prefix endpoint.
+const _LIB_CACHE_KEY = 'pp_lib_titles_v1';
+const _LIB_CACHE_TTL = 12 * 60 * 60 * 1000;   // 12 hours
+
 async function _loadAllWikiTitles(){
   if(_libAllTitles || _libTitlesLoading) return;
+  // 1) Serve from a fresh localStorage cache if we have one.
+  try {
+    const raw = localStorage.getItem(_LIB_CACHE_KEY);
+    if(raw){
+      const c = JSON.parse(raw);
+      if(c && Array.isArray(c.titles) && (Date.now() - c.t) < _LIB_CACHE_TTL){
+        _libAllTitles = c.titles;
+        return;
+      }
+    }
+  } catch(e){}
+  // 2) Otherwise fetch the full list live and cache it.
   _libTitlesLoading = true;
   const all = [];
   let cont = '';
   try {
-    for(let i = 0; i < 50; i++){   // safety cap; ~15 pages expected
+    for(let i = 0; i < 50; i++){   // safety cap; ~16 pages expected
       const u = _WIKI_API + '?action=query&list=allpages&apnamespace=0'
               + '&apfilterredir=nonredirects&aplimit=500&format=json&origin=*'
               + (cont ? '&apcontinue=' + encodeURIComponent(cont) : '');
@@ -2318,6 +2334,7 @@ async function _loadAllWikiTitles(){
       else break;
     }
     _libAllTitles = all;
+    try { localStorage.setItem(_LIB_CACHE_KEY, JSON.stringify({ t: Date.now(), titles: all })); } catch(e){}
   } catch(e){
     _libAllTitles = null;   // stay null so search keeps using the live fallback
   } finally {
