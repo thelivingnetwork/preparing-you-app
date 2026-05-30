@@ -617,7 +617,7 @@ function sendEmail(toName, toEmail, subject, message){
 }
 
 const _sb = (window.supabase && _SB_URL.startsWith('http'))
-  ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: false, autoRefreshToken: false } })
+  ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
 
 let currentUser = null;
