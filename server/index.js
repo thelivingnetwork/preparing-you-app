@@ -854,7 +854,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.7' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.8' })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1147,8 +1147,20 @@ const server = http.createServer(async (req, res) => {
       const icon = (body.icon || '📢').trim() || '📢'
       const action = { type: 'page', page: 'home' }
 
-      const { data: users } = await sb.from('prep_users').select('id')
+      // Optional recipient filter. When userIds is a non-empty array the message
+      // goes only to those users (validated against prep_users); otherwise it
+      // goes to everyone, preserving the original broadcast behaviour.
+      const wantIds = Array.isArray(body.userIds)
+        ? [...new Set(body.userIds.filter(id => typeof id === 'string'))]
+        : null
+      let q = sb.from('prep_users').select('id')
+      if (wantIds) {
+        if (!wantIds.length) return send(res, 400, { error: 'no_recipients' })
+        q = q.in('id', wantIds)
+      }
+      const { data: users } = await q
       const list = users || []
+      if (!list.length) return send(res, 400, { error: 'no_recipients' })
 
       // 1) Bell notifications — bulk insert in chunks.
       const rows = list.map(u => ({ user_id: u.id, icon, text, action }))
