@@ -156,7 +156,12 @@
      header and the bottom nav; only #msg-list scrolls (no page-level scroll),
      and the compose bar is pinned just above the nav with explicit clearance.
      This stops the compose box tucking under the nav and the thread jumping. */
-  #page-messages.active{display:flex;flex-direction:column;padding:16px 16px 0}
+  /* Lock the shell to the viewport height while on Messages so the inner list
+     gets a bounded height to scroll within (min-height:100dvh alone lets the
+     page grow and pushes the compose bar below the fold). */
+  html.chat-lock, html.chat-lock body{height:100%;overflow:hidden}
+  html.chat-lock .screen.active{height:100dvh;min-height:0}
+  #page-messages.active{display:flex;flex-direction:column;padding:16px 16px 0;min-height:0}
   #page-messages #msg-thread-wrap{flex:1;min-height:0;flex-direction:column}
   #page-messages #msg-thread-wrap > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0}
   #page-messages #msg-list{flex:1;min-height:0;overscroll-behavior:contain}
@@ -829,6 +834,10 @@ function showPage(name){
   if(name === 'books') buildBooksPage();
   if(name !== 'books') closeBookListen();
   if(name === 'messages') buildMessagesPage();
+  // The Messages screen is a fixed chat layout: lock the shell to the
+  // viewport height so the thread (not the page) scrolls and the compose bar
+  // stays pinned above the nav. Every other page scrolls normally.
+  document.documentElement.classList.toggle('chat-lock', name === 'messages');
 }
 
 // ═════════════════════════ JOIN TLN ═════════════════════════
