@@ -152,6 +152,15 @@
   .nav-btn{position:relative}
   .nav-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
 
+  /* ── Messages: a fixed chat layout. The thread fills the space between the
+     header and the bottom nav; only #msg-list scrolls (no page-level scroll),
+     and the compose bar is pinned just above the nav with explicit clearance.
+     This stops the compose box tucking under the nav and the thread jumping. */
+  #page-messages.active{display:flex;flex-direction:column;padding:16px 16px 0}
+  #page-messages #msg-thread-wrap{flex:1;min-height:0;flex-direction:column}
+  #page-messages #msg-thread-wrap > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0}
+  #page-messages #msg-list{flex:1;min-height:0;overscroll-behavior:contain}
+
   /* ── Paul (header AI button) ──────────────────────────────── */
   .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
   .hdr-paul:hover{background:#b8862f}
@@ -528,9 +537,9 @@
           <div style="flex:1"><div style="font-family:'Spectral',serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
           <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
         </div>
-        <div id="msg-list" style="padding:14px 16px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
+        <div id="msg-list" style="padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
         <div id="msg-attach-chip" style="display:none;padding:0 16px;margin:8px 0 0;align-items:center;gap:8px"></div>
-        <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
+        <div style="padding:12px 16px calc(12px + 52px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
           <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
           <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-size:18px;cursor:pointer" onclick="document.getElementById('msg-file').click()">📎</button>
           <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
@@ -988,6 +997,8 @@ async function joinTownhall(){
 // ═════════════════════════ MESSAGES ═════════════════════════
 let _msgPeerId = null;
 let _msgPollTimer = null;
+let _msgSig = '';            // signature of the last-rendered message set
+let _msgRenderedPeer = null; // peer whose thread is currently rendered
 
 let _msgPeers = [];
 let _pendingAttachment = null; // { url, name, type }
@@ -1011,7 +1022,7 @@ async function buildMessagesPage(){
   _msgPeers = peers;
 
   if(!peers.length){ empty.style.display = 'block'; wrap.style.display = 'none'; return; }
-  empty.style.display = 'none'; wrap.style.display = 'block';
+  empty.style.display = 'none'; wrap.style.display = 'flex';
 
   // Render peer selector if more than one
   let selector = document.getElementById('msg-peer-selector');
@@ -1069,6 +1080,20 @@ async function loadMessages(){
     if(r.ok) msgs = j.messages || [];
   } catch(e){ /* offline / transient — keep prior render */ return; }
   const list = document.getElementById('msg-list');
+
+  // Skip the rebuild when nothing changed. The 5s poll would otherwise reflow
+  // the thread and re-download attachment images (signed URLs change each
+  // fetch), which is what made the view flicker and jump.
+  const sig = (msgs || []).map(m => m.id).join(',');
+  const peerChanged = _msgRenderedPeer !== _msgPeerId;
+  if(sig === _msgSig && !peerChanged){ refreshMessageBadge(); return; }
+
+  // Preserve scroll position unless the user is already at the bottom, just
+  // opened this thread, or the newest message is their own (just sent).
+  const nearBottom = (list.scrollHeight - list.scrollTop - list.clientHeight) < 80;
+  const prevTop = list.scrollTop;
+  const lastMine = msgs.length && msgs[msgs.length - 1].sender_id === currentUser.id;
+
   const CALL_TTL_MS = 10 * 60 * 1000;
   list.innerHTML = (msgs || []).map(m => {
     const mine = m.sender_id === currentUser.id;
@@ -1094,7 +1119,11 @@ async function loadMessages(){
     const inner = (hasBody ? linked : '') + (hasBody && att ? '<div style="height:8px"></div>' : '') + att;
     return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${inner}</div>`;
   }).join('');
-  list.scrollTop = list.scrollHeight;
+
+  if(peerChanged || nearBottom || lastMine) list.scrollTop = list.scrollHeight;
+  else list.scrollTop = prevTop;
+  _msgSig = sig;
+  _msgRenderedPeer = _msgPeerId;
 
   // Inbound messages are marked read server-side by /messages/thread.
   refreshMessageBadge();
