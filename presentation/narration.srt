@@ -1,0 +1,108 @@
+1
+00:00:00,000 --> 00:00:05,000
+Preparing You — a guided journey that prepares each person, step by step, and never alone, to enter The Living Network.
+
+2
+00:00:05,000 --> 00:00:18,000
+The Living Network is a community built on trust. Preparing You is its threshold — a gateway, not a gate. It makes sure that everyone who enters has been genuinely prepared, and personally accompanied, before they arrive.
+
+3
+00:00:18,000 --> 00:00:35,000
+Most onboarding fails in predictable ways. Self-paced courses get skimmed — people click next without absorbing anything. Anonymous sign-ups arrive unprepared, and unknown to anyone. And with no relationship, there is no accountability — no one walking beside them.
+
+4
+00:00:35,000 --> 00:00:52,000
+Preparing You answers all three. It is guided — one clear next step at all times. It is sequential — each stage is gated, so the foundation is actually laid. And it is accompanied — a real person walks with every applicant. Readiness is earned. And then it multiplies.
+
+5
+00:00:52,000 --> 00:01:00,000
+At the heart of the app is the journey: a single, evolving priority tile that always shows the one next thing to do — across five stages.
+
+6
+00:01:00,000 --> 00:01:17,000
+Stage one: watch. Three short films, watched in order. Each one unlocks only when the previous finishes, and seeking past unwatched portions is disabled — so the foundation is truly laid, not clicked through. The orange tile shows exactly where they are.
+
+7
+00:01:17,000 --> 00:01:33,000
+Stage two: choose a companion. Now they select a Personal Contact Minister — a real person who will walk the rest of the journey with them. Ministers nearby are surfaced first, and this step opens only once the films are complete.
+
+8
+00:01:33,000 --> 00:01:48,000
+Stage three: the Five Books, in order. This is formation, not information. Each book's audio unlocks the next, completion is tracked for each person, and it is walked alongside their minister — never crammed.
+
+9
+00:01:48,000 --> 00:02:02,000
+Stage four: join The Living Network. Entry is granted, not grabbed. The minister who walked with them confirms their readiness, and a personal hand-off link appears — so they arrive known, and prepared.
+
+10
+00:02:02,000 --> 00:02:16,000
+Stage five: become a guide. Those who are granted access can themselves become ministers — walking the next person through the very same journey. The path multiplies.
+
+11
+00:02:16,000 --> 00:02:22,000
+That is the journey. Now, a quick tour of every function that supports it.
+
+12
+00:02:22,000 --> 00:02:33,000
+A calm front door — simple, secure sign-in, installable as a phone app, landing every user straight on their next step.
+
+13
+00:02:33,000 --> 00:02:44,000
+The introduction videos — three films in sequence, with anti-skip playback that records true completion, and clear visual locks.
+
+14
+00:02:44,000 --> 00:02:56,000
+Choosing a minister — browse those available by region, elect one, and they accept or decline. The result is a committed pairing for the journey.
+
+15
+00:02:56,000 --> 00:03:07,000
+Messaging and calls — a private, direct line to your minister, with file sharing, one-tap video calls, and push notifications.
+
+16
+00:03:07,000 --> 00:03:17,000
+The Five Books — audio overviews gated in order, plus full PDFs and audiobooks for deeper study.
+
+17
+00:03:17,000 --> 00:03:26,000
+The topical library — a searchable A to Z of articles and videos, always available alongside the journey.
+
+18
+00:03:26,000 --> 00:03:37,000
+Paul, an AI study companion grounded in the source books — ask anything, and the answers draw straight from the text, in your language.
+
+19
+00:03:37,000 --> 00:03:47,000
+Notifications keep everyone in step — a cross-device bell and web-push for replies, reminders, sign-offs, and announcements.
+
+20
+00:03:47,000 --> 00:03:57,000
+The weekly townhall — a live, host-moderated gathering, automatically recorded, giving the community a shared rhythm.
+
+21
+00:03:57,000 --> 00:04:07,000
+And the hand-off — a personalised entry link after sign-off, details pre-filled, so crossing the threshold is seamless.
+
+22
+00:04:07,000 --> 00:04:13,000
+Behind it all are the tools that keep the gateway trustworthy.
+
+23
+00:04:13,000 --> 00:04:26,000
+Administrators see everyone's progress at a glance, and can clear the deck — resetting the whole process for a clean start, while admins and seed ministers stay exempt, so the chain survives.
+
+24
+00:04:26,000 --> 00:04:37,000
+They manage the ministers, and designate seed ministers who persist through resets — the trusted few who bootstrap the chain and cover every region.
+
+25
+00:04:37,000 --> 00:04:47,000
+And they can speak to everyone at once — a single broadcast reaches every user instantly, by bell and by push, with a full history kept.
+
+26
+00:04:47,000 --> 00:05:01,000
+This is the flywheel. Each person is prepared, then granted access, then becomes a guide for the next — a self-sustaining cycle where trust compounds with every turn.
+
+27
+00:05:01,000 --> 00:05:12,000
+Preparing You. A guided, accompanied path — built so no one prepares alone, and everyone who arrives is ready. Walk someone home.
+
