@@ -1861,11 +1861,18 @@ async function _paulStartConversation(){
       _paulMicStream = await Promise.race([micP, timeout]);
     }
   } catch(e){
-    const msg = (e && e.message === 'timeout')
-      ? 'Mic didn’t respond — on iPhone, open preparingyou.com in Safari (not the home-screen app)'
+    // iPhone home-screen PWAs usually can't get the mic (no prompt, instant denial),
+    // and there's no per-app mic toggle in Settings — Safari is the only path.
+    const standalone = (window.navigator.standalone === true) ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    const blocked = e && (e.name === 'NotAllowedError' || e.message === 'timeout');
+    const msg = (blocked && standalone)
+      ? 'Voice needs Safari on iPhone — open preparingyou.com in the Safari browser to talk with Paul'
       : (e && e.name === 'NotAllowedError')
-        ? 'Microphone blocked — allow mic access for this site in Settings'
-        : 'Microphone unavailable (' + ((e && (e.name || e.message)) || 'unknown') + ')';
+        ? 'Microphone blocked — allow mic access for this site, then try again'
+        : (e && e.message === 'timeout')
+          ? 'Mic didn’t respond — try opening preparingyou.com in Safari'
+          : 'Microphone unavailable (' + ((e && (e.name || e.message)) || 'unknown') + ')';
     _paulSetStatus(msg, 'err');
     return;
   }
