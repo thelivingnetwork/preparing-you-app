@@ -27,6 +27,76 @@ const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_R
   auth: { persistSession: false }
 })
 
+// ── Private-message encryption (AES-256-GCM) ──────────────────────────────────
+// DM bodies are stored ENCRYPTED at rest so the admin dashboard (anon key) and
+// anyone reading the database see only ciphertext. The server holds the key
+// (MESSAGE_ENC_KEY) so it can decrypt for the two participants and build push
+// previews. This is "blind admin" — strong at-rest privacy with a deliberate,
+// audited break-glass path — not zero-knowledge E2EE.
+const crypto = require('crypto')
+const _ENC_PREFIX = 'enc:v1:'
+function _loadEncKey() {
+  const raw = (process.env.MESSAGE_ENC_KEY || '').trim()
+  if (!raw) return null
+  if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex')        // 32 bytes as hex
+  try { const b = Buffer.from(raw, 'base64'); if (b.length === 32) return b } catch (_) {}
+  return null
+}
+const _MSG_KEY = _loadEncKey()
+if (!_MSG_KEY) console.warn('[enc] MESSAGE_ENC_KEY missing/invalid — message bodies stored as PLAINTEXT until it is set')
+else console.log('[enc] message encryption enabled')
+
+function encryptBody(plain) {
+  if (plain == null) return null
+  if (!_MSG_KEY) return plain // graceful degrade: keep app working until key is set
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', _MSG_KEY, iv)
+  const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return _ENC_PREFIX + Buffer.concat([iv, tag, ct]).toString('base64')
+}
+function isEncrypted(stored) { return typeof stored === 'string' && stored.startsWith(_ENC_PREFIX) }
+function decryptBody(stored) {
+  if (stored == null) return null
+  if (!isEncrypted(stored)) return stored // legacy plaintext row
+  if (!_MSG_KEY) return '[encrypted]'
+  try {
+    const blob = Buffer.from(stored.slice(_ENC_PREFIX.length), 'base64')
+    const iv = blob.subarray(0, 12), tag = blob.subarray(12, 28), ct = blob.subarray(28)
+    const dec = crypto.createDecipheriv('aes-256-gcm', _MSG_KEY, iv)
+    dec.setAuthTag(tag)
+    return Buffer.concat([dec.update(ct), dec.final()]).toString('utf8')
+  } catch (e) { return '[unable to decrypt]' }
+}
+
+// Resolve & verify a Supabase access token from the Authorization header.
+async function verifyToken(req) {
+  const authH = req.headers['authorization'] || ''
+  const token = authH.startsWith('Bearer ') ? authH.slice(7) : null
+  if (!token) return { error: 'no_token', status: 401 }
+  const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    global: { headers: { Authorization: 'Bearer ' + token } }, auth: { persistSession: false }
+  })
+  const { data } = await callerSb.auth.getUser(token)
+  const uid = data?.user?.id
+  if (!uid) return { error: 'invalid_token', status: 401 }
+  return { uid }
+}
+async function requireAdmin(req) {
+  const v = await verifyToken(req)
+  if (v.error) return v
+  const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', v.uid).maybeSingle()
+  if (!adminRow) return { error: 'not_admin', status: 403 }
+  return { uid: v.uid }
+}
+const _UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+async function signAttachment(stored) {
+  if (!stored) return null
+  if (/^https?:\/\//.test(stored)) return stored // legacy public URL — pass through
+  const { data } = await sb.storage.from('message-attachments').createSignedUrl(stored, 3600)
+  return data?.signedUrl || null
+}
+
 // Web Push — VAPID. If the keys aren't set, push fanout becomes a no-op.
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY || ''
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || ''
@@ -1036,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.11' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.12', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1196,16 +1266,20 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/messages/send') {
-      const { senderId, recipientId, body: msgBody, attachmentUrl, attachmentName, attachmentType } = await readJson(req)
+      const { senderId, recipientId, body: msgBody, attachmentUrl, attachmentPath, attachmentName, attachmentType } = await readJson(req)
       const trimmedBody = (msgBody || '').trim()
-      if (!senderId || !recipientId || (!trimmedBody && !attachmentUrl)) {
+      // attachmentPath is the private-bucket storage path (new clients);
+      // attachmentUrl is kept for backward-compat with older cached clients.
+      const attachVal = attachmentPath || attachmentUrl || null
+      if (!senderId || !recipientId || (!trimmedBody && !attachVal)) {
         return send(res, 400, { error: 'senderId, recipientId, and a body or attachment required' })
       }
-      // Insert message (body may be empty when an attachment is present)
+      // Insert message. The body is encrypted at rest; the plaintext preview
+      // below is used only for the transient web-push (never stored).
       const { error: insErr } = await sb.from('prep_messages').insert({
         sender_id: senderId, recipient_id: recipientId,
-        body: trimmedBody || null,
-        attachment_url: attachmentUrl || null,
+        body: encryptBody(trimmedBody || null),
+        attachment_url: attachVal,
         attachment_name: attachmentName || null,
         attachment_type: attachmentType || null
       })
@@ -1221,6 +1295,93 @@ const server = http.createServer(async (req, res) => {
       pushToUser(recipientId, { icon: '💬', text: `${senderName}: ${preview}`, action: { type: 'page', page: 'messages' } })
         .catch(e => console.warn('[push] message fanout failed', e))
       return send(res, 200, { ok: true })
+    }
+
+    // Decrypted thread for the two participants. Replaces the old direct
+    // Supabase read so the plaintext never travels except to the people in
+    // the conversation (verified by their access token).
+    if (req.method === 'POST' && req.url === '/messages/thread') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { peerId } = await readJson(req)
+      if (!peerId || !_UUID_RE.test(peerId)) return send(res, 400, { error: 'valid peerId required' })
+      const { data: rows, error } = await sb.from('prep_messages')
+        .select('*')
+        .or(`and(sender_id.eq.${meId},recipient_id.eq.${peerId}),and(sender_id.eq.${peerId},recipient_id.eq.${meId})`)
+        .order('created_at')
+      if (error) return send(res, 500, { error: error.message })
+      const messages = []
+      for (const m of (rows || [])) {
+        messages.push({
+          id: m.id, sender_id: m.sender_id, recipient_id: m.recipient_id,
+          body: decryptBody(m.body), created_at: m.created_at, read_at: m.read_at,
+          attachment_url: await signAttachment(m.attachment_url),
+          attachment_name: m.attachment_name, attachment_type: m.attachment_type
+        })
+      }
+      // Mark inbound unread as read (server-side now that the client no longer
+      // reads the table directly for display).
+      await sb.from('prep_messages').update({ read_at: new Date().toISOString() })
+        .eq('recipient_id', meId).eq('sender_id', peerId).is('read_at', null)
+      return send(res, 200, { messages })
+    }
+
+    // Admin: message METADATA only (who/when, attachment name) — never the
+    // body. The admin dashboard can no longer read message text directly
+    // (RLS) and gets nothing decrypted here. Revealing a specific message
+    // goes through /admin/decrypt-message, which is audited.
+    if (req.method === 'POST' && req.url === '/admin/messages-meta') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
+      const { data: rows, error } = await sb.from('prep_messages')
+        .select('id, sender_id, recipient_id, created_at, read_at, attachment_name, body')
+        .order('created_at', { ascending: false }).limit(200)
+      if (error) return send(res, 500, { error: error.message })
+      const messages = (rows || []).map(m => ({
+        id: m.id, sender_id: m.sender_id, recipient_id: m.recipient_id,
+        created_at: m.created_at, read_at: m.read_at,
+        has_body: m.body != null, encrypted: isEncrypted(m.body),
+        has_attachment: !!m.attachment_name, attachment_name: m.attachment_name
+      }))
+      return send(res, 200, { messages })
+    }
+
+    // Admin break-glass: decrypt ONE message. Every reveal is written to
+    // prep_message_access_log for safeguarding accountability.
+    if (req.method === 'POST' && req.url === '/admin/decrypt-message') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
+      const { messageId } = await readJson(req)
+      if (!messageId) return send(res, 400, { error: 'messageId required' })
+      const { data: m, error } = await sb.from('prep_messages').select('*').eq('id', messageId).maybeSingle()
+      if (error) return send(res, 500, { error: error.message })
+      if (!m) return send(res, 404, { error: 'not_found' })
+      await sb.from('prep_message_access_log').insert({
+        admin_id: a.uid, message_id: m.id, sender_id: m.sender_id, recipient_id: m.recipient_id
+      }).then(() => {}, e => console.warn('[audit] access log insert failed', e?.message))
+      return send(res, 200, {
+        id: m.id, body: decryptBody(m.body),
+        attachment_url: await signAttachment(m.attachment_url),
+        attachment_name: m.attachment_name, attachment_type: m.attachment_type
+      })
+    }
+
+    // Admin one-time migration: encrypt any legacy plaintext message bodies.
+    // Idempotent — already-encrypted rows are skipped.
+    if (req.method === 'POST' && req.url === '/admin/migrate-encrypt-messages') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
+      if (!_MSG_KEY) return send(res, 400, { error: 'MESSAGE_ENC_KEY not set' })
+      const { data: rows, error } = await sb.from('prep_messages').select('id, body').not('body', 'is', null)
+      if (error) return send(res, 500, { error: error.message })
+      let migrated = 0
+      for (const m of (rows || [])) {
+        if (isEncrypted(m.body)) continue
+        const { error: upErr } = await sb.from('prep_messages').update({ body: encryptBody(m.body) }).eq('id', m.id)
+        if (!upErr) migrated++
+      }
+      return send(res, 200, { ok: true, scanned: (rows || []).length, migrated })
     }
 
     if (req.method === 'POST' && req.url === '/peers') {

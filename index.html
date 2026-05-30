@@ -1053,10 +1053,21 @@ async function renderActivePeer(){
 
 async function loadMessages(){
   if(!_msgPeerId) return;
-  const { data: msgs } = await _sb.from('prep_messages')
-    .select('*')
-    .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${_msgPeerId}),and(sender_id.eq.${_msgPeerId},recipient_id.eq.${currentUser.id})`)
-    .order('created_at');
+  // Message bodies are encrypted at rest; only the server (which holds the
+  // key) can return plaintext, and only to the two participants. So the
+  // thread is fetched from /messages/thread rather than read directly.
+  const { data: { session } } = await _sb.auth.getSession();
+  if(!session?.access_token) return;
+  let msgs = [];
+  try {
+    const r = await fetch(_SERVER_URL + '/messages/thread', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ peerId: _msgPeerId })
+    });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok) msgs = j.messages || [];
+  } catch(e){ /* offline / transient — keep prior render */ return; }
   const list = document.getElementById('msg-list');
   const CALL_TTL_MS = 10 * 60 * 1000;
   list.innerHTML = (msgs || []).map(m => {
@@ -1085,9 +1096,7 @@ async function loadMessages(){
   }).join('');
   list.scrollTop = list.scrollHeight;
 
-  // Mark unread inbound as read
-  await _sb.from('prep_messages').update({ read_at: new Date().toISOString() })
-    .eq('recipient_id', currentUser.id).eq('sender_id', _msgPeerId).is('read_at', null);
+  // Inbound messages are marked read server-side by /messages/thread.
   refreshMessageBadge();
 }
 
@@ -1111,7 +1120,7 @@ async function sendMessage(){
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       senderId: currentUser.id, recipientId: _msgPeerId, body: text,
-      attachmentUrl: attach?.url || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
+      attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
     })
   });
   if(!r.ok){
@@ -1142,8 +1151,12 @@ async function onAttachSelected(inputEl){
     const { error: upErr } = await _sb.storage.from('message-attachments')
       .upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
     if(upErr) throw upErr;
-    const { data: pub } = _sb.storage.from('message-attachments').getPublicUrl(path);
-    _pendingAttachment = { url: pub.publicUrl, name: file.name, type: file.type || '' };
+    // The bucket is private. Store the path (sent to the server on send); for
+    // the local preview chip, mint a short-lived signed URL (the owner-read
+    // policy lets the uploader sign their own just-uploaded file).
+    let previewUrl = '';
+    try { const { data: s } = await _sb.storage.from('message-attachments').createSignedUrl(path, 600); previewUrl = s?.signedUrl || ''; } catch(_){}
+    _pendingAttachment = { path, url: previewUrl, name: file.name, type: file.type || '' };
     _renderAttachChip();
   } catch(e){
     _pendingAttachment = null;
@@ -2796,10 +2809,16 @@ async function startPcmCall(){
     // The room URL is shared (j.roomUrl) — both sides hit /call/start independently
     // to mint their own per-user token, so we send the bare room URL, not j.url.
     const inviteUrl = j.roomUrl || j.url;
-    await _sb.from('prep_messages').insert({
-      sender_id: currentUser.id,
-      recipient_id: peerId,
-      body: '📞 ' + (currentUser.name || 'Your contact') + ' is calling. Tap to join: ' + inviteUrl
+    // Route through the server so the invite body is encrypted at rest like
+    // every other message (rather than a direct plaintext insert).
+    await fetch(_SERVER_URL + '/messages/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId: currentUser.id,
+        recipientId: peerId,
+        body: '📞 ' + (currentUser.name || 'Your contact') + ' is calling. Tap to join: ' + inviteUrl
+      })
     });
 
     window.open(j.url, '_blank');
