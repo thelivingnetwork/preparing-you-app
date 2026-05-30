@@ -183,6 +183,10 @@
   .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
   .pcm-pick:hover{background:var(--teal-soft)}
   .pcm-pick.chosen{background:#2d7a4f}
+  .pcm-status{display:inline-block;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:10px;vertical-align:middle;font-weight:600}
+  .pcm-status.matched{background:rgba(45,122,79,.12);color:#2d7a4f}
+  .pcm-status.available{background:rgba(192,138,42,.14);color:#9a6b1f}
+  .pcm-peer-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 
   /* ── Library ─────────────────────────────────────────────────── */
   .lib-search{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;margin-bottom:14px}
@@ -2304,6 +2308,12 @@ async function buildPcmPage(){
     .select('id, name, email, phone, telegram, messenger, region, active')
     .eq('active', true);
   _pcmList = (rows || []).filter(p => p.id !== currentUser.id);  // exclude self
+  // Tag matched-vs-available status (only needed when a PCM browses peers).
+  if(_pcmAmIPcm && _pcmList.length){
+    const { data: matchedRows } = await _sb.from('prep_users').select('pcm_id').not('pcm_id', 'is', null);
+    const matched = new Set((matchedRows || []).map(r => r.pcm_id));
+    _pcmList.forEach(p => { p._matched = matched.has(p.id); });
+  }
   const myRegion = (currentUser.region || '').toLowerCase().trim();
   const inRegion = _pcmList.filter(p => (p.region || '').toLowerCase().trim() === myRegion);
   const outOfRegion = _pcmList.filter(p => (p.region || '').toLowerCase().trim() !== myRegion);
@@ -2488,18 +2498,34 @@ async function startPcmCall(){
 
 function _pcmRow(p){
   const isChosen = currentUser.pcm_id === p.id;
+  // A PCM browsing the directory connects to peers (message/call); a member chooses.
+  const badge = _pcmAmIPcm
+    ? '<span class="pcm-status ' + (p._matched ? 'matched' : 'available') + '">'
+        + (p._matched ? 'Matched' : 'Available') + '</span>'
+    : '';
+  const actions = _pcmAmIPcm
+    ? '<div class="pcm-peer-actions">'
+        + '<button class="link-btn" onclick="messagePcm(\'' + p.id + '\')">💬 Message</button>'
+        + '<button class="link-btn" onclick="callPcm(\'' + p.id + '\')">📞 Call</button>'
+      + '</div>'
+    : '<button class="pcm-pick' + (isChosen ? ' chosen' : '') + '" onclick="choosePcm(\'' + p.id + '\')">'
+        + (isChosen ? '✓ Chosen' : 'Choose')
+      + '</button>';
   return '<div class="pcm-row' + (isChosen ? ' chosen' : '') + '">'
     + '<div class="pcm-av">' + _initials(p.name) + '</div>'
     + '<div class="pcm-info">'
-    +   '<div class="pcm-name">' + _esc(p.name) + '</div>'
+    +   '<div class="pcm-name">' + _esc(p.name) + (badge ? ' ' + badge : '') + '</div>'
     +   (p.region ? '<div class="pcm-meta">' + _esc(p.region) + '</div>' : '')
     +   _pcmChannelLines(p)
     + '</div>'
-    + '<button class="pcm-pick' + (isChosen ? ' chosen' : '') + '" onclick="choosePcm(\'' + p.id + '\')">'
-    +   (isChosen ? '✓ Chosen' : 'Choose')
-    + '</button>'
+    + actions
     + '</div>';
 }
+
+// PCM-to-PCM connect helpers: set the active message peer, then reuse the
+// existing thread UI / Daily.co call rail.
+function messagePcm(id){ _msgPeerId = id; showPage('messages'); }
+function callPcm(id){ _msgPeerId = id; startPcmCall(); }
 
 function _pcmChannelLines(p){
   const parts = [];

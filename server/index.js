@@ -1036,7 +1036,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.10' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.11' })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1237,6 +1237,19 @@ const server = http.createServer(async (req, res) => {
       const { data: mine } = await sb.from('prep_users').select('id, name, region').eq('pcm_id', userId)
       for (const e of (mine || [])) {
         if (!peers.find(p => p.id === e.id)) peers.push({ ...e, role: 'You are their PCM' })
+      }
+      // 3) if I'm an active PCM, every other active PCM is reachable.
+      //    Status = Matched (has at least one elector) vs Available (none yet).
+      const { data: amPcm } = await sb.from('prep_pcms').select('id').eq('id', userId).eq('active', true).maybeSingle()
+      if (amPcm) {
+        const { data: pcms } = await sb.from('prep_pcms').select('id, name, region').eq('active', true)
+        const { data: matchedRows } = await sb.from('prep_users').select('pcm_id').not('pcm_id', 'is', null)
+        const matched = new Set((matchedRows || []).map(r => r.pcm_id))
+        for (const p of (pcms || [])) {
+          if (p.id === userId) continue
+          if (peers.find(x => x.id === p.id)) continue
+          peers.push({ ...p, role: matched.has(p.id) ? 'PCM · Matched' : 'Volunteer PCM · Available' })
+        }
       }
       return send(res, 200, { peers })
     }
