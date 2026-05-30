@@ -72,7 +72,9 @@
   }
   html{background:var(--parch)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55;overflow-x:hidden;max-width:100%}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55;overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain}
+  .ptr-spinning{animation:ptrspin .7s linear infinite}
+  @keyframes ptrspin{to{transform:rotate(360deg)}}
   h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
   body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment */
@@ -275,6 +277,11 @@
 
 <!-- ═════════════════════════ APP ═════════════════════════ -->
 <div id="screen-app" class="screen">
+  <div id="ptr-indicator" style="position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:90;transform:translateY(-60px)">
+    <div id="ptr-spin" style="margin-top:12px;width:36px;height:36px;border-radius:50%;background:var(--surface);box-shadow:0 2px 10px rgba(20,48,52,.3);display:flex;align-items:center;justify-content:center">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--teal)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    </div>
+  </div>
   <div class="hdr">
     <img class="hdr-ark" src="/ark-mark.png" alt="">
     <div style="flex:1;min-width:0"></div>
@@ -2829,6 +2836,57 @@ document.addEventListener('DOMContentLoaded', () => {
     if(event === 'PASSWORD_RECOVERY'){ showAuthTab('reset'); }
   });
 });
+
+// ═════════════════════════ PULL-TO-REFRESH ═════════════════════════
+// Session now persists, so a reload keeps the user signed in. Pulling down
+// from the top of the app reloads (fresh data + latest deployed build).
+(function(){
+  const TH = 70;            // px of pull (after damping) needed to trigger
+  let startY = 0, pulling = false, dist = 0, refreshing = false;
+  const ind = () => document.getElementById('ptr-indicator');
+  function anyOverlayOpen(){
+    return ['paul-drawer','pcm-modal','notif-overlay','profile-overlay'].some(id => {
+      const e = document.getElementById(id);
+      return e && getComputedStyle(e).display !== 'none';
+    });
+  }
+  function canStart(){
+    const app = document.getElementById('screen-app');
+    return app && app.classList.contains('active') && window.scrollY <= 0 && !anyOverlayOpen();
+  }
+  function setInd(px){
+    const el = ind(); if(!el) return;
+    el.style.transition = px ? 'none' : 'transform .2s ease';
+    el.style.transform = 'translateY(' + (Math.min(px, 90) - 60) + 'px)';
+    const spin = document.getElementById('ptr-spin');
+    if(spin && !refreshing) spin.style.transform = 'rotate(' + (px * 4) + 'deg)';
+  }
+  function doRefresh(){
+    refreshing = true;
+    const el = ind(); if(el){ el.style.transition = 'transform .2s ease'; el.style.transform = 'translateY(10px)'; }
+    const spin = document.getElementById('ptr-spin');
+    if(spin){ spin.style.transform = ''; spin.classList.add('ptr-spinning'); }
+    setTimeout(() => window.location.reload(), 350);
+  }
+  window.addEventListener('touchstart', e => {
+    if(refreshing || !canStart()){ pulling = false; return; }
+    startY = e.touches[0].clientY; pulling = true; dist = 0;
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if(!pulling) return;
+    dist = e.touches[0].clientY - startY;
+    if(dist > 0 && window.scrollY <= 0){
+      e.preventDefault();           // claim the gesture from native overscroll
+      setInd(dist * 0.5);
+    } else if(dist <= 0){
+      setInd(0);
+    }
+  }, { passive: false });
+  window.addEventListener('touchend', () => {
+    if(!pulling) return; pulling = false;
+    if(dist * 0.5 >= TH) doRefresh(); else setInd(0);
+  });
+})();
 </script>
 </body>
 </html>
