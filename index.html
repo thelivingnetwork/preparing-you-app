@@ -3134,6 +3134,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function canStart(){
     const app = document.getElementById('screen-app');
+    // On the Messages page the shell is locked (overflow:hidden), so window.scrollY
+    // is always 0 — pull-to-refresh would hijack every upward swipe in the thread
+    // and the list could never scroll. Messages auto-polls, so just disable PTR there.
+    if(document.documentElement.classList.contains('chat-lock')) return false;
     return app && app.classList.contains('active') && window.scrollY <= 0 && !anyOverlayOpen();
   }
   function setInd(px){
