@@ -69,7 +69,13 @@
     --accent-ink:#fff;     /* white reads clearly on the tinted cards in dark */
     --terra-soft:rgba(160,120,210,.20); /* incoming chat bubbles */
     --gold-soft:rgba(160,119,42,.22);
+    --success:#5cc98e;     /* brighter green so confirmations read on dark */
   }
+  /* Dark-mode contrast fixes for elements that otherwise sit dark-on-dark. */
+  html[data-theme="dark"] #ptr-spin svg{stroke:var(--walnut)}
+  html[data-theme="dark"] .paul-dot{background:#c9a6f0}
+  html[data-theme="dark"] .pcm-status.available{color:#d8a850}
+  html[data-theme="dark"] .auth-error{color:#e98a6a}
   html{background:var(--parch)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55;overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain}
@@ -182,7 +188,7 @@
 
   /* ── PCM list rows ───────────────────────────────────────────── */
   .pcm-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
-  .pcm-row.chosen{border-color:#2d7a4f;background:rgba(45,122,79,.04)}
+  .pcm-row.chosen{border-color:var(--success);background:rgba(45,122,79,.04)}
   .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
   .pcm-info{flex:1;min-width:0}
   .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
@@ -192,7 +198,7 @@
   .pcm-pick:hover{background:var(--teal-soft)}
   .pcm-pick.chosen{background:#2d7a4f}
   .pcm-status{display:inline-block;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:10px;vertical-align:middle;font-weight:600}
-  .pcm-status.matched{background:rgba(45,122,79,.12);color:#2d7a4f}
+  .pcm-status.matched{background:rgba(45,122,79,.12);color:var(--success)}
   .pcm-status.available{background:rgba(192,138,42,.14);color:#9a6b1f}
   .pcm-peer-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 
@@ -413,7 +419,7 @@
 
     <!-- Current chosen PCM (only visible once selected) -->
     <div class="card" id="pcm-current" style="display:none">
-      <div class="card-title" style="color:#2d7a4f">✓ Your Personal Contact Minister</div>
+      <div class="card-title" style="color:var(--success)">✓ Your Personal Contact Minister</div>
       <div id="pcm-current-body"></div>
     </div>
 
@@ -1594,7 +1600,7 @@ async function buildBooksPage(){
     else { listenLabel = '▶ Listen'; listenStyle = ''; listenEnabled = true; }
     const note = (hasAudio && locked)
       ? '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin-top:6px">🔒 Finish the previous book\'s audio first</div>'
-      : (done ? '<div style="font-size:11px;color:#2d7a4f;font-style:italic;margin-top:6px">✓ Audio overview completed</div>' : '');
+      : (done ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:6px">✓ Audio overview completed</div>' : '');
     return `<div class="card" style="display:flex;align-items:flex-start;gap:14px">
       <div style="font-size:24px;width:36px;text-align:center;padding-top:2px">${done ? '✅' : '📖'}</div>
       <div style="flex:1;min-width:0">
