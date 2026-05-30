@@ -485,9 +485,9 @@
   <div class="page" id="page-library">
     <div class="card">
       <div class="card-title">Topical Library</div>
-      <div class="card-text">Articles and videos arranged by topic. Tap any title to open the full article on preparingyou.com. Use Paul to ask questions about what you read.</div>
+      <div class="card-text">Curated topics with videos below — or search to reach every article on preparingyou.com. Tap any title to open the full article. Use Paul to ask questions about what you read.</div>
     </div>
-    <input class="lib-search" id="lib-search" type="search" placeholder="Search topics…" oninput="filterLibrary(this.value)">
+    <input class="lib-search" id="lib-search" type="search" placeholder="Search all preparingyou.com articles…" oninput="filterLibrary(this.value)">
     <div class="lib-letter-bar" id="lib-letter-bar"></div>
     <div id="lib-content"><div class="empty"><span class="ico">📚</span>Loading library…</div></div>
   </div>
@@ -2291,6 +2291,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ═════════════════════════ LIBRARY ═════════════════════════
 let _libData = null;
+let _libMediaByTitle = {};   // lowercased curated title -> media[], merged into live results
+let _libSearchTimer = null;
+let _libSearchSeq = 0;       // guards against out-of-order async responses
+let _libAllTitles = null;    // full wiki title list (loaded live, cached for the session)
+let _libTitlesLoading = false;
+const _WIKI_API = 'https://preparingyou.com/wiki/api.php';
+
+// Pull every article title from the wiki once per session (paginated, live).
+// Gives true title-substring search across all ~7,000 articles. Until this
+// finishes, search falls back to the wiki's prefix (opensearch) endpoint.
+async function _loadAllWikiTitles(){
+  if(_libAllTitles || _libTitlesLoading) return;
+  _libTitlesLoading = true;
+  const all = [];
+  let cont = '';
+  try {
+    for(let i = 0; i < 50; i++){   // safety cap; ~15 pages expected
+      const u = _WIKI_API + '?action=query&list=allpages&apnamespace=0'
+              + '&apfilterredir=nonredirects&aplimit=500&format=json&origin=*'
+              + (cont ? '&apcontinue=' + encodeURIComponent(cont) : '');
+      const r = await fetch(u);
+      const j = await r.json();
+      (j.query && j.query.allpages || []).forEach(p => all.push(p.title));
+      if(j.continue && j.continue.apcontinue) cont = j.continue.apcontinue;
+      else break;
+    }
+    _libAllTitles = all;
+  } catch(e){
+    _libAllTitles = null;   // stay null so search keeps using the live fallback
+  } finally {
+    _libTitlesLoading = false;
+  }
+}
 
 async function buildLibraryPage(){
   if(!_libData){
@@ -2303,6 +2336,12 @@ async function buildLibraryPage(){
       return;
     }
   }
+  // Map curated titles -> their video links, so live search results can show
+  // the same media when a wiki article matches a curated topic.
+  _libMediaByTitle = {};
+  _libData.forEach(s => s.topics.forEach(t => {
+    if(t.media && t.media.length) _libMediaByTitle[t.title.trim().toLowerCase()] = t.media;
+  }));
   // Letter bar — only letters that have entries
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const has = {};
@@ -2313,6 +2352,7 @@ async function buildLibraryPage(){
       : '<button class="lib-letter disabled" disabled>' + L + '</button>'
   ).join('');
   renderLibrary(_libData);
+  _loadAllWikiTitles();   // warm the full-article index in the background
 }
 
 function renderLibrary(data){
@@ -2343,15 +2383,94 @@ function scrollToLetter(L){
   if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Search now spans the FULL preparingyou.com wiki (~7,000+ articles), not just
+// the curated list. Typing queries the wiki's title search (opensearch) live;
+// clearing the box restores the curated A–Z view.
 function filterLibrary(q){
-  if(!_libData) return;
-  q = (q || '').trim().toLowerCase();
-  if(!q){ renderLibrary(_libData); return; }
-  const filtered = _libData.map(s => ({
-    letter: s.letter,
-    topics: s.topics.filter(t => t.title.toLowerCase().includes(q))
-  })).filter(s => s.topics.length);
-  renderLibrary(filtered);
+  q = (q || '').trim();
+  const bar = document.getElementById('lib-letter-bar');
+  if(_libSearchTimer){ clearTimeout(_libSearchTimer); _libSearchTimer = null; }
+  if(!q){
+    if(bar) bar.style.display = '';
+    if(_libData) renderLibrary(_libData);
+    return;
+  }
+  if(bar) bar.style.display = 'none';   // letter bar is irrelevant during search
+  const seq = ++_libSearchSeq;
+  document.getElementById('lib-content').innerHTML =
+    '<div class="empty"><span class="ico">🔎</span>Searching all of preparingyou.com…</div>';
+  _libSearchTimer = setTimeout(() => runLibrarySearch(q, seq), 250);
+}
+
+const _LIB_CAP = 60;   // max rows rendered at once
+
+async function runLibrarySearch(q, seq){
+  if(_libAllTitles){
+    // Full index ready: instant title-substring match across every article.
+    const ql = q.toLowerCase();
+    const matches = _libAllTitles.filter(t => t.toLowerCase().includes(ql));
+    // Prefix matches first, then the rest, each alphabetical.
+    matches.sort((a, b) => {
+      const ap = a.toLowerCase().startsWith(ql), bp = b.toLowerCase().startsWith(ql);
+      if(ap !== bp) return ap ? -1 : 1;
+      return a.localeCompare(b);
+    });
+    if(seq !== _libSearchSeq) return;
+    renderSearchResults(q, matches.slice(0, _LIB_CAP).map(_wikiTitleToEntry), matches.length);
+    return;
+  }
+  // Index still warming: use the wiki's live prefix search for now.
+  _loadAllWikiTitles();
+  const url = _WIKI_API + '?action=opensearch&format=json&namespace=0&limit=' + _LIB_CAP
+            + '&search=' + encodeURIComponent(q) + '&origin=*';
+  let titles = [], urls = [];
+  try {
+    const r = await fetch(url);
+    const j = await r.json();      // [query, [titles], [descs], [urls]]
+    titles = j[1] || []; urls = j[3] || [];
+  } catch(e){
+    if(seq === _libSearchSeq){
+      document.getElementById('lib-content').innerHTML =
+        '<div class="empty"><span class="ico">⚠️</span>Couldn’t reach the library right now. Check your connection and try again.</div>';
+    }
+    return;
+  }
+  if(seq !== _libSearchSeq) return;  // a newer keystroke superseded this one
+  renderSearchResults(q, titles.map((t, i) => ({ title: t, href: urls[i] })), titles.length);
+}
+
+function _wikiTitleToEntry(title){
+  return { title, href: 'https://preparingyou.com/wiki/' + encodeURIComponent(title.replace(/ /g, '_')) };
+}
+
+function renderSearchResults(q, entries, total){
+  const el = document.getElementById('lib-content');
+  if(!entries.length){
+    el.innerHTML = '<div class="empty"><span class="ico">📭</span>No articles found for “' + _esc(q) + '”.</div>';
+    return;
+  }
+  let html = '<div class="lib-section">'
+           + '<div class="lib-section-hdr" style="text-transform:none">'
+           +   total + ' article' + (total === 1 ? '' : 's') + ' matching “' + _esc(q) + '”'
+           + '</div>';
+  entries.forEach(e => {
+    const href = e.href || ('https://preparingyou.com/wiki/' + encodeURIComponent(e.title.replace(/ /g, '_')));
+    const media = _libMediaByTitle[e.title.trim().toLowerCase()];
+    html += '<div class="lib-topic">'
+         +    '<a class="lib-topic-title" href="' + _esc(href) + '" target="_blank" rel="noopener">' + _esc(e.title) + '</a>';
+    if(media && media.length){
+      html += '<div class="lib-media">'
+           +    media.map(m => '<a href="' + _esc(m.href) + '" target="_blank" rel="noopener">' + _esc(m.label) + '</a>').join('')
+           + '</div>';
+    }
+    html += '</div>';
+  });
+  if(total > entries.length){
+    html += '<div class="empty" style="padding:14px">Showing the first ' + entries.length
+         +  ' — keep typing to narrow your search.</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
 }
 
 // ═════════════════════════ PCM FLOW ═════════════════════════
