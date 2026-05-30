@@ -1622,6 +1622,31 @@ async function buildBooksPage(){
 
 let _bookListenMaxTime = 0;   // anti-skip ceiling (seconds) for current audio
 let _bookListenId = null;     // book_id currently playing in the overview player
+let _bookAudiobookId = null;  // book_id currently playing in the audiobook player
+let _lastAudioPosSave = 0;    // throttle for localStorage position writes
+
+// Remember where each audio was last left off so closing the player or the app
+// (iOS swipe-away) resumes from the same spot instead of restarting.
+function _audioPosKey(kind, id){ return 'pp_audiopos_' + kind + '_' + id; }
+function _saveAudioPos(kind, id, t){
+  if(id == null || !isFinite(t) || t < 1) return;
+  try { localStorage.setItem(_audioPosKey(kind, id), String(Math.floor(t))); } catch(e){}
+}
+function _loadAudioPos(kind, id){
+  try { const v = parseFloat(localStorage.getItem(_audioPosKey(kind, id))); return isFinite(v) ? v : 0; } catch(e){ return 0; }
+}
+function _clearAudioPos(kind, id){ try { localStorage.removeItem(_audioPosKey(kind, id)); } catch(e){} }
+// Apply a saved start position once the audio knows its duration.
+function _resumeAudioAt(player, seconds){
+  if(!(seconds > 1)) return;
+  const apply = () => {
+    if(isFinite(player.duration) && seconds < player.duration - 1){
+      try { player.currentTime = seconds; } catch(e){}
+    }
+  };
+  if(player.readyState >= 1) apply();
+  else player.addEventListener('loadedmetadata', apply, { once: true });
+}
 
 function openBookListen(bookId){
   const idx = _booksData.findIndex(x => x.id === bookId);
@@ -1631,20 +1656,24 @@ function openBookListen(bookId){
   // Block playing a still-locked book (must listen in order).
   if(!done && _bookAudioLocked(idx)) return;
   _bookListenId = bookId;
-  _bookListenMaxTime = done ? Infinity : 0;  // re-listening: free seek
+  const resume = _loadAudioPos('overview', bookId);
+  // First listen: the anti-skip ceiling starts where they last left off (can't
+  // jump past it). Re-listening (done): free seek.
+  _bookListenMaxTime = done ? Infinity : resume;
   const wrap = document.getElementById('book-listen-wrap');
   const player = document.getElementById('book-listen-player');
   document.getElementById('book-listen-title').textContent = '🎧 ' + b.title + ' — Audio Overview';
   player.src = b.audio_overview_path;
   wrap.style.display = 'block';
   player.load();
-  player.play().catch(()=>{});
+  player.play().catch(()=>{});       // start within the user gesture (iOS autoplay)
+  _resumeAudioAt(player, resume);     // jump to last spot once metadata is ready
   wrap.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function closeBookListen(){
   const player = document.getElementById('book-listen-player');
-  if(player){ try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  if(player){ _saveAudioPos('overview', _bookListenId, player.currentTime); try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
   const wrap = document.getElementById('book-listen-wrap');
   if(wrap) wrap.style.display = 'none';
 }
@@ -1658,6 +1687,8 @@ function openBookRead(bookId){
 function openBookAudiobook(bookId){
   const b = _booksData.find(x => x.id === bookId);
   if(!b || !b.audiobook_path) return;
+  _bookAudiobookId = bookId;
+  const resume = _loadAudioPos('audiobook', bookId);
   const wrap = document.getElementById('book-audiobook-wrap');
   const player = document.getElementById('book-audiobook-player');
   document.getElementById('book-audiobook-title').textContent = '🎧 ' + b.title + ' — Audiobook';
@@ -1665,12 +1696,13 @@ function openBookAudiobook(bookId){
   wrap.style.display = 'block';
   player.load();
   player.play().catch(()=>{});
+  _resumeAudioAt(player, resume);
   wrap.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function closeBookAudiobook(){
   const player = document.getElementById('book-audiobook-player');
-  if(player){ try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  if(player){ _saveAudioPos('audiobook', _bookAudiobookId, player.currentTime); try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
   const wrap = document.getElementById('book-audiobook-wrap');
   if(wrap) wrap.style.display = 'none';
 }
@@ -2290,33 +2322,58 @@ document.addEventListener('DOMContentLoaded', () => {
 // gate and the journey advance. Mirrors the gateway video behaviour.
 document.addEventListener('DOMContentLoaded', () => {
   const player = document.getElementById('book-listen-player');
-  if(!player) return;
-  player.addEventListener('timeupdate', () => {
-    if(_bookListenMaxTime === Infinity) return;
-    if(player.currentTime > _bookListenMaxTime + 0.5){
-      player.currentTime = _bookListenMaxTime;
-    } else if(player.currentTime > _bookListenMaxTime){
-      _bookListenMaxTime = player.currentTime;
-    }
-  });
-  player.addEventListener('seeking', () => {
-    if(_bookListenMaxTime === Infinity) return;
-    if(player.currentTime > _bookListenMaxTime + 0.5){
-      player.currentTime = _bookListenMaxTime;
-    }
-  });
-  player.addEventListener('ended', async () => {
-    if(_bookListenId == null || !_sb || !currentUser) return;
-    if(_bookAudioDone.has(_bookListenId)) return; // already recorded
-    const bookId = _bookListenId;
-    const { error } = await _sb.from('prep_book_audio_progress')
-      .upsert({ user_id: currentUser.id, book_id: bookId, completed_at: new Date().toISOString() },
-              { onConflict: 'user_id,book_id' });
-    if(!error){
-      _bookAudioDone.add(bookId);
-      buildBooksPage();   // unlock the next book
-    }
-  });
+  if(player){
+    // During normal playback only advance the "furthest heard" ceiling and save
+    // position — never snap the time back (the old per-tick snap caused the
+    // stutter / cut-outs on mobile, where ticks can jump more than 0.5s).
+    player.addEventListener('timeupdate', () => {
+      if(_bookListenMaxTime !== Infinity && player.currentTime > _bookListenMaxTime){
+        _bookListenMaxTime = player.currentTime;
+      }
+      const now = Date.now();
+      if(now - _lastAudioPosSave > 3000){ _lastAudioPosSave = now; _saveAudioPos('overview', _bookListenId, player.currentTime); }
+    });
+    // Anti-skip is enforced only on user seeks: can't jump past the furthest heard.
+    player.addEventListener('seeking', () => {
+      if(_bookListenMaxTime === Infinity) return;
+      if(player.currentTime > _bookListenMaxTime + 0.5){
+        player.currentTime = _bookListenMaxTime;
+      }
+    });
+    player.addEventListener('pause', () => _saveAudioPos('overview', _bookListenId, player.currentTime));
+    player.addEventListener('ended', async () => {
+      _clearAudioPos('overview', _bookListenId);   // finished — next open starts fresh
+      if(_bookListenId == null || !_sb || !currentUser) return;
+      if(_bookAudioDone.has(_bookListenId)) return; // already recorded
+      const bookId = _bookListenId;
+      const { error } = await _sb.from('prep_book_audio_progress')
+        .upsert({ user_id: currentUser.id, book_id: bookId, completed_at: new Date().toISOString() },
+                { onConflict: 'user_id,book_id' });
+      if(!error){
+        _bookAudioDone.add(bookId);
+        buildBooksPage();   // unlock the next book
+      }
+    });
+  }
+
+  // Full audiobook player: free seek, just remember the spot.
+  const ab = document.getElementById('book-audiobook-player');
+  if(ab){
+    ab.addEventListener('timeupdate', () => {
+      const now = Date.now();
+      if(now - _lastAudioPosSave > 3000){ _lastAudioPosSave = now; _saveAudioPos('audiobook', _bookAudiobookId, ab.currentTime); }
+    });
+    ab.addEventListener('pause', () => _saveAudioPos('audiobook', _bookAudiobookId, ab.currentTime));
+    ab.addEventListener('ended', () => _clearAudioPos('audiobook', _bookAudiobookId));
+  }
+
+  // iOS swipe-away / backgrounding: persist the live position before we lose it.
+  const saveActive = () => {
+    if(player && !player.paused) _saveAudioPos('overview', _bookListenId, player.currentTime);
+    if(ab && !ab.paused) _saveAudioPos('audiobook', _bookAudiobookId, ab.currentTime);
+  };
+  window.addEventListener('pagehide', saveActive);
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') saveActive(); });
 });
 
 // ═════════════════════════ LIBRARY ═════════════════════════
