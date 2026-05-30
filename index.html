@@ -145,6 +145,11 @@
   /* ── Paul (header AI button) ──────────────────────────────── */
   .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--gold);border:none;cursor:pointer;padding:4px 12px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:12.5px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
   .hdr-paul:hover{background:#b8862f}
+  .hdr-profile{flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:'Spectral',serif;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .hdr-profile:hover{filter:brightness(1.06)}
+  .prof-label{display:block;font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
+  .prof-input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--walnut);font-size:14px;font-family:inherit;margin-bottom:16px}
+  .prof-input:focus{outline:none;border-color:var(--teal)}
   .hdr-paul svg{width:34px;height:34px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
   /* Paul portrait at the top of the drawer */
   .paul-hero-av{flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(20,48,52,.35);border:2px solid var(--cream);display:inline-flex}
@@ -301,6 +306,7 @@
       🔔
       <span id="hdr-bell-dot" style="display:none;position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;font-size:10px;line-height:1;min-width:16px;height:16px;padding:0 4px;border-radius:8px;font-weight:600;text-align:center"></span>
     </button>
+    <button class="hdr-profile" id="hdr-profile-btn" onclick="openProfile()" aria-label="Profile" title="My profile"><span id="hdr-profile-av">—</span></button>
   </div>
 
   <!-- Notification drawer -->
@@ -313,6 +319,35 @@
         </div>
       </div>
       <div id="notif-list" style="flex:1;overflow-y:auto;padding:6px 0"></div>
+    </div>
+  </div>
+
+  <!-- Profile drawer -->
+  <div id="profile-overlay" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.55)" onclick="if(event.target===this) closeProfile()">
+    <div style="position:absolute;top:0;right:0;width:min(100%,420px);max-height:100vh;background:var(--surface);display:flex;flex-direction:column;border-left:1px solid var(--line)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
+        <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600">My Profile</div>
+        <button onclick="closeProfile()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:0 6px;line-height:1">×</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:20px 18px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
+          <div class="pcm-av" id="profile-av" style="width:56px;height:56px;font-size:18px"></div>
+          <div style="min-width:0">
+            <div id="profile-name-display" style="font-family:'Spectral',serif;font-size:18px;color:var(--walnut);font-weight:600"></div>
+            <div id="profile-email-display" style="font-size:12px;color:var(--walnut-mid);overflow:hidden;text-overflow:ellipsis"></div>
+          </div>
+        </div>
+        <label class="prof-label">Name</label>
+        <input id="prof-name" class="prof-input" type="text" autocomplete="name">
+        <label class="prof-label">Region</label>
+        <input id="prof-region" class="prof-input" type="text" autocomplete="off">
+        <label class="prof-label">Email</label>
+        <input id="prof-email" class="prof-input" type="email" disabled style="opacity:.6;cursor:not-allowed">
+        <div style="font-size:11px;color:var(--walnut-mid);margin:-6px 2px 16px">Email is your sign-in and can't be changed here.</div>
+        <div id="profile-msg" style="display:none;font-size:13px;margin:0 2px 12px"></div>
+        <button id="profile-save-btn" class="pcm-pick" style="width:100%;padding:12px;font-size:12px" onclick="saveProfile()">Save changes</button>
+        <button class="link-btn" style="width:100%;margin-top:14px;color:var(--terra)" onclick="closeProfile();signOut()">Sign out</button>
+      </div>
     </div>
   </div>
 
@@ -736,6 +771,7 @@ function enterApp(){
   if(!currentUser) return;
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
+  _refreshProfileAv();
   showPage('home');
   refreshMessageBadge();
   refreshNotifBell();
@@ -1391,6 +1427,49 @@ async function toggleNotifDrawer(){
   markAllSeen();
 }
 function closeNotifDrawer(){ document.getElementById('notif-overlay').style.display = 'none'; }
+
+// ═════════════════════════ PROFILE ═════════════════════════
+function _refreshProfileAv(){
+  const el = document.getElementById('hdr-profile-av');
+  if(el && currentUser) el.textContent = _initials(currentUser.name);
+}
+function openProfile(){
+  if(!currentUser) return;
+  document.getElementById('profile-av').textContent = _initials(currentUser.name);
+  document.getElementById('profile-name-display').textContent = currentUser.name || '—';
+  document.getElementById('profile-email-display').textContent = currentUser.email || '';
+  document.getElementById('prof-name').value = currentUser.name || '';
+  document.getElementById('prof-region').value = currentUser.region || '';
+  document.getElementById('prof-email').value = currentUser.email || '';
+  const msg = document.getElementById('profile-msg'); msg.style.display = 'none';
+  document.getElementById('profile-overlay').style.display = 'block';
+}
+function closeProfile(){ document.getElementById('profile-overlay').style.display = 'none'; }
+
+async function saveProfile(){
+  const name   = document.getElementById('prof-name').value.trim();
+  const region = document.getElementById('prof-region').value.trim();
+  const msg    = document.getElementById('profile-msg');
+  const btn    = document.getElementById('profile-save-btn');
+  const show = (text, ok) => { msg.textContent = text; msg.style.color = ok ? 'var(--success)' : 'var(--terra)'; msg.style.display = 'block'; };
+  if(!name || !region){ show('Name and region can’t be empty.', false); return; }
+  if(!_sb || !currentUser){ show('Not signed in.', false); return; }
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Saving…';
+  try {
+    const { error } = await _sb.from('prep_users').update({ name, region }).eq('id', currentUser.id);
+    if(error) throw new Error(error.message);
+    await _sb.auth.updateUser({ data: { name, region } }).catch(()=>{});
+    currentUser.name = name; currentUser.region = region;
+    document.getElementById('profile-name-display').textContent = name;
+    document.getElementById('profile-av').textContent = _initials(name);
+    _refreshProfileAv();
+    show('Saved.', true);
+  } catch(e){
+    show('Could not save: ' + e.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
 
 function _timeAgo(iso){
   const ms = Date.now() - new Date(iso).getTime();
