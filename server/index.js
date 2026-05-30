@@ -46,7 +46,7 @@ function cors(res, req) {
   res.setHeader('Access-Control-Allow-Origin', allow)
   res.setHeader('Vary', 'Origin')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Paul-Lang')
 }
 function send(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json' })
@@ -1036,7 +1036,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.9' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.10' })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
