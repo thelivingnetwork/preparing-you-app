@@ -612,9 +612,9 @@
           <span id="paul-status-text"></span>
         </div>
         <div style="display:flex;gap:8px">
-          <button id="paul-mic" onclick="togglePaulConversation()" title="Talk with Paul" aria-label="Talk with Paul" style="padding:10px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:18px;line-height:1;cursor:pointer;flex-shrink:0">🎙</button>
+          <button id="paul-mic" onclick="togglePaulConversation()" title="Talk with Paul" aria-label="Talk with Paul" style="padding:10px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;line-height:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
           <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
-          <button id="paul-send" onclick="sendPaul()" style="padding:10px 16px;background:var(--terra);color:#fff;border:none;border-radius:8px;font-family:'Spectral',serif;font-weight:500;cursor:pointer">Ask</button>
+          <button id="paul-send" onclick="sendPaul()" title="Send" aria-label="Send" style="padding:10px 14px;background:var(--terra);color:#fff;border:none;border-radius:8px;cursor:pointer;line-height:0;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
         </div>
       </div>
     </div>
@@ -1806,7 +1806,7 @@ async function sendPaul(){
   const text = (input.value || '').trim();
   if(!text) return;
   input.value = '';
-  sendBtn.disabled = true; sendBtn.textContent = '…';
+  sendBtn.disabled = true; sendBtn.style.opacity = '0.5';
   _renderPaulMessage('user', text);
   _paulHistory.push({ role:'user', content:text });
   const thinking = _renderPaulThinking();
@@ -1825,7 +1825,7 @@ async function sendPaul(){
   } catch(e){
     thinking.textContent = '⚠ Could not reach Paul: ' + e.message;
   } finally {
-    sendBtn.disabled = false; sendBtn.textContent = 'Ask';
+    sendBtn.disabled = false; sendBtn.style.opacity = '1';
   }
 }
 
@@ -1853,7 +1853,9 @@ function _paulPickMime(){
 function _paulSetMicUI(on){
   const mic = document.getElementById('paul-mic');
   if(!mic) return;
-  mic.textContent = on ? '⏹' : '🎙';
+  mic.innerHTML = on
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
+    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>';
   mic.style.background = on ? 'var(--terra)' : 'var(--teal)';
   mic.title = on ? 'Stop' : 'Talk with Paul';
 }
