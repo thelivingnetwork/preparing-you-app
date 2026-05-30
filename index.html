@@ -1917,24 +1917,30 @@ function _paulEnqueueSpeak(text){
   if(!_paulSpeaking) _paulDrainSpeak();
 }
 
-// Fetch + play queued sentences strictly in order.
+// Fetch + play queued sentences strictly in order, prefetching the next
+// sentence's audio while the current one plays so playback is gap-free.
 // Playback goes through the Web Audio API (not an <audio> element) because
 // iOS only allows programmatic playback through an AudioContext that was
 // unlocked inside a user gesture — which we do on the Start tap.
 async function _paulDrainSpeak(){
   _paulSpeaking = true;
-  while(_paulSpeakQueue.length && _paulConvOn){
-    const text = _paulSpeakQueue.shift();
-    let arrayBuf;
-    try {
-      const r = await fetch(_SERVER_URL + '/paul/speak', {
-        method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, lang: _paulLang() })
-      });
-      if(!r.ok){ continue; } // 503 tts_unconfigured or transient error → skip audio, text already shown
-      arrayBuf = await r.arrayBuffer();
-    } catch(e){ continue; }
+  // Returns a promise of the sentence's audio bytes, or null on any failure
+  // (503 tts_unconfigured / transient error) — the text is already on screen.
+  const fetchOne = (text) => fetch(_SERVER_URL + '/paul/speak', {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, lang: _paulLang() })
+    }).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null);
+
+  let pending = null; // in-flight fetch for the next sentence
+  while(_paulConvOn){
+    let cur = pending; pending = null;
+    if(!cur){
+      if(!_paulSpeakQueue.length) break;          // nothing ready → done draining
+      cur = fetchOne(_paulSpeakQueue.shift());
+    }
+    if(_paulSpeakQueue.length) pending = fetchOne(_paulSpeakQueue.shift()); // prefetch next
+    const buf = await cur;
     if(!_paulConvOn) break;
-    await _paulPlayBuffer(arrayBuf);
+    if(buf) await _paulPlayBuffer(buf);
   }
   _paulSpeaking = false;
   if(!_paulSpeakQueue.length){ _paulAudioWaiters.forEach(fn => fn()); _paulAudioWaiters = []; }
