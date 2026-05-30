@@ -1843,14 +1843,30 @@ async function togglePaulConversation(){
 }
 
 async function _paulStartConversation(){
+  // Immediate feedback so the user knows the tap registered, even if mic setup stalls.
+  _paulSetStatus('Starting…', 'idle');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    _paulSetStatus('Voice needs Safari — open preparingyou.com in Safari to talk with Paul', 'err');
+    return;
+  }
   try {
     if(!_paulAudioCtx) _paulAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if(_paulAudioCtx.state === 'suspended') await _paulAudioCtx.resume();
     // Silent blip to unlock audio playback on iOS (must run inside the tap).
     try { const b=_paulAudioCtx.createBuffer(1,1,22050); const s=_paulAudioCtx.createBufferSource(); s.buffer=b; s.connect(_paulAudioCtx.destination); s.start(0); } catch(e){}
-    if(!_paulMicStream) _paulMicStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+    // iOS home-screen PWAs can leave getUserMedia pending forever — race a timeout so we never hang silently.
+    if(!_paulMicStream){
+      const micP = navigator.mediaDevices.getUserMedia({ audio:true });
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+      _paulMicStream = await Promise.race([micP, timeout]);
+    }
   } catch(e){
-    _paulSetStatus('Microphone blocked — check permissions', 'err');
+    const msg = (e && e.message === 'timeout')
+      ? 'Mic didn’t respond — on iPhone, open preparingyou.com in Safari (not the home-screen app)'
+      : (e && e.name === 'NotAllowedError')
+        ? 'Microphone blocked — allow mic access for this site in Settings'
+        : 'Microphone unavailable (' + ((e && (e.name || e.message)) || 'unknown') + ')';
+    _paulSetStatus(msg, 'err');
     return;
   }
   _paulConvOn = true;
