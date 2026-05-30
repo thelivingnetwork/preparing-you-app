@@ -552,9 +552,16 @@
         </div>
       </div>
       <div id="paul-messages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px"></div>
-      <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;flex-shrink:0">
-        <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
-        <button id="paul-send" onclick="sendPaul()" style="padding:10px 16px;background:var(--terra);color:#fff;border:none;border-radius:8px;font-family:'Spectral',serif;font-weight:500;cursor:pointer">Ask</button>
+      <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;flex-shrink:0">
+        <div id="paul-status" style="display:none;align-items:center;gap:8px;font-family:'Spectral',serif;font-size:13px;color:var(--teal-deep)">
+          <span id="paul-status-dot" style="width:9px;height:9px;border-radius:50%;background:var(--terra);flex-shrink:0"></span>
+          <span id="paul-status-text"></span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="paul-mic" onclick="togglePaulConversation()" title="Talk with Paul" aria-label="Talk with Paul" style="padding:10px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;font-size:18px;line-height:1;cursor:pointer;flex-shrink:0">🎙</button>
+          <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+          <button id="paul-send" onclick="sendPaul()" style="padding:10px 16px;background:var(--terra);color:#fff;border:none;border-radius:8px;font-family:'Spectral',serif;font-weight:500;cursor:pointer">Ask</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1630,6 +1637,7 @@ function openPaul(){
 }
 
 function closePaul(){
+  _paulStopConversation();
   document.getElementById('paul-drawer').style.display = 'none';
   if(window.visualViewport){
     window.visualViewport.removeEventListener('resize', _paulFitViewport);
@@ -1689,6 +1697,260 @@ async function sendPaul(){
   } finally {
     sendBtn.disabled = false; sendBtn.textContent = 'Ask';
   }
+}
+
+// ═══════════════════════ PAUL — HANDS-FREE VOICE ═══════════════════════
+// Bolts speech onto Paul's existing text pipeline: listen (mic + VAD) →
+// transcribe (Whisper) → stream the reply (SSE, sentence-by-sentence) →
+// speak each sentence (TTS) in order, then loop back to listening.
+// The typing path above is untouched. Voice silently no-ops if the server
+// has no TTS configured (sentences still appear as text).
+let _paulConvOn = false;
+let _paulAudioCtx = null;
+let _paulMicStream = null;
+let _paulRec = null;
+let _paulSpeakQueue = [];
+let _paulSpeaking = false;
+let _paulCurAudio = null;
+let _paulAudioWaiters = [];
+
+function _paulPickMime(){
+  const cands = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'];
+  for(const c of cands){ if(window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c; }
+  return '';
+}
+
+function _paulSetMicUI(on){
+  const mic = document.getElementById('paul-mic');
+  if(!mic) return;
+  mic.textContent = on ? '⏹' : '🎙';
+  mic.style.background = on ? 'var(--terra)' : 'var(--teal)';
+  mic.title = on ? 'Stop' : 'Talk with Paul';
+}
+
+function _paulSetStatus(text, kind){
+  const box = document.getElementById('paul-status');
+  const t = document.getElementById('paul-status-text');
+  const dot = document.getElementById('paul-status-dot');
+  if(!box) return;
+  if(!text){ box.style.display = 'none'; return; }
+  box.style.display = 'flex';
+  if(t) t.textContent = text;
+  const colors = { listen:'#2e7d32', think:'#b26a00', speak:'var(--teal-deep)', err:'#b3261e', idle:'var(--walnut-mid)' };
+  if(dot) dot.style.background = colors[kind] || 'var(--terra)';
+}
+
+async function togglePaulConversation(){
+  if(_paulConvOn){ _paulStopConversation(); return; }
+  await _paulStartConversation();
+}
+
+async function _paulStartConversation(){
+  try {
+    if(!_paulAudioCtx) _paulAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(_paulAudioCtx.state === 'suspended') await _paulAudioCtx.resume();
+    // Silent blip to unlock audio playback on iOS (must run inside the tap).
+    try { const b=_paulAudioCtx.createBuffer(1,1,22050); const s=_paulAudioCtx.createBufferSource(); s.buffer=b; s.connect(_paulAudioCtx.destination); s.start(0); } catch(e){}
+    if(!_paulMicStream) _paulMicStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+  } catch(e){
+    _paulSetStatus('Microphone blocked — check permissions', 'err');
+    return;
+  }
+  _paulConvOn = true;
+  _paulSetMicUI(true);
+  _paulConverse();
+}
+
+function _paulStopConversation(){
+  _paulConvOn = false;
+  try { if(_paulRec && _paulRec.state !== 'inactive') _paulRec.stop(); } catch(e){}
+  if(_paulCurAudio){ try { _paulCurAudio.pause(); } catch(e){} _paulCurAudio = null; }
+  _paulSpeakQueue = []; _paulSpeaking = false;
+  _paulAudioWaiters.forEach(fn => fn()); _paulAudioWaiters = [];
+  if(_paulMicStream){ try { _paulMicStream.getTracks().forEach(t => t.stop()); } catch(e){} _paulMicStream = null; }
+  _paulSetMicUI(false);
+  _paulSetStatus('', 'idle');
+}
+
+// One full turn loop: listen → transcribe → stream reply → speak → repeat.
+async function _paulConverse(){
+  while(_paulConvOn){
+    _paulSetStatus('Listening…', 'listen');
+    let res;
+    try { res = await _paulListenOnce(); }
+    catch(e){ _paulSetStatus('Mic error', 'err'); _paulStopConversation(); return; }
+    if(!_paulConvOn) return;
+    if(!res.hadSpeech){ _paulSetStatus('Tap 🎙 when you’re ready', 'idle'); _paulStopConversation(); return; }
+
+    _paulSetStatus('Thinking…', 'think');
+    let text = '';
+    try { text = await _paulTranscribe(res.blob); }
+    catch(e){ _paulSetStatus('Didn’t catch that — try again', 'err'); continue; }
+    if(!_paulConvOn) return;
+    if(!text){ continue; }
+
+    _renderPaulMessage('user', text);
+    _paulHistory.push({ role:'user', content:text });
+
+    const bubble = _renderPaulMessage('assistant', '');
+    let full = '';
+    try {
+      await _paulStreamChat((sentence) => {
+        full += (full ? ' ' : '') + sentence;
+        bubble.textContent = full;
+        const wrap = document.getElementById('paul-messages');
+        if(wrap) wrap.scrollTop = wrap.scrollHeight;
+        _paulSetStatus('Speaking…', 'speak');
+        _paulEnqueueSpeak(sentence);
+      });
+    } catch(e){
+      bubble.textContent = full || ('⚠ ' + e.message);
+      if(e.message === 'daily_cap'){ bubble.textContent = 'You’ve reached today’s limit with Paul. Please come back tomorrow.'; _paulStopConversation(); return; }
+    }
+    _paulHistory.push({ role:'assistant', content: full });
+    await _paulWaitForAudio();
+    if(!_paulConvOn) return;
+  }
+}
+
+// Record one utterance, auto-stopping on trailing silence (or a 30s cap).
+// Resolves { blob, hadSpeech }. hadSpeech=false when nothing was said.
+function _paulListenOnce(){
+  return new Promise((resolve, reject) => {
+    let raf = 0, src = null;
+    try {
+      const stream = _paulMicStream;
+      const mime = _paulPickMime();
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      _paulRec = rec;
+      const chunks = [];
+      let speaking = false, silenceStart = 0;
+      const started = Date.now();
+      const SILENCE_MS = 1200, MAX_MS = 30000, NOSPEECH_MS = 8000, THRESH = 0.02;
+
+      const ctx = _paulAudioCtx;
+      src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+
+      function cleanup(){ cancelAnimationFrame(raf); try { src.disconnect(); } catch(e){} }
+      function stopRec(){ cleanup(); if(rec.state !== 'inactive') rec.stop(); }
+
+      rec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        cleanup();
+        const blob = new Blob(chunks, { type: rec.mimeType || mime || 'audio/webm' });
+        resolve({ blob, hadSpeech: speaking });
+      };
+
+      function tick(){
+        if(!_paulConvOn){ stopRec(); return; }
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum += v*v; }
+        const rms = Math.sqrt(sum / data.length);
+        const now = Date.now();
+        if(rms > THRESH){ speaking = true; silenceStart = 0; }
+        else if(speaking && !silenceStart){ silenceStart = now; }
+        if(speaking && silenceStart && (now - silenceStart) > SILENCE_MS){ stopRec(); return; }
+        if(now - started > MAX_MS){ stopRec(); return; }
+        if(!speaking && (now - started) > NOSPEECH_MS){ stopRec(); return; }
+        raf = requestAnimationFrame(tick);
+      }
+
+      rec.start();
+      raf = requestAnimationFrame(tick);
+    } catch(e){ cancelAnimationFrame(raf); if(src){ try{ src.disconnect(); }catch(_){ } } reject(e); }
+  });
+}
+
+async function _paulTranscribe(blob){
+  const r = await fetch(_SERVER_URL + '/paul/transcribe', {
+    method:'POST',
+    headers: { 'Content-Type': blob.type || 'application/octet-stream', 'X-Paul-Lang': _paulLang() },
+    body: blob
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return (j.text || '').trim();
+}
+
+// Streams Paul's reply over SSE, invoking onSentence(text) per finished sentence.
+async function _paulStreamChat(onSentence){
+  const r = await fetch(_SERVER_URL + '/paul/chat/stream', {
+    method:'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({ userId: currentUser?.id || null, messages: _paulHistory, lang: _paulLang() })
+  });
+  if(!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || ('HTTP ' + r.status)); }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while(true){
+    const { value, done } = await reader.read();
+    if(done) break;
+    buf += dec.decode(value, { stream:true });
+    let idx;
+    while((idx = buf.indexOf('\n\n')) >= 0){
+      const ev = _paulParseSSE(buf.slice(0, idx));
+      buf = buf.slice(idx + 2);
+      if(ev.event === 'sentence' && ev.data && ev.data.text) onSentence(ev.data.text);
+      else if(ev.event === 'error') throw new Error((ev.data && ev.data.error) || 'stream error');
+    }
+  }
+}
+
+function _paulParseSSE(raw){
+  let event = 'message', dataStr = '';
+  raw.split('\n').forEach(line => {
+    if(line.startsWith('event:')) event = line.slice(6).trim();
+    else if(line.startsWith('data:')) dataStr += line.slice(5).trim();
+  });
+  let data = null; try { data = dataStr ? JSON.parse(dataStr) : null; } catch(e){}
+  return { event, data };
+}
+
+function _paulEnqueueSpeak(text){
+  _paulSpeakQueue.push(text);
+  if(!_paulSpeaking) _paulDrainSpeak();
+}
+
+// Fetch + play queued sentences strictly in order.
+async function _paulDrainSpeak(){
+  _paulSpeaking = true;
+  while(_paulSpeakQueue.length && _paulConvOn){
+    const text = _paulSpeakQueue.shift();
+    let url;
+    try {
+      const r = await fetch(_SERVER_URL + '/paul/speak', {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, lang: _paulLang() })
+      });
+      if(!r.ok){ continue; } // 503 tts_unconfigured or transient error → skip audio, text already shown
+      const blob = await r.blob();
+      url = URL.createObjectURL(blob);
+    } catch(e){ continue; }
+    if(!_paulConvOn){ URL.revokeObjectURL(url); break; }
+    await _paulPlayUrl(url);
+  }
+  _paulSpeaking = false;
+  if(!_paulSpeakQueue.length){ _paulAudioWaiters.forEach(fn => fn()); _paulAudioWaiters = []; }
+}
+
+function _paulPlayUrl(url){
+  return new Promise(resolve => {
+    const a = new Audio(url);
+    _paulCurAudio = a;
+    const fin = () => { URL.revokeObjectURL(url); if(_paulCurAudio === a) _paulCurAudio = null; resolve(); };
+    a.onended = fin; a.onerror = fin;
+    a.play().catch(() => fin());
+  });
+}
+
+function _paulWaitForAudio(){
+  if(!_paulSpeaking && !_paulSpeakQueue.length) return Promise.resolve();
+  return new Promise(res => _paulAudioWaiters.push(res));
 }
 
 // ═══════════════════════ ONBOARDING JOURNEY ═══════════════════════

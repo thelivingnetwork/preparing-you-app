@@ -76,6 +76,103 @@ async function embedQuery(text) {
   return j.data[0].embedding
 }
 
+// ─── Voice: read a raw (binary) request body ────────────────────────────
+function readRaw(req, maxBytes = 12e6) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let len = 0
+    req.on('data', c => {
+      len += c.length
+      if (len > maxBytes) { req.destroy(); reject(new Error('audio too large')) }
+      else chunks.push(c)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
+// Paul language name → ISO-639-1 (helps Whisper when the user picked a language).
+const LANG_ISO = {
+  'English':'en','Spanish':'es','French':'fr','Portuguese':'pt','German':'de','Italian':'it',
+  'Russian':'ru','Chinese (Simplified)':'zh','Arabic':'ar','Armenian':'hy','Hindi':'hi','Swahili':'sw','Filipino':'tl'
+}
+
+// ─── Speech-to-text via OpenAI Whisper ──────────────────────────────────
+async function transcribeAudio(buf, contentType, langName) {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing')
+  const ct = contentType || 'audio/webm'
+  const ext = ct.includes('mp4') || ct.includes('m4a') ? 'mp4'
+            : ct.includes('ogg') ? 'ogg'
+            : ct.includes('wav') ? 'wav' : 'webm'
+  const form = new FormData()
+  form.append('file', new Blob([buf], { type: ct }), `audio.${ext}`)
+  form.append('model', 'whisper-1')
+  const iso = LANG_ISO[langName]
+  if (iso) form.append('language', iso)
+  const r = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: form
+  })
+  if (!r.ok) throw new Error(`whisper failed: ${r.status} ${await r.text()}`)
+  const j = await r.json()
+  return (j.text || '').trim()
+}
+
+// ─── Text-to-speech (per-language router) ───────────────────────────────
+// ElevenLabs Flash v2.5 covers 11 of Paul's 13 languages well, but NOT
+// Armenian or Swahili. So we route by language: ElevenLabs for the ones it
+// speaks well, OpenAI TTS for the rest (and as the universal fallback when
+// ElevenLabs isn't configured — OpenAI is already wired for Whisper).
+const PAUL_VOICE_ID  = process.env.PAUL_VOICE_ID || ''
+const PAUL_DAILY_CAP = parseInt(process.env.PAUL_DAILY_CAP || '150', 10)
+
+// Paul languages ElevenLabs Flash v2.5 handles natively (Armenian + Swahili excluded).
+const ELEVEN_LANGS = new Set([
+  'English','Spanish','French','Portuguese','German','Italian',
+  'Russian','Chinese (Simplified)','Arabic','Hindi','Filipino'
+])
+
+async function ttsElevenLabs(text) {
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${PAUL_VOICE_ID}?output_format=mp3_44100_128`, {
+    method: 'POST',
+    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
+    body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5', voice_settings: { stability: 0.4, similarity_boost: 0.8 } })
+  })
+  if (!r.ok) throw new Error(`elevenlabs failed: ${r.status} ${await r.text()}`)
+  return Buffer.from(await r.arrayBuffer())
+}
+
+async function ttsOpenAI(text) {
+  const r = await fetch('https://api.openai.com/v1/audio/speech', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'onyx', input: text })
+  })
+  if (!r.ok) throw new Error(`openai tts failed: ${r.status} ${await r.text()}`)
+  return Buffer.from(await r.arrayBuffer())
+}
+
+async function synthSpeech(text, langName) {
+  const elevenReady = process.env.ELEVENLABS_API_KEY && PAUL_VOICE_ID
+  if (elevenReady && ELEVEN_LANGS.has(langName || 'English')) return ttsElevenLabs(text)
+  if (process.env.OPENAI_API_KEY) return ttsOpenAI(text)
+  const e = new Error('tts_unconfigured'); e.code = 'tts_unconfigured'; throw e
+}
+
+// Pull complete sentences off a growing buffer so we can speak as Paul writes.
+function extractSentences(buf, minLen = 12) {
+  const out = []; let rest = buf
+  const re = /^([\s\S]*?[.!?…]+["')\]]*)(\s+)([\s\S]*)$/
+  while (true) {
+    const m = rest.match(re)
+    if (!m) break
+    const sentence = m[1].trim()
+    if (sentence.length < minLen) break
+    out.push(sentence); rest = m[3]
+  }
+  return [out, rest]
+}
+
 // ─── Retrieve top-k chunks via pgvector RPC ─────────────────────────────
 // Requires the SQL function `match_book_chunks` to exist (created in migration).
 async function retrieveChunks(queryEmbedding, k = 6) {
@@ -455,6 +552,15 @@ const PAUL_LANGS = new Set([
   'Russian','Chinese (Simplified)','Arabic','Armenian','Hindi','Swahili','Filipino'
 ])
 
+// Dispatch a single Claude tool_use block to its implementation.
+async function executeTool(toolBlock) {
+  if (toolBlock.name === 'lookup_strongs')         return await fetchStrongsDefinition(toolBlock.input.number)
+  if (toolBlock.name === 'search_church_articles') return await searchChurchArticles(toolBlock.input.query)
+  if (toolBlock.name === 'fetch_church_article')   return await fetchChurchArticle(toolBlock.input.url)
+  const { reference, translation = 'kjv' } = toolBlock.input
+  return await fetchBiblePassage(reference, translation)
+}
+
 async function paulChat(userId, messages, lang) {
   // The last user message is what we retrieve against.
   const lastUser = [...messages].reverse().find(m => m.role === 'user')
@@ -506,16 +612,7 @@ async function paulChat(userId, messages, lang) {
       console.log(`[paul] tool ${toolBlock.name} input=${JSON.stringify(toolBlock.input)}`)
       let toolResult
       try {
-        if (toolBlock.name === 'lookup_strongs') {
-          toolResult = await fetchStrongsDefinition(toolBlock.input.number)
-        } else if (toolBlock.name === 'search_church_articles') {
-          toolResult = await searchChurchArticles(toolBlock.input.query)
-        } else if (toolBlock.name === 'fetch_church_article') {
-          toolResult = await fetchChurchArticle(toolBlock.input.url)
-        } else {
-          const { reference, translation = 'kjv' } = toolBlock.input
-          toolResult = await fetchBiblePassage(reference, translation)
-        }
+        toolResult = await executeTool(toolBlock)
         console.log(`[paul] tool ${toolBlock.name} ok in ${Date.now() - _t0}ms, ${String(toolResult).length} chars`)
       } catch (e) {
         console.warn(`[paul] tool ${toolBlock.name} FAILED in ${Date.now() - _t0}ms: ${e.message}`)
@@ -557,6 +654,91 @@ async function paulChat(userId, messages, lang) {
   const answer = resp.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
 
   // Persist both turns
+  if (userId) {
+    await sb.from('prep_paul_chats').insert([
+      { user_id: userId, role: 'user',      message: lastUser.content },
+      { user_id: userId, role: 'assistant', message: answer },
+    ])
+  }
+
+  return {
+    answer,
+    citations: chunks.map(c => ({ book: bookTitle(c.book_id), preview: c.chunk_text.slice(0, 140) }))
+  }
+}
+
+// Streaming variant of paulChat: identical RAG + tool-use loop, but the answer
+// is streamed and each completed sentence is handed to onSentence() so the
+// caller can start text-to-speech before the whole reply is written.
+async function paulChatStream(userId, messages, lang, onSentence) {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user')
+  if (!lastUser) throw new Error('no user message')
+
+  const qEmb = await embedQuery(lastUser.content)
+  const chunks = await retrieveChunks(qEmb, 6)
+  const bookIds = [...new Set(chunks.map(c => c.book_id))]
+  const { data: books } = await sb.from('prep_books').select('id, title').in('id', bookIds)
+  const bookTitle = id => (books || []).find(b => b.id === id)?.title || 'Unknown'
+  const context = chunks.map((c, i) =>
+    `--- excerpt ${i + 1} from "${bookTitle(c.book_id)}" ---\n${c.chunk_text}`
+  ).join('\n\n')
+
+  let sys = PAUL_SYSTEM + '\n\nSource excerpts retrieved for this question:\n\n' + context
+  if (lang && PAUL_LANGS.has(lang) && lang !== 'English') {
+    sys += `\n\nLanguage: The user has selected ${lang} as their preferred language. Always respond in ${lang} regardless of what language they write in.`
+  } else {
+    sys += `\n\nLanguage: Detect the language of the user's most recent message and respond in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Match whatever language they use.`
+  }
+
+  const apiMessages = messages.map(m => ({ role: m.role, content: m.content }))
+  let rounds = 0, toolsWithheld = false, answer = ''
+
+  while (true) {
+    let buffer = ''
+    const stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      system: sys,
+      messages: apiMessages,
+      ...(toolsWithheld ? {} : { tools: BIBLE_TOOLS })
+    })
+    stream.on('text', (delta) => {
+      buffer += delta
+      const [sents, rest] = extractSentences(buffer)
+      buffer = rest
+      for (const s of sents) onSentence(s)
+    })
+    const final = await stream.finalMessage()
+
+    if (final.stop_reason === 'tool_use' && !toolsWithheld) {
+      const toolBlocks = final.content.filter(b => b.type === 'tool_use')
+      if (rounds < 8) {
+        rounds++
+        const toolResults = []
+        for (const tb of toolBlocks) {
+          try { toolResults.push({ type: 'tool_result', tool_use_id: tb.id, content: String(await executeTool(tb)) }) }
+          catch (e) { toolResults.push({ type: 'tool_result', tool_use_id: tb.id, content: `Could not retrieve: ${e.message}` }) }
+        }
+        apiMessages.push({ role: 'assistant', content: final.content })
+        apiMessages.push({ role: 'user', content: toolResults })
+        continue
+      }
+      // Tool-round cap hit — withhold tools and force a final answer.
+      apiMessages.push({ role: 'assistant', content: final.content })
+      apiMessages.push({ role: 'user', content: toolBlocks.map(b => ({
+        type: 'tool_result', tool_use_id: b.id,
+        content: 'Search budget reached — answer the user now with what you have already gathered.'
+      })) })
+      toolsWithheld = true
+      continue
+    }
+
+    // Final answer turn — speak any trailing partial sentence.
+    if (buffer.trim()) onSentence(buffer.trim())
+    answer = final.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
+    break
+  }
+
   if (userId) {
     await sb.from('prep_paul_chats').insert([
       { user_id: userId, role: 'user',      message: lastUser.content },
@@ -854,7 +1036,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.8' })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.9' })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -912,6 +1094,60 @@ const server = http.createServer(async (req, res) => {
       const { userId, messages, lang } = body
       if (!Array.isArray(messages) || !messages.length) return send(res, 400, { error: 'messages required' })
       return send(res, 200, await paulChat(userId, messages, lang))
+    }
+
+    // ─── Voice: speech-to-text (Whisper) ──────────────────────────────────
+    // Body is the raw audio blob; language hint comes via X-Paul-Lang header.
+    if (req.method === 'POST' && req.url === '/paul/transcribe') {
+      const buf = await readRaw(req)
+      if (!buf.length) return send(res, 400, { error: 'no audio' })
+      const text = await transcribeAudio(buf, req.headers['content-type'], req.headers['x-paul-lang'])
+      return send(res, 200, { text })
+    }
+
+    // ─── Voice: text-to-speech (swappable, default ElevenLabs) ────────────
+    if (req.method === 'POST' && req.url === '/paul/speak') {
+      const { text, lang } = await readJson(req)
+      if (!text || !text.trim()) return send(res, 400, { error: 'text required' })
+      try {
+        const audio = await synthSpeech(text.trim(), lang)
+        res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' })
+        return res.end(audio)
+      } catch (e) {
+        if (e.code === 'tts_unconfigured') return send(res, 503, { error: 'tts_unconfigured' })
+        throw e
+      }
+    }
+
+    // ─── Voice: streaming chat (SSE, sentence-by-sentence) ────────────────
+    if (req.method === 'POST' && req.url === '/paul/chat/stream') {
+      const { userId, messages, lang } = await readJson(req)
+      if (!Array.isArray(messages) || !messages.length) return send(res, 400, { error: 'messages required' })
+
+      // Daily-cap guardrail: count this user's turns since local midnight.
+      if (userId) {
+        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
+        const { count } = await sb.from('prep_paul_chats')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId).eq('role', 'user')
+          .gte('created_at', dayStart.toISOString())
+        if ((count || 0) >= PAUL_DAILY_CAP) return send(res, 429, { error: 'daily_cap' })
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      })
+      const sse = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      try {
+        const { citations } = await paulChatStream(userId, messages, lang, s => sse('sentence', { text: s }))
+        sse('done', { citations })
+      } catch (e) {
+        sse('error', { error: e.message })
+      }
+      return res.end()
     }
 
     if (req.method === 'POST' && req.url === '/elect') {
