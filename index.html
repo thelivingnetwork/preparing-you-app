@@ -112,8 +112,8 @@
   .hdr,.page{min-width:0;max-width:100%}
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 16px;display:flex;align-items:center;gap:10px;border-bottom:3px solid var(--terra)}
-  @media (max-width:430px){ .hdr{gap:8px;padding:14px 12px} .hdr-ark{width:48px;height:48px} .hdr-paul{font-size:11.5px;padding:4px 10px 4px 4px} .hdr-paul svg{width:30px;height:30px} }
-  .hdr-ark{width:64px;height:64px;flex-shrink:0;background:#fefcf4;border-radius:50%;padding:5px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  @media (max-width:430px){ .hdr{gap:8px;padding:14px 12px} .hdr-ark{width:44px;height:44px} .hdr-paul{font-size:13px;padding:4px 12px 4px 4px} .hdr-paul svg{width:36px;height:36px} }
+  .hdr-ark{width:56px;height:56px;flex-shrink:0;background:#fefcf4;border-radius:50%;padding:5px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
   /* Dark-mode toggle (header). Moon shows in light mode, sun in dark mode. */
   .hdr-theme{flex-shrink:0;background:none;border:none;color:var(--cream);cursor:pointer;padding:8px;line-height:0;display:inline-flex;align-items:center}
   .hdr-theme svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -146,14 +146,14 @@
   .nav-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* ── Paul (header AI button) ──────────────────────────────── */
-  .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--gold);border:none;cursor:pointer;padding:4px 12px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:12.5px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
+  .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
   .hdr-paul:hover{background:#b8862f}
   .hdr-profile{flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:'Spectral',serif;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
   .hdr-profile:hover{filter:brightness(1.06)}
   .prof-label{display:block;font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
   .prof-input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--walnut);font-size:14px;font-family:inherit;margin-bottom:16px}
   .prof-input:focus{outline:none;border-color:var(--teal)}
-  .hdr-paul svg{width:34px;height:34px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  .hdr-paul svg{width:40px;height:40px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
   /* Paul portrait at the top of the drawer */
   .paul-hero-av{flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(20,48,52,.35);border:2px solid var(--cream);display:inline-flex}
   .paul-hero-av svg{width:100%;height:100%;display:block}
@@ -304,7 +304,7 @@
         <!-- nose -->
         <path d="M32 34v6" fill="none" stroke="#dca57e" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
-      <span>Ask Paul AI</span>
+      <span>Paul AI</span>
     </button>
     <button class="hdr-theme" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
       <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
