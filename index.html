@@ -1711,7 +1711,7 @@ let _paulMicStream = null;
 let _paulRec = null;
 let _paulSpeakQueue = [];
 let _paulSpeaking = false;
-let _paulCurAudio = null;
+let _paulCurSource = null;
 let _paulAudioWaiters = [];
 
 function _paulPickMime(){
@@ -1764,7 +1764,7 @@ async function _paulStartConversation(){
 function _paulStopConversation(){
   _paulConvOn = false;
   try { if(_paulRec && _paulRec.state !== 'inactive') _paulRec.stop(); } catch(e){}
-  if(_paulCurAudio){ try { _paulCurAudio.pause(); } catch(e){} _paulCurAudio = null; }
+  if(_paulCurSource){ try { _paulCurSource.stop(); } catch(e){} _paulCurSource = null; }
   _paulSpeakQueue = []; _paulSpeaking = false;
   _paulAudioWaiters.forEach(fn => fn()); _paulAudioWaiters = [];
   if(_paulMicStream){ try { _paulMicStream.getTracks().forEach(t => t.stop()); } catch(e){} _paulMicStream = null; }
@@ -1918,33 +1918,43 @@ function _paulEnqueueSpeak(text){
 }
 
 // Fetch + play queued sentences strictly in order.
+// Playback goes through the Web Audio API (not an <audio> element) because
+// iOS only allows programmatic playback through an AudioContext that was
+// unlocked inside a user gesture — which we do on the Start tap.
 async function _paulDrainSpeak(){
   _paulSpeaking = true;
   while(_paulSpeakQueue.length && _paulConvOn){
     const text = _paulSpeakQueue.shift();
-    let url;
+    let arrayBuf;
     try {
       const r = await fetch(_SERVER_URL + '/paul/speak', {
         method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, lang: _paulLang() })
       });
       if(!r.ok){ continue; } // 503 tts_unconfigured or transient error → skip audio, text already shown
-      const blob = await r.blob();
-      url = URL.createObjectURL(blob);
+      arrayBuf = await r.arrayBuffer();
     } catch(e){ continue; }
-    if(!_paulConvOn){ URL.revokeObjectURL(url); break; }
-    await _paulPlayUrl(url);
+    if(!_paulConvOn) break;
+    await _paulPlayBuffer(arrayBuf);
   }
   _paulSpeaking = false;
   if(!_paulSpeakQueue.length){ _paulAudioWaiters.forEach(fn => fn()); _paulAudioWaiters = []; }
 }
 
-function _paulPlayUrl(url){
-  return new Promise(resolve => {
-    const a = new Audio(url);
-    _paulCurAudio = a;
-    const fin = () => { URL.revokeObjectURL(url); if(_paulCurAudio === a) _paulCurAudio = null; resolve(); };
-    a.onended = fin; a.onerror = fin;
-    a.play().catch(() => fin());
+function _paulPlayBuffer(arrayBuf){
+  return new Promise(async (resolve) => {
+    const ctx = _paulAudioCtx;
+    if(!ctx){ resolve(); return; }
+    try { if(ctx.state === 'suspended') await ctx.resume(); } catch(e){}
+    let audioBuf;
+    try { audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0)); }
+    catch(e){ resolve(); return; }   // undecodable chunk → skip, don't stall the loop
+    if(!_paulConvOn){ resolve(); return; }
+    const node = ctx.createBufferSource();
+    node.buffer = audioBuf;
+    node.connect(ctx.destination);
+    _paulCurSource = node;
+    node.onended = () => { if(_paulCurSource === node) _paulCurSource = null; resolve(); };
+    try { node.start(0); } catch(e){ resolve(); }
   });
 }
 
