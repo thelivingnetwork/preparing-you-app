@@ -236,7 +236,7 @@
   /* ── PCM list rows ───────────────────────────────────────────── */
   .pcm-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
   .pcm-row.chosen{border-color:var(--success);background:rgba(45,122,79,.04)}
-  .pcm-av{width:42px;height:42px;border-radius:50%;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
+  .pcm-av{width:42px;height:42px;border-radius:50%;overflow:hidden;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
   .pcm-info{flex:1;min-width:0}
   .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
   .pcm-meta{font-size:12px;color:var(--walnut-mid)}
@@ -1158,7 +1158,7 @@ async function selectMsgPeer(id){
 async function renderActivePeer(){
   const peer = _msgPeers.find(p => p.id === _msgPeerId);
   if(!peer) return;
-  document.getElementById('msg-peer-av').textContent = _initials(peer.name);
+  document.getElementById('msg-peer-av').innerHTML = _avInner(peer);
   document.getElementById('msg-peer-name').textContent = peer.name || '—';
   document.getElementById('msg-peer-role').textContent = peer.role + (peer.region ? ' · ' + peer.region : '');
   await loadMessages();
@@ -2799,6 +2799,13 @@ async function buildPcmPage(){
     .select('id, name, email, phone, telegram, messenger, region, active')
     .eq('active', true);
   _pcmList = (rows || []).filter(p => p.id !== currentUser.id);  // exclude self
+  // Profile photos live on prep_users — backfill avatar_url onto each PCM.
+  if(_pcmList.length){
+    const { data: avs } = await _sb.from('prep_users')
+      .select('id, avatar_url').in('id', _pcmList.map(p => p.id));
+    const avMap = new Map((avs || []).map(r => [r.id, r.avatar_url]));
+    _pcmList.forEach(p => { p.avatar_url = avMap.get(p.id) || null; });
+  }
   // Tag matched-vs-available status (only needed when a PCM browses peers).
   if(_pcmAmIPcm && _pcmList.length){
     const { data: matchedRows } = await _sb.from('prep_users').select('pcm_id').not('pcm_id', 'is', null);
@@ -2834,7 +2841,7 @@ async function buildPcmPage(){
       card.style.display = 'block';
       document.getElementById('pcm-current-body').innerHTML =
         '<div style="display:flex;align-items:center;gap:12px;margin-top:6px">'
-        + '<div class="pcm-av">' + _initials(chosen.name) + '</div>'
+        + '<div class="pcm-av">' + _avInner(chosen) + '</div>'
         + '<div style="flex:1">'
         +   '<div class="pcm-name">' + _esc(chosen.name) + '</div>'
         +   (chosen.region ? '<div class="pcm-meta">' + _esc(chosen.region) + '</div>' : '')
@@ -2869,14 +2876,14 @@ async function buildPcmPage(){
   const inboundCard = document.getElementById('pcm-inbound');
   if(inboundCard && _pcmAmIPcm){
     const { data: inbound } = await _sb.from('prep_pcm_elections')
-      .select('id, elector_id, elected_at, elector:elector_id(name, email, region)')
+      .select('id, elector_id, elected_at, elector:elector_id(name, email, region, avatar_url)')
       .eq('pcm_id', currentUser.id).eq('status', 'pending').order('elected_at');
     _inboundElections = inbound || [];
     if((inbound || []).length){
       inboundCard.style.display = 'block';
       inboundCard.querySelector('[data-inbound-list]').innerHTML = inbound.map(e =>
         '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">'
-        + '<div class="pcm-av">' + _initials(e.elector?.name || '?') + '</div>'
+        + '<div class="pcm-av">' + _avInner(e.elector) + '</div>'
         + '<div style="flex:1">'
         +   '<div class="pcm-name">' + _esc(e.elector?.name || 'Unknown') + '</div>'
         +   (e.elector?.region ? '<div class="pcm-meta">' + _esc(e.elector.region) + '</div>' : '')
@@ -2896,7 +2903,7 @@ async function buildPcmPage(){
   const electorsCard = document.getElementById('pcm-electors');
   if(electorsCard && _pcmAmIPcm){
     const { data: accepted } = await _sb.from('prep_pcm_elections')
-      .select('id, elector_id, responded_at, elector:elector_id(name, email, region, tln_invited_at)')
+      .select('id, elector_id, responded_at, elector:elector_id(name, email, region, tln_invited_at, avatar_url)')
       .eq('pcm_id', currentUser.id).eq('status', 'accepted').order('responded_at', { ascending:false });
     _acceptedElectors = accepted || [];
     if((accepted || []).length){
@@ -2904,7 +2911,7 @@ async function buildPcmPage(){
       electorsCard.querySelector('[data-electors-list]').innerHTML = accepted.map(e => {
         const invited = !!e.elector?.tln_invited_at;
         return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">'
-          + '<div class="pcm-av">' + _initials(e.elector?.name || '?') + '</div>'
+          + '<div class="pcm-av">' + _avInner(e.elector) + '</div>'
           + '<div style="flex:1">'
           +   '<div class="pcm-name">' + _esc(e.elector?.name || 'Unknown') + '</div>'
           +   (e.elector?.region ? '<div class="pcm-meta">' + _esc(e.elector.region) + '</div>' : '')
@@ -3009,7 +3016,7 @@ function _pcmRow(p){
         + (isChosen ? '✓ Chosen' : 'Choose')
       + '</button>';
   return '<div class="pcm-row' + (isChosen ? ' chosen' : '') + '">'
-    + '<div class="pcm-av">' + _initials(p.name) + '</div>'
+    + '<div class="pcm-av">' + _avInner(p) + '</div>'
     + '<div class="pcm-info">'
     +   '<div class="pcm-name">' + _esc(p.name) + (badge ? ' ' + badge : '') + '</div>'
     +   (p.region ? '<div class="pcm-meta">' + _esc(p.region) + '</div>' : '')
@@ -3035,6 +3042,13 @@ function _pcmChannelLines(p){
 
 function _initials(s){
   return (s||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+}
+// Inner HTML for a round .pcm-av bubble: a cover-fit profile photo when the
+// member has an avatar_url, otherwise their initials on the brand fill.
+function _avInner(u){
+  const url = u && u.avatar_url;
+  if(url) return '<img src="' + _esc(url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">';
+  return _initials(u ? u.name : '');
 }
 function _esc(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

@@ -1412,6 +1412,13 @@ const server = http.createServer(async (req, res) => {
           peers.push({ ...p, role: matched.has(p.id) ? 'PCM · Matched' : 'Volunteer PCM · Available' })
         }
       }
+      // Attach each peer's profile photo (avatar_url lives on prep_users).
+      if (peers.length) {
+        const ids = peers.map(p => p.id)
+        const { data: avs } = await sb.from('prep_users').select('id, avatar_url').in('id', ids)
+        const avMap = new Map((avs || []).map(r => [r.id, r.avatar_url]))
+        for (const p of peers) p.avatar_url = avMap.get(p.id) || null
+      }
       return send(res, 200, { peers })
     }
 
