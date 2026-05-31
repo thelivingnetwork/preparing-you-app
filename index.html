@@ -193,10 +193,27 @@
      page grow and pushes the compose bar below the fold). */
   html.chat-lock, html.chat-lock body{height:100%;overflow:hidden}
   html.chat-lock .screen.active{height:100dvh;min-height:0}
-  #page-messages.active{display:flex;flex-direction:column;padding:16px 16px 0;min-height:0}
+  #page-messages.active{display:flex;flex-direction:column;padding:16px 16px 0;min-height:0;position:relative}
   #page-messages #msg-thread-wrap{flex:1;min-height:0;flex-direction:column}
   #page-messages #msg-thread-wrap > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0}
   #page-messages #msg-list{flex:1;min-height:0;overscroll-behavior:contain}
+  /* Conversation list (inbox) */
+  #page-messages #msg-inbox{flex:1;min-height:0;display:flex;flex-direction:column}
+  #page-messages #msg-convo-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -4px}
+  .convo-row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
+  .convo-row:active{background:var(--gold-soft)}
+  .convo-av{width:50px;height:50px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:15px}
+  .convo-main{flex:1;min-width:0}
+  .convo-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .convo-name{font-family:'Spectral',serif;font-size:15px;color:var(--walnut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .convo-time{font-size:11px;color:var(--walnut-soft);flex-shrink:0}
+  .convo-sub{display:flex;align-items:center;gap:8px;margin-top:1px}
+  .convo-prev{flex:1;min-width:0;font-size:13px;color:var(--walnut-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .convo-row.unread .convo-name{font-weight:700;color:var(--brand-ink)}
+  .convo-row.unread .convo-prev{color:var(--walnut);font-weight:600}
+  .convo-badge{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--badge);color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;font-family:system-ui,sans-serif}
+  .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
+  .picker-row:active{background:var(--gold-soft)}
 
   /* ── Paul (header AI button) ──────────────────────────────── */
   .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
@@ -555,9 +572,22 @@
 
   <div class="page" id="page-messages">
     <div id="msg-empty" class="empty" style="display:none"><span class="ico">💬</span>You'll be able to message your PCM here once your election is accepted.</div>
+
+    <!-- Conversation list (Messenger-style inbox) -->
+    <div id="msg-inbox" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 12px">
+        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:var(--brand-ink)">Messages</div>
+        <button class="link-btn" onclick="openNewMessagePicker()" style="padding:7px 12px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--brand-ink);font-size:13px">✎ New message</button>
+      </div>
+      <div id="msg-convo-list"></div>
+      <div id="msg-inbox-empty" class="empty" style="display:none"><span class="ico">💬</span>No conversations yet. Tap “New message” to reach out to your PCM.</div>
+    </div>
+
+    <!-- Individual thread -->
     <div id="msg-thread-wrap" style="display:none">
       <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--teal);color:var(--cream)">
+          <button class="link-btn" onclick="showMsgList()" aria-label="Back to messages" title="Back" style="color:var(--cream);background:none;border:none;font-size:22px;line-height:1;padding:0 4px 0 0;margin:0;width:auto;cursor:pointer">‹</button>
           <div class="pcm-av" id="msg-peer-av" style="background:var(--surface);color:var(--brand-ink)">?</div>
           <div style="flex:1"><div style="font-family:'Spectral',serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
           <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
@@ -570,6 +600,17 @@
           <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
+      </div>
+    </div>
+
+    <!-- New-message picker (choose someone to start a fresh thread) -->
+    <div id="msg-newpicker" style="display:none;position:absolute;inset:0;z-index:30;background:rgba(55,23,81,.28);backdrop-filter:blur(2px)" onclick="if(event.target===this)closeNewMessagePicker()">
+      <div style="position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:18px 18px 0 0;max-height:70%;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(55,23,81,.3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)">
+          <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600;color:var(--brand-ink)">New message</div>
+          <button class="link-btn" onclick="closeNewMessagePicker()" style="padding:4px 8px;width:auto">Close</button>
+        </div>
+        <div id="msg-newpicker-list" style="overflow-y:auto;padding:6px 12px 16px"></div>
       </div>
     </div>
   </div>
@@ -1102,16 +1143,23 @@ let _msgPollTimer = null;
 let _msgSig = '';            // signature of the last-rendered message set
 let _msgRenderedPeer = null; // peer whose thread is currently rendered
 
-let _msgPeers = [];
+let _msgPeers = [];          // everyone the member can message (for "New message")
+let _msgConvos = [];         // conversation rows from /messages/inbox
+let _msgView = 'list';       // 'list' (inbox) | 'thread'
+let _msgOpenPeer = null;     // peer to deep-link straight into a thread
 let _pendingAttachment = null; // { url, name, type }
 const _ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 
+// Find a peer's identity (name/avatar/role/region) from whichever source
+// has it — the messageable-peers list or the conversation rows.
+function _findPeer(id){
+  return _msgPeers.find(p => p.id === id) || _msgConvos.find(c => c.peerId === id) || null;
+}
+
 async function buildMessagesPage(){
   if(!_sb || !currentUser) return;
-  const empty = document.getElementById('msg-empty');
-  const wrap  = document.getElementById('msg-thread-wrap');
-
-  // Fetch peers from the server (bypasses RLS — server uses service role)
+  // Fetch everyone this member can message (server bypasses RLS). Used for the
+  // "New message" picker and as an identity fallback.
   let peers = [];
   try {
     const r = await fetch(_SERVER_URL + '/peers', {
@@ -1123,45 +1171,132 @@ async function buildMessagesPage(){
   } catch(e){ console.warn('peers fetch failed', e); }
   _msgPeers = peers;
 
-  if(!peers.length){ empty.style.display = 'block'; wrap.style.display = 'none'; return; }
-  empty.style.display = 'none'; wrap.style.display = 'flex';
-
-  // Render peer selector if more than one
-  let selector = document.getElementById('msg-peer-selector');
-  if(!selector){
-    selector = document.createElement('div');
-    selector.id = 'msg-peer-selector';
-    selector.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px';
-    wrap.insertBefore(selector, wrap.firstChild);
+  // Deep-link straight into a thread (PCM "Message" button / New-message pick).
+  if(_msgOpenPeer){
+    const id = _msgOpenPeer; _msgOpenPeer = null;
+    await openThread(id);
+    return;
   }
-  if(peers.length > 1){
-    selector.style.display = 'flex';
-    selector.innerHTML = peers.map(p => `<button class="link-btn" onclick="selectMsgPeer('${p.id}')" style="padding:6px 12px;border:1px solid var(--line);border-radius:16px;background:${p.id===_msgPeerId?'var(--teal)':'var(--surface)'};color:${p.id===_msgPeerId?'var(--cream)':'var(--walnut)'};font-size:12px">${_esc(p.name)}</button>`).join('');
-  } else {
-    selector.style.display = 'none';
-  }
-
-  // Default peer = first (or whatever is currently selected if still in list)
-  if(!_msgPeerId || !peers.find(p => p.id === _msgPeerId)) _msgPeerId = peers[0].id;
-  await renderActivePeer();
-
-  if(_msgPollTimer) clearInterval(_msgPollTimer);
-  _msgPollTimer = setInterval(() => { if(document.getElementById('page-messages').classList.contains('active')) loadMessages(); }, 5000);
+  await showMsgList();
 }
 
-async function selectMsgPeer(id){
+// ── Inbox (conversation list) ──────────────────────────────────────
+async function showMsgList(){
+  _msgView = 'list';
+  closeNewMessagePicker();
+  document.getElementById('msg-thread-wrap').style.display = 'none';
+  document.getElementById('msg-empty').style.display = 'none';
+  document.getElementById('msg-inbox').style.display = 'flex';
+  await refreshInbox();
+  if(_msgPollTimer) clearInterval(_msgPollTimer);
+  _msgPollTimer = setInterval(() => {
+    if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'list') refreshInbox();
+  }, 6000);
+}
+
+async function refreshInbox(){
+  if(!_sb || !currentUser) return;
+  const { data: { session } } = await _sb.auth.getSession();
+  if(!session?.access_token) return;
+  let convos = [];
+  try {
+    const r = await fetch(_SERVER_URL + '/messages/inbox', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token }
+    });
+    const j = await r.json().catch(() => ({}));
+    if(r.ok) convos = j.conversations || [];
+  } catch(e){ return; } // offline / transient — keep prior render
+  _msgConvos = convos;
+  renderInbox();
+  refreshMessageBadge();
+}
+
+function renderInbox(){
+  const listEl  = document.getElementById('msg-convo-list');
+  const emptyEl = document.getElementById('msg-inbox-empty');
+  if(!_msgConvos.length){
+    listEl.innerHTML = '';
+    emptyEl.innerHTML = _msgPeers.length
+      ? '<span class="ico">💬</span>No conversations yet. Tap “New message” to reach out to your PCM.'
+      : '<span class="ico">💬</span>You’ll be able to message your PCM here once your election is accepted.';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = _msgConvos.map(c => {
+    const unread = c.unread > 0;
+    const prev = (c.last_mine ? 'You: ' : '') + (c.last_preview || '');
+    return '<div class="convo-row' + (unread ? ' unread' : '') + '" onclick="openThread(\'' + c.peerId + '\')">'
+      + '<div class="convo-av">' + _avInner(c) + '</div>'
+      + '<div class="convo-main">'
+      +   '<div class="convo-top"><span class="convo-name">' + _esc(c.name) + '</span>'
+      +     '<span class="convo-time">' + _msgTime(c.last_at) + '</span></div>'
+      +   '<div class="convo-sub"><span class="convo-prev">' + (prev ? _esc(prev) : '<i>No messages</i>') + '</span>'
+      +     (unread ? '<span class="convo-badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '')
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// ── Thread (individual conversation) ───────────────────────────────
+async function openThread(id){
   _msgPeerId = id;
+  _msgView = 'thread';
+  _msgSig = ''; _msgRenderedPeer = null; // force a fresh render
+  closeNewMessagePicker();
+  document.getElementById('msg-inbox').style.display = 'none';
+  document.getElementById('msg-empty').style.display = 'none';
+  document.getElementById('msg-thread-wrap').style.display = 'flex';
   await renderActivePeer();
-  buildMessagesPage(); // re-render selector pill highlights
+  if(_msgPollTimer) clearInterval(_msgPollTimer);
+  _msgPollTimer = setInterval(() => {
+    if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'thread') loadMessages();
+  }, 5000);
 }
 
 async function renderActivePeer(){
-  const peer = _msgPeers.find(p => p.id === _msgPeerId);
-  if(!peer) return;
-  document.getElementById('msg-peer-av').innerHTML = _avInner(peer);
-  document.getElementById('msg-peer-name').textContent = peer.name || '—';
-  document.getElementById('msg-peer-role').textContent = peer.role + (peer.region ? ' · ' + peer.region : '');
+  const peer = _findPeer(_msgPeerId);
+  document.getElementById('msg-peer-av').innerHTML = peer ? _avInner(peer) : '?';
+  document.getElementById('msg-peer-name').textContent = (peer && peer.name) || '—';
+  document.getElementById('msg-peer-role').textContent = peer
+    ? ((peer.role || '') + (peer.region ? ' · ' + peer.region : ''))
+    : '';
   await loadMessages();
+}
+
+// ── New-message picker ─────────────────────────────────────────────
+function openNewMessagePicker(){
+  const listEl = document.getElementById('msg-newpicker-list');
+  if(!_msgPeers.length){
+    listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="ico">👥</span>There’s no one to message yet. Once your PCM election is accepted, they’ll appear here.</div>';
+  } else {
+    listEl.innerHTML = _msgPeers.map(p =>
+      '<div class="picker-row" onclick="openThread(\'' + p.id + '\')">'
+      + '<div class="convo-av" style="width:42px;height:42px;font-size:13px">' + _avInner(p) + '</div>'
+      + '<div class="convo-main"><div class="convo-name">' + _esc(p.name) + '</div>'
+      +   '<div class="convo-prev">' + _esc((p.role || '') + (p.region ? ' · ' + p.region : '')) + '</div></div>'
+      + '</div>'
+    ).join('');
+  }
+  document.getElementById('msg-newpicker').style.display = 'block';
+}
+function closeNewMessagePicker(){
+  const el = document.getElementById('msg-newpicker');
+  if(el) el.style.display = 'none';
+}
+
+// Relative timestamp for inbox rows: just-now / 5m / 3h / Tue / Apr 3.
+function _msgTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso), now = new Date();
+  const s = Math.floor((now - d) / 1000);
+  if(s < 45) return 'now';
+  if(s < 3600) return Math.floor(s / 60) + 'm';
+  if(s < 86400) return Math.floor(s / 3600) + 'h';
+  if(s < 7 * 86400) return d.toLocaleDateString(undefined, { weekday: 'short' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 async function loadMessages(){
@@ -2849,7 +2984,7 @@ async function buildPcmPage(){
         + '</div>'
         + '</div>'
         + '<div style="text-align:right;margin-top:10px;display:flex;gap:8px;justify-content:flex-end">'
-        + '<button class="link-btn" onclick="showPage(\'messages\')">💬 Message</button>'
+        + '<button class="link-btn" onclick="messagePcm(\'' + chosen.id + '\')">💬 Message</button>'
         + '<button class="link-btn" onclick="startPcmCall()">📞 Call</button>'
         + '<button class="link-btn" onclick="changePcm()">Change</button>'
         + '</div>';
@@ -3028,7 +3163,7 @@ function _pcmRow(p){
 
 // PCM-to-PCM connect helpers: set the active message peer, then reuse the
 // existing thread UI / Daily.co call rail.
-function messagePcm(id){ _msgPeerId = id; showPage('messages'); }
+function messagePcm(id){ _msgOpenPeer = id; showPage('messages'); }
 function callPcm(id){ _msgPeerId = id; startPcmCall(); }
 
 function _pcmChannelLines(p){

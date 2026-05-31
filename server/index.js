@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.12', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.13', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1325,6 +1325,59 @@ const server = http.createServer(async (req, res) => {
       await sb.from('prep_messages').update({ read_at: new Date().toISOString() })
         .eq('recipient_id', meId).eq('sender_id', peerId).is('read_at', null)
       return send(res, 200, { messages })
+    }
+
+    // Conversation list (Messenger-style inbox). One row per peer the user has
+    // exchanged messages with: decrypted last-message preview, timestamp, and
+    // unread count. Only the server can preview bodies (encrypted at rest), and
+    // only for the signed-in participant (verified by access token).
+    if (req.method === 'POST' && req.url === '/messages/inbox') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { data: rows, error } = await sb.from('prep_messages')
+        .select('id, sender_id, recipient_id, body, created_at, read_at, attachment_name')
+        .or(`sender_id.eq.${meId},recipient_id.eq.${meId}`)
+        .order('created_at', { ascending: false })
+      if (error) return send(res, 500, { error: error.message })
+      // Rows are newest-first, so the first time we see a peer is their latest.
+      const convos = new Map()
+      for (const m of (rows || [])) {
+        const peerId = m.sender_id === meId ? m.recipient_id : m.sender_id
+        if (!peerId) continue
+        let c = convos.get(peerId)
+        if (!c) {
+          const decoded = m.body ? decryptBody(m.body) : ''
+          let preview
+          if (decoded && /daily\.co\//.test(decoded)) preview = '📞 Call invite'
+          else if (decoded && decoded.trim()) preview = decoded.trim().slice(0, 120)
+          else if (m.attachment_name) preview = '📎 ' + m.attachment_name
+          else preview = ''
+          c = { peerId, last_preview: preview, last_mine: m.sender_id === meId, last_at: m.created_at, unread: 0 }
+          convos.set(peerId, c)
+        }
+        if (m.recipient_id === meId && !m.read_at) c.unread++
+      }
+      const list = Array.from(convos.values())
+      if (list.length) {
+        const ids = list.map(c => c.peerId)
+        const { data: us } = await sb.from('prep_users').select('id, name, region, avatar_url').in('id', ids)
+        const uMap = new Map((us || []).map(u => [u.id, u]))
+        const { data: me } = await sb.from('prep_users').select('pcm_id').eq('id', meId).maybeSingle()
+        const myPcmId = me?.pcm_id || null
+        const { data: electors } = await sb.from('prep_users').select('id').eq('pcm_id', meId)
+        const electorOf = new Set((electors || []).map(r => r.id))
+        for (const c of list) {
+          const u = uMap.get(c.peerId) || {}
+          c.name = u.name || 'Member'
+          c.region = u.region || ''
+          c.avatar_url = u.avatar_url || null
+          c.role = c.peerId === myPcmId ? 'Your Personal Contact Minister'
+                 : electorOf.has(c.peerId) ? 'You are their PCM'
+                 : 'Personal Contact Minister'
+        }
+      }
+      return send(res, 200, { conversations: list })
     }
 
     // Admin: message METADATA only (who/when, attachment name) — never the
