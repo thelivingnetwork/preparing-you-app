@@ -156,6 +156,34 @@
      Sits at the top-right of the nav icon. Shared by Home, PCM and Messages. */
   .nav-badge{position:absolute;top:-1px;left:50%;margin-left:6px;background:var(--badge);color:#fff;font-size:10px;font-weight:700;line-height:16px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;text-align:center;box-shadow:0 0 0 2px var(--teal-deep);font-family:system-ui,sans-serif}
 
+  /* ── First-run guidelines gate ("Before You Enter") ──────────
+     A full-screen overlay shown once after sign-up; Accept & Enter stamps
+     prep_users.guidelines_accepted_at and drops the member into the app. */
+  #guidelines-gate{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+    overflow-y:auto;padding:24px 18px calc(24px + env(safe-area-inset-bottom));
+    background:radial-gradient(125% 75% at 50% 0%,rgba(122,58,166,.16),transparent 55%),var(--parch)}
+  .gl-card{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);
+    border-radius:20px;padding:24px 22px 22px;box-shadow:0 12px 40px rgba(55,23,81,.20);margin:auto}
+  .gl-seal{width:44px;height:44px;border-radius:50%;margin:0 auto 11px;color:#fff;font-size:21px;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 38%,var(--gold) 0%,#7c5a1f 100%);box-shadow:0 2px 10px rgba(55,23,81,.25)}
+  .gl-card h1{font-family:'Spectral',serif;font-weight:600;font-size:22px;text-align:center;color:var(--brand-ink);margin:0}
+  .gl-sub{font-family:'Spectral',serif;font-style:italic;text-align:center;color:var(--walnut-mid);
+    font-size:13px;line-height:1.4;margin:6px 2px 16px}
+  .gl-list{display:flex;flex-direction:column;gap:12px}
+  .gl-item{display:flex;gap:11px;align-items:flex-start}
+  .gl-ic{flex-shrink:0;width:25px;height:25px;border-radius:7px;margin-top:1px;font-size:13px;
+    display:flex;align-items:center;justify-content:center;background:var(--gold-soft);color:var(--gold)}
+  .gl-item h2{font-family:'Spectral',serif;font-weight:600;font-size:14px;color:var(--walnut);line-height:1.25;margin:0 0 1px}
+  .gl-item p{font-size:12.3px;line-height:1.4;color:var(--walnut-mid);margin:0}
+  .gl-item p b{color:var(--brand-ink);font-weight:600}
+  .gl-agree{text-align:center;font-size:11px;font-style:italic;color:var(--walnut-soft);margin:18px 4px 12px;line-height:1.4}
+  .gl-err{display:none;text-align:center;font-size:12px;color:var(--badge);margin:0 4px 10px}
+  .gl-btn{width:100%;border:none;border-radius:12px;cursor:pointer;color:#fff;padding:14px;
+    font-family:'Spectral',serif;font-weight:600;font-size:16px;letter-spacing:.02em;
+    background:linear-gradient(180deg,var(--terra),var(--teal));box-shadow:0 4px 14px rgba(79,33,112,.32)}
+  .gl-btn:disabled{opacity:.6;cursor:default}
+
   /* ── Messages: a fixed chat layout. The thread fills the space between the
      header and the bottom nav; only #msg-list scrolls (no page-level scroll),
      and the compose bar is pinned just above the nav with explicit clearance.
@@ -631,6 +659,47 @@
   </div>
 </div>
 
+<!-- First-run community guidelines gate ("Before You Enter") -->
+<div id="guidelines-gate">
+  <div class="gl-card">
+    <div class="gl-seal">✦</div>
+    <h1>Before You Enter</h1>
+    <p class="gl-sub">This is a fellowship of charity and free will.<br>By entering, you walk by these few guidelines.</p>
+
+    <div class="gl-list">
+      <div class="gl-item">
+        <div class="gl-ic">☐</div>
+        <div><h2>A house of charity, not commerce</h2>
+        <p>No soliciting, selling, advertising, or fundraising. We gather to serve, not to profit.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">♥</div>
+        <div><h2>Honor one another</h2>
+        <p>Speak with grace. No harassment, slander, or contention — treat every member as family.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">🔒</div>
+        <div><h2>Your messages are private</h2>
+        <p><b>Private messages are encrypted</b> — we do not read them, and your information is never sold or shared.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">✦</div>
+        <div><h2>Come of your own free will</h2>
+        <p>Participation is voluntary — no coercion, no obligation. You may step away at any time.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">✓</div>
+        <div><h2>Walk in good faith</h2>
+        <p>Be honest, keep confidences, and protect one another.</p></div>
+      </div>
+    </div>
+
+    <p class="gl-agree">Tapping <b>Accept &amp; Enter</b> means you agree to these guidelines.</p>
+    <p class="gl-err" id="gl-err">Couldn’t save — please try again.</p>
+    <button class="gl-btn" id="gl-accept-btn" onclick="acceptGuidelines()">Accept &amp; Enter</button>
+  </div>
+</div>
+
 <script>
 // ═════════════════════════ CONFIG ═════════════════════════
 // Fill these in once the new Supabase project is created.
@@ -784,6 +853,15 @@ function toggleTheme(){
 // ═════════════════════════ APP NAV ═════════════════════════
 function enterApp(){
   if(!currentUser) return;
+  // First-run gate: members must accept the community guidelines once before
+  // entering. Re-running enterApp() after acceptance falls through to the app.
+  if(!currentUser.guidelines_accepted_at){
+    document.getElementById('screen-landing').classList.remove('active');
+    document.getElementById('screen-app').classList.remove('active');
+    document.getElementById('guidelines-gate').style.display = 'flex';
+    return;
+  }
+  document.getElementById('guidelines-gate').style.display = 'none';
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
   _refreshProfileAv();
@@ -800,6 +878,27 @@ function enterApp(){
   _maybeOfferPushPrompt();
   _maybeShowIosInstallHint();
   _maybeShowAndroidInstallHint();
+}
+
+// Stamp acceptance of the first-run community guidelines, then enter the app.
+async function acceptGuidelines(){
+  const btn = document.getElementById('gl-accept-btn');
+  const err = document.getElementById('gl-err');
+  if(err) err.style.display = 'none';
+  if(btn){ btn.disabled = true; btn.textContent = 'Entering…'; }
+  const now = new Date().toISOString();
+  try {
+    if(_sb && currentUser && currentUser.id){
+      const { error } = await _sb.from('prep_users')
+        .update({ guidelines_accepted_at: now }).eq('id', currentUser.id);
+      if(error) throw new Error(error.message);
+    }
+    currentUser.guidelines_accepted_at = now;
+    enterApp();
+  } catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = 'Accept & Enter'; }
+    if(err) err.style.display = 'block';
+  }
 }
 
 function showPage(name){
