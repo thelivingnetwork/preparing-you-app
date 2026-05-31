@@ -201,7 +201,7 @@
   /* ── Paul (header AI button) ──────────────────────────────── */
   .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
   .hdr-paul:hover{background:#b8862f}
-  .hdr-profile{flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:'Spectral',serif;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .hdr-profile{flex-shrink:0;width:40px;height:40px;border-radius:50%;overflow:hidden;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:'Spectral',serif;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
   .hdr-profile:hover{filter:brightness(1.06)}
   .prof-label{display:block;font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
   .prof-input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--walnut);font-size:14px;font-family:inherit;margin-bottom:16px}
@@ -363,7 +363,7 @@
       <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       <svg class="ic-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2 5.9 5.9M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8 5.9 18.1M18.1 5.9l1.7-1.7"/></svg>
     </button>
-    <button class="hdr-profile" id="hdr-profile-btn" onclick="openProfile()" aria-label="Profile" title="My profile"><span id="hdr-profile-av">—</span></button>
+    <button class="hdr-profile" id="hdr-profile-btn" onclick="openProfile()" aria-label="Profile" title="My profile">—</button>
   </div>
 
   <!-- Profile drawer -->
@@ -375,10 +375,15 @@
       </div>
       <div style="flex:1;overflow-y:auto;padding:20px 18px">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
-          <div class="pcm-av" id="profile-av" style="width:56px;height:56px;font-size:18px"></div>
+          <button type="button" onclick="document.getElementById('avatar-file').click()" title="Change photo" aria-label="Change profile photo" style="position:relative;border:none;background:none;padding:0;cursor:pointer;border-radius:50%;flex-shrink:0">
+            <div class="pcm-av" id="profile-av" style="width:56px;height:56px;font-size:18px;overflow:hidden"></div>
+            <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);font-size:11px">📷</span>
+          </button>
+          <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="onAvatarSelected(this)">
           <div style="min-width:0">
             <div id="profile-name-display" style="font-family:'Spectral',serif;font-size:18px;color:var(--walnut);font-weight:600"></div>
             <div id="profile-email-display" style="font-size:12px;color:var(--walnut-mid);overflow:hidden;text-overflow:ellipsis"></div>
+            <button type="button" id="avatar-remove-btn" onclick="removeAvatar()" style="display:none;margin-top:4px;background:none;border:none;color:var(--terra);font-size:11px;cursor:pointer;padding:0">Remove photo</button>
           </div>
         </div>
         <label class="prof-label">Name</label>
@@ -1604,13 +1609,31 @@ function _setHomeScreenBadge(n){
 }
 
 // ═════════════════════════ PROFILE ═════════════════════════
+// Render a round avatar element: a cover-fit photo if the user has an
+// avatar_url, otherwise their initials on the brand fill. Used for the
+// top-right header icon and the profile-drawer avatar.
+function _setAvatarEl(el, user){
+  if(!el) return;
+  const url = user && user.avatar_url;
+  if(url){
+    el.innerHTML = '<img src="' + _esc(url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block">';
+    el.style.background = 'transparent';
+  } else {
+    el.style.background = '';
+    el.textContent = _initials(user ? user.name : '');
+  }
+}
+function _updateAvatarRemoveBtn(){
+  const btn = document.getElementById('avatar-remove-btn');
+  if(btn) btn.style.display = (currentUser && currentUser.avatar_url) ? 'inline-block' : 'none';
+}
 function _refreshProfileAv(){
-  const el = document.getElementById('hdr-profile-av');
-  if(el && currentUser) el.textContent = _initials(currentUser.name);
+  _setAvatarEl(document.getElementById('hdr-profile-btn'), currentUser);
 }
 function openProfile(){
   if(!currentUser) return;
-  document.getElementById('profile-av').textContent = _initials(currentUser.name);
+  _setAvatarEl(document.getElementById('profile-av'), currentUser);
+  _updateAvatarRemoveBtn();
   document.getElementById('profile-name-display').textContent = currentUser.name || '—';
   document.getElementById('profile-email-display').textContent = currentUser.email || '';
   document.getElementById('prof-name').value = currentUser.name || '';
@@ -1636,13 +1659,66 @@ async function saveProfile(){
     await _sb.auth.updateUser({ data: { name, region } }).catch(()=>{});
     currentUser.name = name; currentUser.region = region;
     document.getElementById('profile-name-display').textContent = name;
-    document.getElementById('profile-av').textContent = _initials(name);
+    _setAvatarEl(document.getElementById('profile-av'), currentUser);
     _refreshProfileAv();
     show('Saved.', true);
   } catch(e){
     show('Could not save: ' + e.message, false);
   } finally {
     btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+// ── Profile photo upload / remove ────────────────────────────────────
+async function onAvatarSelected(input){
+  const file = input && input.files && input.files[0];
+  if(!file) return;
+  const msg = document.getElementById('profile-msg');
+  const show = (text, ok) => { msg.textContent = text; msg.style.color = ok ? 'var(--success)' : 'var(--terra)'; msg.style.display = 'block'; };
+  input.value = '';  // allow re-selecting the same file later
+  if(!_sb || !currentUser){ show('Not signed in.', false); return; }
+  if(!file.type || !file.type.startsWith('image/')){ show('Please choose an image file.', false); return; }
+  if(file.size > 5 * 1024 * 1024){ show('Image must be under 5 MB.', false); return; }
+  show('Uploading photo…', true);
+  try {
+    const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = currentUser.id + '/' + Date.now() + '.' + ext;
+    const { error: upErr } = await _sb.storage.from('avatars')
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if(upErr) throw new Error(upErr.message);
+    const { data: pub } = _sb.storage.from('avatars').getPublicUrl(path);
+    const url = pub && pub.publicUrl;
+    if(!url) throw new Error('Could not resolve photo URL.');
+    const { error: dbErr } = await _sb.from('prep_users').update({ avatar_url: url }).eq('id', currentUser.id);
+    if(dbErr) throw new Error(dbErr.message);
+    currentUser.avatar_url = url;
+    _setAvatarEl(document.getElementById('profile-av'), currentUser);
+    _refreshProfileAv();
+    _updateAvatarRemoveBtn();
+    show('Photo updated.', true);
+  } catch(e){
+    show('Could not upload photo: ' + e.message, false);
+  }
+}
+
+async function removeAvatar(){
+  const msg = document.getElementById('profile-msg');
+  const show = (text, ok) => { msg.textContent = text; msg.style.color = ok ? 'var(--success)' : 'var(--terra)'; msg.style.display = 'block'; };
+  if(!_sb || !currentUser){ show('Not signed in.', false); return; }
+  const btn = document.getElementById('avatar-remove-btn');
+  if(btn) btn.disabled = true;
+  try {
+    const { error } = await _sb.from('prep_users').update({ avatar_url: null }).eq('id', currentUser.id);
+    if(error) throw new Error(error.message);
+    currentUser.avatar_url = null;
+    _setAvatarEl(document.getElementById('profile-av'), currentUser);
+    _refreshProfileAv();
+    _updateAvatarRemoveBtn();
+    show('Photo removed.', true);
+  } catch(e){
+    show('Could not remove photo: ' + e.message, false);
+  } finally {
+    if(btn) btn.disabled = false;
   }
 }
 
