@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.19', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.20', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1243,13 +1243,12 @@ const server = http.createServer(async (req, res) => {
       if (!el) return send(res, 404, { error: 'no_pending_election' })
       if (!el.pcm?.email) return send(res, 422, { error: 'no_pcm_email' })
       const electorName = el.elector?.name || 'Someone'
-      const r = await sendEmail(el.pcm.email, 'A gentle reminder — someone is waiting for you',
-        emailWrap('A gentle reminder',
-          `<p>Dear ${el.pcm.name || 'friend'},</p>
-           <p>${electorName} has elected you as their Personal Contact Minister and is hoping to begin their preparation alongside you.</p>
-           <p>Whenever you have a quiet moment, please open Preparing You to accept or decline. There's no pressure at all — only a soul hoping for a companion on the road.</p>
-           <p>Grace and peace to you.</p>`,
-          'Open Preparing You', 'https://preparingyou.app'))
+      const r = await sendEmailJS(el.pcm.name, el.pcm.email,
+        'A gentle reminder — someone is waiting for you',
+        `Dear ${el.pcm.name || 'friend'},\n\n`
+        + `${electorName} has elected you as their Personal Contact Minister and is hoping to begin their preparation alongside you.\n\n`
+        + `Whenever you have a quiet moment, please open Preparing You to accept or decline. There's no pressure at all — only a soul hoping for a companion on the road.\n\n`
+        + `Grace and peace to you.\n\nhttps://preparingyou.app`)
       await notify(el.pcm_id, '⏳', `${electorName} sent you a gentle reminder about their election.`, { type:'page', page:'pcm' })
       return send(res, 200, { ok: !!r.ok, email: r })
     }
@@ -1261,12 +1260,10 @@ const server = http.createServer(async (req, res) => {
       const ALLOW = ['markofmelb@gmail.com']
       const dest = String(to || '').trim().toLowerCase()
       if (!ALLOW.includes(dest)) return send(res, 403, { error: 'address_not_allowed' })
-      const r = await sendEmail(dest, 'Preparing You — email system test',
-        emailWrap('Email system test',
-          `<p>This is a test message from the Preparing You server.</p>
-           <p>If you're reading this, Resend email delivery is working correctly.</p>
-           <p>Sent at ${new Date().toISOString()}.</p>`,
-          'Open Preparing You', 'https://preparingyou.app'))
+      const r = await sendEmailJS('Mark', dest, 'Preparing You — email system test',
+        `This is a test message from the Preparing You server.\n\n`
+        + `If you're reading this, EmailJS delivery is working correctly.\n\n`
+        + `Sent at ${new Date().toISOString()}.\n\nhttps://preparingyou.app`)
       return send(res, 200, { ok: !!r.ok, result: r })
     }
 
