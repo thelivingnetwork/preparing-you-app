@@ -861,30 +861,36 @@ async function sendEmailJS(toName, toEmail, subject, message) {
   }
 }
 
-// ─── Email via Resend ───────────────────────────────────────────────────
-const RESEND_FROM = process.env.RESEND_FROM || 'Preparing You <onboarding@resend.dev>'
+// ─── Email ──────────────────────────────────────────────────────────────
+// All transactional email goes through EmailJS (sendEmailJS). We previously
+// used Resend here, but that account is in sandbox mode (no verified domain)
+// and will only deliver to the account owner, silently dropping mail to every
+// real recipient. EmailJS is the path the app already uses in production, so
+// sendEmail() now flattens its HTML body to plain text and routes to EmailJS.
+// Every existing call site (welcome, TLN invite, PCM election/accept/decline)
+// is migrated automatically by this single redirect.
+function _htmlToText(html) {
+  if (!html) return ''
+  return String(html)
+    // <a href="url">text</a>  ->  "text: url"
+    .replace(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2: $1')
+    .replace(/<\/(p|div|h1|h2|h3|h4|li|tr)>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&mdash;/g, '—')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;|&rsquo;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/^[ \t]+/gm, '')
+    .trim()
+}
 async function sendEmail(to, subject, html) {
-  if (!process.env.RESEND_API_KEY) { console.warn('[email] no RESEND_API_KEY'); return { ok:false, reason:'no-key' } }
-  try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ from: RESEND_FROM, to, subject, html })
-    })
-    const text = await r.text()
-    if (!r.ok) {
-      console.error('[email] FAILED', r.status, '→', to, '|', text)
-      return { ok:false, status:r.status, body:text }
-    }
-    console.log('[email] sent →', to, '|', text.slice(0, 200))
-    return { ok:true, body:text }
-  } catch (e) {
-    console.error('[email] threw', e)
-    return { ok:false, error: String(e) }
-  }
+  const dest = Array.isArray(to) ? to[0] : to
+  return sendEmailJS('Friend', dest, subject, _htmlToText(html))
 }
 
 function emailWrap(title, body, ctaText, ctaUrl) {
@@ -1106,7 +1112,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.20', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.21', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1260,10 +1266,14 @@ const server = http.createServer(async (req, res) => {
       const ALLOW = ['markofmelb@gmail.com']
       const dest = String(to || '').trim().toLowerCase()
       if (!ALLOW.includes(dest)) return send(res, 403, { error: 'address_not_allowed' })
-      const r = await sendEmailJS('Mark', dest, 'Preparing You — email system test',
-        `This is a test message from the Preparing You server.\n\n`
-        + `If you're reading this, EmailJS delivery is working correctly.\n\n`
-        + `Sent at ${new Date().toISOString()}.\n\nhttps://preparingyou.app`)
+      // Exercise the migrated sendEmail() chain (emailWrap HTML -> text -> EmailJS)
+      // so this smoke test covers the real conversion path the app uses.
+      const r = await sendEmail(dest, 'Preparing You — email system test',
+        emailWrap('Email system test',
+          `<p>This is a test message from the Preparing You server.</p>
+           <p>If you're reading this, email delivery is working correctly.</p>
+           <p>Sent at ${new Date().toISOString()}.</p>`,
+          'Open Preparing You', 'https://preparingyou.app'))
       return send(res, 200, { ok: !!r.ok, result: r })
     }
 
