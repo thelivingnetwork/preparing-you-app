@@ -1311,6 +1311,20 @@ function _msgTime(iso){
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// Pin the thread to the newest message. We can't trust a single synchronous
+// scroll right after innerHTML: the serif bubble font re-wraps and heights
+// settle a frame or two later, so scrollHeight grows after we set it and the
+// view ends up a couple of messages short of the bottom. Re-pin across the next
+// animation frames plus a short fallback so we land on the true bottom.
+function _scrollMsgBottom(){
+  const list = document.getElementById('msg-list');
+  if(!list) return;
+  const go = () => { list.scrollTop = list.scrollHeight; };
+  go();
+  requestAnimationFrame(() => { go(); requestAnimationFrame(go); });
+  setTimeout(go, 60);
+}
+
 async function loadMessages(){
   if(!_msgPeerId) return;
   // Message bodies are encrypted at rest; only the server (which holds the
@@ -1369,7 +1383,7 @@ async function loadMessages(){
     return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${inner}</div>`;
   }).join('');
 
-  if(peerChanged || nearBottom || lastMine) list.scrollTop = list.scrollHeight;
+  if(peerChanged || nearBottom || lastMine) _scrollMsgBottom();
   else list.scrollTop = prevTop;
   _msgSig = sig;
   _msgRenderedPeer = _msgPeerId;
