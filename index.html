@@ -417,6 +417,26 @@
     </div>
   </div>
 
+  <!-- Profile photo framing editor -->
+  <div id="cropper-overlay" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(20,48,52,.75);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this) closeCropper()">
+    <div style="background:var(--surface);border-radius:16px;padding:18px;width:min(100%,360px);box-shadow:0 12px 44px rgba(0,0,0,.45)">
+      <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600;color:var(--brand-ink);text-align:center">Position your photo</div>
+      <div style="font-size:12px;color:var(--walnut-mid);text-align:center;margin:2px 0 14px">Drag to move · pinch or slide to zoom</div>
+      <div id="crop-stage" style="position:relative;width:280px;height:280px;max-width:100%;margin:0 auto;border-radius:50%;overflow:hidden;background:#111;touch-action:none;cursor:grab;box-shadow:0 0 0 3px var(--teal)">
+        <canvas id="crop-canvas" width="280" height="280" style="display:block;width:280px;height:280px"></canvas>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 2px 4px">
+        <span aria-hidden="true" style="color:var(--walnut-mid);font-size:13px">−</span>
+        <input id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom" oninput="_cropZoomInput(this)" style="flex:1;accent-color:var(--teal)">
+        <span aria-hidden="true" style="color:var(--walnut-mid);font-size:17px">＋</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button type="button" onclick="closeCropper()" class="pcm-pick" style="flex:1;background:var(--surface);color:var(--walnut);border:1px solid var(--line)">Cancel</button>
+        <button type="button" onclick="saveCropper()" class="pcm-pick" style="flex:1;background:var(--teal);color:#fff">Use photo</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Pages -->
   <div class="page active" id="page-home">
     <!-- Journey tile — a single evolving card that guides the user through
@@ -1864,55 +1884,159 @@ async function saveProfile(){
 }
 
 // ── Profile photo upload / remove ────────────────────────────────────
-// Normalise any picked photo to a small, square-ish JPEG before upload.
-// iPhone photos are often HEIC (which most browsers can't display) and can be
-// large/rotated; drawing through a canvas converts HEIC→JPEG, downscales to a
-// max edge, and strips EXIF (incl. location). Falls back to the original file
-// if the browser can't decode it. Returns { blob, ext, type }.
-function _processAvatar(file){
-  return new Promise((resolve) => {
-    const fallback = () => resolve({ blob: file, ext: (file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg', type: file.type || 'application/octet-stream' });
-    try {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const MAX = 1024;
-          let { width: w, height: h } = img;
-          if(!w || !h){ URL.revokeObjectURL(url); return fallback(); }
-          if(w > MAX || h > MAX){ const s = MAX / Math.max(w, h); w = Math.round(w*s); h = Math.round(h*s); }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          URL.revokeObjectURL(url);
-          canvas.toBlob(
-            (blob) => blob ? resolve({ blob, ext: 'jpg', type: 'image/jpeg' }) : fallback(),
-            'image/jpeg', 0.85
-          );
-        } catch(_){ URL.revokeObjectURL(url); fallback(); }
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); fallback(); };
-      img.src = url;
-    } catch(_){ fallback(); }
-  });
+function _profileMsg(text, ok){
+  const msg = document.getElementById('profile-msg');
+  if(!msg) return;
+  msg.textContent = text;
+  msg.style.color = ok ? 'var(--success)' : 'var(--terra)';
+  msg.style.display = 'block';
 }
 
+// Picking a photo opens the framing editor (drag to centre, pinch/slider to
+// zoom). The editor renders the framed circle to a square JPEG, which also
+// converts iPhone HEIC -> JPEG so it displays everywhere. If the browser can't
+// decode the file at all, fall back to uploading the original bytes.
 async function onAvatarSelected(input){
   const file = input && input.files && input.files[0];
   if(!file) return;
-  const msg = document.getElementById('profile-msg');
-  const show = (text, ok) => { msg.textContent = text; msg.style.color = ok ? 'var(--success)' : 'var(--terra)'; msg.style.display = 'block'; };
   input.value = '';  // allow re-selecting the same file later
-  if(!_sb || !currentUser){ show('Not signed in.', false); return; }
-  if(file.size > 15 * 1024 * 1024){ show('Image must be under 15 MB.', false); return; }
-  show('Preparing photo…', true);
+  if(!_sb || !currentUser){ _profileMsg('Not signed in.', false); return; }
+  if(file.size > 15 * 1024 * 1024){ _profileMsg('Image must be under 15 MB.', false); return; }
+  const msg = document.getElementById('profile-msg');
+  if(msg) msg.style.display = 'none';
+  openCropper(file);
+}
+
+// ── Profile photo framing editor ──────────────────────────────────────────
+let _crop = null;          // active editing session
+let _cropWired = false;    // pointer/zoom listeners attached once
+
+function _cropWire(){
+  if(_cropWired) return;
+  const stage = document.getElementById('crop-stage');
+  if(!stage) return;
+  stage.addEventListener('pointerdown', _cropPointerDown);
+  stage.addEventListener('pointermove', _cropPointerMove);
+  stage.addEventListener('pointerup', _cropPointerUp);
+  stage.addEventListener('pointercancel', _cropPointerUp);
+  _cropWired = true;
+}
+
+function openCropper(file){
+  _cropWire();
+  const CS = 280;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    if(!img.width || !img.height){ URL.revokeObjectURL(url); return _uploadAvatarBlob(file, (file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg', file.type||'application/octet-stream'); }
+    const cover = Math.max(CS / img.width, CS / img.height); // fill the circle
+    _crop = { img, url, CS, cover, zoom: 1, ox: 0, oy: 0, pointers: new Map(), pinchStart: 0, zoomStart: 1 };
+    const zoomEl = document.getElementById('crop-zoom');
+    if(zoomEl) zoomEl.value = '1';
+    document.getElementById('cropper-overlay').style.display = 'flex';
+    _cropDraw();
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); _uploadAvatarBlob(file, (file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg', file.type||'application/octet-stream'); };
+  img.src = url;
+}
+
+function closeCropper(){
+  if(_crop && _crop.url) URL.revokeObjectURL(_crop.url);
+  _crop = null;
+  const ov = document.getElementById('cropper-overlay');
+  if(ov) ov.style.display = 'none';
+}
+
+function _cropClamp(){
+  const c = _crop; if(!c) return;
+  const dw = c.img.width * c.cover * c.zoom, dh = c.img.height * c.cover * c.zoom;
+  const maxX = Math.max(0, (dw - c.CS) / 2), maxY = Math.max(0, (dh - c.CS) / 2);
+  c.ox = Math.max(-maxX, Math.min(maxX, c.ox));
+  c.oy = Math.max(-maxY, Math.min(maxY, c.oy));
+}
+
+function _cropDraw(){
+  const c = _crop; if(!c) return;
+  const canvas = document.getElementById('crop-canvas'); if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  _cropClamp();
+  const dw = c.img.width * c.cover * c.zoom, dh = c.img.height * c.cover * c.zoom;
+  const dx = c.CS / 2 - dw / 2 + c.ox, dy = c.CS / 2 - dh / 2 + c.oy;
+  ctx.clearRect(0, 0, c.CS, c.CS);
+  ctx.drawImage(c.img, dx, dy, dw, dh);
+}
+
+function _cropZoomInput(el){
+  if(!_crop) return;
+  _crop.zoom = parseFloat(el.value) || 1;
+  _cropDraw();
+}
+
+function _cropPointerDown(e){
+  if(!_crop) return;
+  e.preventDefault();
+  const stage = document.getElementById('crop-stage');
+  try { stage.setPointerCapture(e.pointerId); } catch(_){}
+  _crop.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if(_crop.pointers.size === 2){
+    const p = [..._crop.pointers.values()];
+    _crop.pinchStart = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    _crop.zoomStart = _crop.zoom;
+  }
+}
+
+function _cropPointerMove(e){
+  if(!_crop || !_crop.pointers.has(e.pointerId)) return;
+  e.preventDefault();
+  const prev = _crop.pointers.get(e.pointerId);
+  const cur = { x: e.clientX, y: e.clientY };
+  _crop.pointers.set(e.pointerId, cur);
+  if(_crop.pointers.size >= 2){
+    const p = [..._crop.pointers.values()];
+    const dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    if(_crop.pinchStart > 0){
+      let z = _crop.zoomStart * (dist / _crop.pinchStart);
+      z = Math.max(1, Math.min(4, z));
+      _crop.zoom = z;
+      const zoomEl = document.getElementById('crop-zoom');
+      if(zoomEl) zoomEl.value = String(z);
+      _cropDraw();
+    }
+  } else {
+    _crop.ox += (cur.x - prev.x);
+    _crop.oy += (cur.y - prev.y);
+    _cropDraw();
+  }
+}
+
+function _cropPointerUp(e){
+  if(!_crop) return;
+  _crop.pointers.delete(e.pointerId);
+  if(_crop.pointers.size < 2) _crop.pinchStart = 0;
+}
+
+async function saveCropper(){
+  if(!_crop){ closeCropper(); return; }
+  const c = _crop, OUT = 512, r = OUT / c.CS;
+  const out = document.createElement('canvas');
+  out.width = OUT; out.height = OUT;
+  const octx = out.getContext('2d');
+  const dw = c.img.width * c.cover * c.zoom * r, dh = c.img.height * c.cover * c.zoom * r;
+  const dx = OUT / 2 - dw / 2 + c.ox * r, dy = OUT / 2 - dh / 2 + c.oy * r;
+  octx.drawImage(c.img, dx, dy, dw, dh);
+  const blob = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.85));
+  closeCropper();
+  if(blob) _uploadAvatarBlob(blob, 'jpg', 'image/jpeg');
+  else _profileMsg('Could not prepare photo — please try again.', false);
+}
+
+async function _uploadAvatarBlob(blob, ext, type){
+  if(!_sb || !currentUser){ _profileMsg('Not signed in.', false); return; }
+  _profileMsg('Uploading photo…', true);
   try {
-    const { blob, ext, type } = await _processAvatar(file);
-    if(blob.size > 5 * 1024 * 1024){ show('Image is too large even after resizing — please pick a smaller one.', false); return; }
-    show('Uploading photo…', true);
-    const path = currentUser.id + '/' + Date.now() + '.' + ext;
+    const path = currentUser.id + '/' + Date.now() + '.' + (ext || 'jpg');
     const { error: upErr } = await _sb.storage.from('avatars')
-      .upload(path, blob, { contentType: type, upsert: true });
+      .upload(path, blob, { contentType: type || 'image/jpeg', upsert: true });
     if(upErr) throw new Error(upErr.message);
     const { data: pub } = _sb.storage.from('avatars').getPublicUrl(path);
     const url = pub && pub.publicUrl;
@@ -1923,9 +2047,9 @@ async function onAvatarSelected(input){
     _setAvatarEl(document.getElementById('profile-av'), currentUser);
     _refreshProfileAv();
     _updateAvatarRemoveBtn();
-    show('Photo updated.', true);
+    _profileMsg('Photo updated.', true);
   } catch(e){
-    show('Could not upload photo: ' + e.message, false);
+    _profileMsg('Could not upload photo: ' + e.message, false);
   }
 }
 
