@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.14', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.15', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1963,8 +1963,13 @@ Open Preparing You: https://preparingyou.netlify.app`
 
 // ─── Townhall recurrence cron ───────────────────────────────────────────
 // Reads the single standing-rule row. If enabled, ensures the next occurrence
-// exists as a prep_townhalls row (source='recurring'). The announcement cron
-// then picks the new row up and emails everyone. Runs hourly + on boot.
+// exists as a prep_townhalls row (source='recurring') — but only once we're
+// within RECUR_LEAD_DAYS of that occurrence, so members get the announcement a
+// few days out rather than a full week early. The announcement cron then picks
+// the new row up and emails everyone. Runs hourly + on boot.
+const RECUR_LEAD_DAYS = parseInt(process.env.TOWNHALL_RECUR_LEAD_DAYS || '4', 10)
+const RECUR_LEAD_MS = RECUR_LEAD_DAYS * 86400000
+
 async function runTownhallRecurrence() {
   try {
     const { data: rule } = await sb.from('prep_townhall_schedule').select('*').eq('id', 1).maybeSingle()
@@ -1972,6 +1977,11 @@ async function runTownhallRecurrence() {
 
     const nextMs = nextOccurrence(rule, Date.now())
     if (!nextMs) { console.warn('[townhall-recur] no occurrence found for rule', rule); return }
+
+    // Hold off until we're inside the lead window. The next hourly tick that
+    // crosses the threshold will create + announce it.
+    if (nextMs - Date.now() > RECUR_LEAD_MS) return
+
     const scheduledAt = new Date(nextMs).toISOString()
 
     // Already have a townhall at (or extremely near) that instant? Skip.
