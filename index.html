@@ -981,6 +981,7 @@ function showPage(name){
   // viewport height so the thread (not the page) scrolls and the compose bar
   // stays pinned above the nav. Every other page scrolls normally.
   document.documentElement.classList.toggle('chat-lock', name === 'messages');
+  if(name === 'messages') _enableMsgViewport(); else _disableMsgViewport();
   // Visiting a page clears the red badge on its nav icon (Messages clears its
   // own badge when the thread opens + marks messages read server-side).
   _clearNavNotifs(name);
@@ -1323,6 +1324,38 @@ function _scrollMsgBottom(){
   go();
   requestAnimationFrame(() => { go(); requestAnimationFrame(go); });
   setTimeout(go, 60);
+}
+
+// On phones the soft keyboard overlaps the layout: the chat shell stays a full
+// 100dvh, so #msg-list's scroll area extends *behind* the keyboard and
+// "scroll to bottom" lands out of sight — leaving the newest message a couple
+// rows below the visible area. Size the active shell to the *visible* viewport
+// (visualViewport.height) while Messages is open so the thread bottom sits just
+// above the compose box, then re-pin. Mirrors the Paul drawer's handling.
+let _msgVVHandler = null;
+function _msgFitViewport(){
+  const vv = window.visualViewport;
+  if(!vv) return;
+  const sc = document.querySelector('.screen.active');
+  if(!sc) return;
+  sc.style.height = vv.height + 'px';
+  _scrollMsgBottom();
+}
+function _enableMsgViewport(){
+  if(!window.visualViewport || _msgVVHandler) return;
+  _msgVVHandler = _msgFitViewport;
+  window.visualViewport.addEventListener('resize', _msgVVHandler);
+  window.visualViewport.addEventListener('scroll', _msgVVHandler);
+  _msgFitViewport();
+}
+function _disableMsgViewport(){
+  if(window.visualViewport && _msgVVHandler){
+    window.visualViewport.removeEventListener('resize', _msgVVHandler);
+    window.visualViewport.removeEventListener('scroll', _msgVVHandler);
+  }
+  _msgVVHandler = null;
+  const sc = document.querySelector('.screen.active');
+  if(sc) sc.style.height = ''; // restore the CSS 100dvh layout
 }
 
 async function loadMessages(){
