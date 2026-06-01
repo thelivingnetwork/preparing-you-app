@@ -1290,6 +1290,7 @@ async function openThread(id){
   document.getElementById('msg-empty').style.display = 'none';
   document.getElementById('msg-thread-wrap').style.display = 'flex';
   _enableMsgViewport(); // pin the thread to the visual viewport (keyboard-safe)
+  _wireMsgScroll();     // let the user break out of auto-pin by scrolling up
   await renderActivePeer();
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
@@ -1343,15 +1344,52 @@ function _msgTime(iso){
 // Pin the thread to the newest message. We can't trust a single synchronous
 // scroll right after innerHTML: the serif bubble font re-wraps and heights
 // settle a frame or two later, so scrollHeight grows after we set it and the
-// view ends up a couple of messages short of the bottom. Re-pin across the next
-// animation frames plus a short fallback so we land on the true bottom.
+// view ends up a couple of messages short of the bottom. So we "stick" to the
+// bottom and keep re-pinning until scrollHeight stops growing (font reflow done),
+// plus re-pin when web fonts finish and when each image/attachment loads. The
+// stick flag is cleared the moment the user scrolls up, so we never fight them.
+let _msgStick = false;
+
+// Re-pin to the bottom only if we're still in stick mode (set by a scroll-to-
+// bottom and not yet cancelled by the user scrolling up).
+function _msgPinIfStuck(){
+  if(!_msgStick) return;
+  const list = document.getElementById('msg-list');
+  if(list) list.scrollTop = list.scrollHeight;
+}
+
 function _scrollMsgBottom(){
   const list = document.getElementById('msg-list');
   if(!list) return;
-  const go = () => { list.scrollTop = list.scrollHeight; };
-  go();
-  requestAnimationFrame(() => { go(); requestAnimationFrame(go); });
-  setTimeout(go, 60);
+  _msgStick = true;
+  let last = -1, stable = 0;
+  const tick = () => {
+    if(!_msgStick) return;
+    list.scrollTop = list.scrollHeight;
+    if(list.scrollHeight !== last){ last = list.scrollHeight; stable = 0; }
+    else stable++;
+    // Keep going until height has held steady for several frames (reflow settled).
+    if(stable < 8) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  // Web fonts can land well after the first frames; re-pin when they're ready.
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(() => { if(_msgStick && list) list.scrollTop = list.scrollHeight; });
+  }
+}
+
+// Wire a one-time scroll listener that drops stick mode as soon as the user
+// scrolls meaningfully up from the bottom, so auto-pinning never traps them.
+let _msgScrollWired = false;
+function _wireMsgScroll(){
+  if(_msgScrollWired) return;
+  const list = document.getElementById('msg-list');
+  if(!list) return;
+  _msgScrollWired = true;
+  list.addEventListener('scroll', () => {
+    const fromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    if(fromBottom > 40) _msgStick = false;
+  }, { passive: true });
 }
 
 // The soft keyboard is the hard part on phones. Earlier we tried resizing the
@@ -1462,7 +1500,16 @@ async function loadMessages(){
   }).join('');
 
   if(peerChanged || nearBottom || lastMine) _scrollMsgBottom();
-  else list.scrollTop = prevTop;
+  else { _msgStick = false; list.scrollTop = prevTop; }
+
+  // Image attachments load after innerHTML and push the thread taller; re-pin to
+  // the bottom as each one settles (only while we're still sticking).
+  list.querySelectorAll('img').forEach(img => {
+    if(img.complete) return;
+    img.addEventListener('load', _msgPinIfStuck, { once: true });
+    img.addEventListener('error', _msgPinIfStuck, { once: true });
+  });
+
   _msgSig = sig;
   _msgRenderedPeer = _msgPeerId;
 
