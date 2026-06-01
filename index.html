@@ -877,15 +877,24 @@ async function doJoin(){
 async function _loadProfile(authUser){
   // Upsert prep_users row keyed on auth.users.id
   if(_sb && authUser){
+    // Each member's IANA timezone — lets townhall emails show the start time in
+    // their own local time. Best-effort; older browsers may not resolve a zone.
+    let tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch(e) {}
     const { data } = await _sb.from('prep_users').select('*').eq('id', authUser.id).maybeSingle();
     currentUser = data || {
       id: authUser.id,
       email: authUser.email,
       name: authUser.user_metadata?.name || authUser.email.split('@')[0],
-      region: authUser.user_metadata?.region || ''
+      region: authUser.user_metadata?.region || '',
+      timezone: tz || null
     };
     if(!data){
       await _sb.from('prep_users').insert(currentUser);
+    } else if(tz && data.timezone !== tz){
+      // Keep the stored zone in sync if the member moved / travels. Fire-and-forget.
+      currentUser.timezone = tz;
+      _sb.from('prep_users').update({ timezone: tz }).eq('id', authUser.id).then(()=>{}, ()=>{});
     }
   }
 }

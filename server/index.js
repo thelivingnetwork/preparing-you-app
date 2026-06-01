@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.13', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.14', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1651,6 +1651,52 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, triggered: true })
     }
 
+    if (req.method === 'POST' && req.url === '/townhall/announcements/run') {
+      // Manual / fire-and-forget trigger from the admin app right after a
+      // townhall is created or rescheduled, so the "new townhall set" email
+      // goes out immediately rather than waiting for the 5-min cron tick.
+      runTownhallAnnouncements().catch(e => console.error('manual announce', e))
+      return send(res, 200, { ok: true, triggered: true })
+    }
+
+    if (req.method === 'GET' && req.url === '/townhall/schedule') {
+      const v = await requireAdmin(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { data } = await sb.from('prep_townhall_schedule').select('*').eq('id', 1).maybeSingle()
+      return send(res, 200, { schedule: data || null })
+    }
+
+    if (req.method === 'POST' && req.url === '/townhall/schedule') {
+      const v = await requireAdmin(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const b = await readJson(req)
+      // Coerce + clamp the rule fields defensively.
+      const clamp = (n, lo, hi, d) => { n = parseInt(n, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
+      const rule = {
+        id: 1,
+        enabled: !!b.enabled,
+        weekday: clamp(b.weekday, 0, 6, 6),
+        hour: clamp(b.hour, 0, 23, 12),
+        minute: clamp(b.minute, 0, 59, 0),
+        timezone: (typeof b.timezone === 'string' && b.timezone.trim()) || 'America/New_York',
+        title: (typeof b.title === 'string' && b.title.trim()) || 'Weekly Townhall',
+        topic: (typeof b.topic === 'string' && b.topic.trim()) || 'Open discussion',
+        updated_at: new Date().toISOString()
+      }
+      const { error } = await sb.from('prep_townhall_schedule').upsert(rule, { onConflict: 'id' })
+      if (error) return send(res, 500, { error: error.message })
+      // Drop any future recurring rows that haven't started yet — the rule
+      // changed, so they'll be regenerated from the new rule below.
+      await sb.from('prep_townhalls')
+        .delete()
+        .eq('source', 'recurring')
+        .is('live_at', null)
+        .gt('scheduled_at', new Date().toISOString())
+      // Materialise the next occurrence immediately (if enabled).
+      runTownhallRecurrence().catch(e => console.error('schedule recurrence', e))
+      return send(res, 200, { ok: true, schedule: rule })
+    }
+
     if (req.method === 'GET' && req.url === '/townhall/state') {
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
@@ -1709,10 +1755,88 @@ server.listen(PORT, () => {
   console.log(`[preparing-you] listening on :${PORT}`)
 })
 
+// ─── Townhall timezone helpers ──────────────────────────────────────────
+// The townhall is one shared live moment, so delivery can't be per-zone —
+// but the DISPLAYED start time in each member's email CAN be rendered in
+// their own local time when we know their IANA zone (prep_users.timezone).
+const TOWNHALL_HOST_TZ = process.env.TOWNHALL_TZ || 'America/New_York'
+
+// Format an ISO instant in a given IANA zone, e.g. "Saturday, Jun 6 at 12:00 PM EDT".
+// Falls back to the host zone if `tz` is missing or invalid.
+function fmtLocal(iso, tz) {
+  const d = new Date(iso)
+  const tryZone = (zone) => new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, weekday: 'long', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+  }).formatToParts(d)
+  let parts
+  try { parts = tryZone(tz || TOWNHALL_HOST_TZ) }
+  catch (e) { parts = tryZone(TOWNHALL_HOST_TZ) }
+  const get = (t) => (parts.find(p => p.type === t) || {}).value || ''
+  const wd = get('weekday'), mo = get('month'), day = get('day')
+  const hh = get('hour'), mm = get('minute'), dp = get('dayPeriod'), zn = get('timeZoneName')
+  return `${wd}, ${mo} ${day} at ${hh}:${mm} ${dp} ${zn}`.replace(/\s+/g, ' ').trim()
+}
+
+// True if `tz` resolves to a usable zone.
+function _tzValid(tz) {
+  if (!tz) return false
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true } catch (e) { return false }
+}
+
+// DST-safe local-time → UTC conversion for recurrence math.
+// Returns the millisecond offset (utc = local - offset) for a given instant in a zone.
+function tzOffsetMs(utcMs, tz) {
+  const d = new Date(utcMs)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(d)
+  const g = (t) => parseInt((parts.find(p => p.type === t) || {}).value, 10)
+  let hour = g('hour'); if (hour === 24) hour = 0
+  const asUTC = Date.UTC(g('year'), g('month') - 1, g('day'), hour, g('minute'), g('second'))
+  return asUTC - utcMs
+}
+
+// Given a wall-clock Y/M/D H:M in zone `tz`, return the UTC epoch ms.
+function zonedTimeToUtc(y, m, d, h, min, tz) {
+  // First guess: treat the wall clock as if it were UTC, then correct by the
+  // offset at that instant. Re-evaluate once to settle DST boundaries.
+  let guess = Date.UTC(y, m - 1, d, h, min, 0)
+  let off = tzOffsetMs(guess, tz)
+  let utc = guess - off
+  off = tzOffsetMs(utc, tz)
+  return guess - off
+}
+
+// The Y/M/D + weekday of an instant as seen in zone `tz`.
+function localYMD(date, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short'
+  }).formatToParts(date)
+  const g = (t) => (parts.find(p => p.type === t) || {}).value
+  const wdMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return { y: parseInt(g('year'), 10), m: parseInt(g('month'), 10), d: parseInt(g('day'), 10), wd: wdMap[g('weekday')] }
+}
+
+// Next UTC ms at which the rule (weekday/hour/minute in rule.timezone) fires
+// strictly after `fromMs`. Iterates up to 14 days to clear DST/skip edge cases.
+function nextOccurrence(rule, fromMs) {
+  const tz = _tzValid(rule.timezone) ? rule.timezone : TOWNHALL_HOST_TZ
+  for (let i = 0; i <= 14; i++) {
+    const probe = new Date(fromMs + i * 86400000)
+    const { y, m, d, wd } = localYMD(probe, tz)
+    if (wd !== rule.weekday) continue
+    const utc = zonedTimeToUtc(y, m, d, rule.hour, rule.minute, tz)
+    if (utc > fromMs) return utc
+  }
+  return null
+}
+
 // ─── Townhall reminder cron ─────────────────────────────────────────────
 // Every 5 minutes, find any townhall scheduled within the next 30 minutes
 // that hasn't had its reminder sent yet. Send everyone a bell-notification
-// AND an email. Mark reminder_sent_at to prevent duplicates.
+// AND an email (in each member's local time). Stamp reminder_sent_at.
 const TOWNHALL_REMINDER_LEAD_MS = 30 * 60 * 1000
 
 async function runTownhallReminders() {
@@ -1732,9 +1856,8 @@ async function runTownhallReminders() {
       const minsAway = Math.max(1, Math.round((new Date(th.scheduled_at).getTime() - Date.now()) / 60000))
       const title = th.title || 'Weekly Townhall'
       const text = `🎙 ${title} starts in ${minsAway} minutes` + (th.topic ? ` — ${th.topic}` : '')
-      const at = new Date(th.scheduled_at)
 
-      const { data: users } = await sb.from('prep_users').select('id, name, email')
+      const { data: users } = await sb.from('prep_users').select('id, name, email, timezone')
       const list = users || []
 
       // 1) Bell notifications — bulk insert
@@ -1752,12 +1875,15 @@ async function runTownhallReminders() {
       for (const u of list) {
         if (u.email) {
           const greet = u.name ? `Peace to you, ${u.name}.` : 'Peace to you.'
+          const whenLine = `Your local start time: ${fmtLocal(th.scheduled_at, u.timezone)}.`
           const message =
 `${greet}
 
 The townhall begins in ${minsAway} minutes.${topicLine}
 
-When the moderator opens the call, a "Townhall is live" banner will appear across the app. Tap it to join — or open Preparing You and your local start time will be shown.
+${whenLine}
+
+When the moderator opens the call, a "Townhall is live" banner will appear across the app. Tap it to join.
 
 Open Preparing You: https://preparingyou.netlify.app`
           const result = await sendEmailJS(u.name || 'Friend', u.email, subject, message)
@@ -1774,6 +1900,111 @@ Open Preparing You: https://preparingyou.netlify.app`
   }
 }
 
-// Run on boot, then every 5 minutes
+// ─── Townhall announcement cron ─────────────────────────────────────────
+// As soon as a townhall is created (or rescheduled), notify everyone once:
+// bell + email showing each member's local start time. Stamped announced_at.
+// We only announce townhalls that are still in the future and haven't started.
+async function runTownhallAnnouncements() {
+  try {
+    const nowIso = new Date().toISOString()
+    const { data: ths, error } = await sb.from('prep_townhalls')
+      .select('id, scheduled_at, title, topic')
+      .gt('scheduled_at', nowIso)
+      .is('announced_at', null)
+      .is('live_at', null)
+    if (error) { console.warn('[townhall-announce] query failed', error); return }
+    if (!ths || !ths.length) return
+
+    for (const th of ths) {
+      const title = th.title || 'Weekly Townhall'
+      const text = `🎙 New townhall set: ${title}` + (th.topic ? ` — ${th.topic}` : '')
+
+      const { data: users } = await sb.from('prep_users').select('id, name, email, timezone')
+      const list = users || []
+
+      // 1) Bell notifications — bulk insert
+      const rows = list.map(u => ({
+        user_id: u.id, icon: '🎙', text,
+        action: { type: 'page', page: 'home' }
+      }))
+      for (let i = 0; i < rows.length; i += 100) {
+        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
+      }
+
+      // 2) Emails via EmailJS — each in the member's local time
+      const subject = `New townhall set: ${title}`
+      const topicLine = th.topic ? `\n\n${title} — ${th.topic}` : `\n\n${title}`
+      for (const u of list) {
+        if (u.email) {
+          const greet = u.name ? `Peace to you, ${u.name}.` : 'Peace to you.'
+          const message =
+`${greet}
+
+A new townhall has been scheduled.${topicLine}
+
+Your local start time: ${fmtLocal(th.scheduled_at, u.timezone)}.
+
+We'll send a reminder shortly before it begins, and a "Townhall is live" banner will appear across the app when the moderator opens the call.
+
+Open Preparing You: https://preparingyou.netlify.app`
+          const result = await sendEmailJS(u.name || 'Friend', u.email, subject, message)
+          if (!result.ok) console.warn(`[townhall-announce] email to ${u.email} failed:`, result)
+          await new Promise(r => setTimeout(r, 200))
+        }
+      }
+
+      await sb.from('prep_townhalls').update({ announced_at: new Date().toISOString() }).eq('id', th.id)
+      console.log(`[townhall-announce] announced townhall ${th.id} to ${list.length} users`)
+    }
+  } catch (e) {
+    console.error('[townhall-announce]', e)
+  }
+}
+
+// ─── Townhall recurrence cron ───────────────────────────────────────────
+// Reads the single standing-rule row. If enabled, ensures the next occurrence
+// exists as a prep_townhalls row (source='recurring'). The announcement cron
+// then picks the new row up and emails everyone. Runs hourly + on boot.
+async function runTownhallRecurrence() {
+  try {
+    const { data: rule } = await sb.from('prep_townhall_schedule').select('*').eq('id', 1).maybeSingle()
+    if (!rule || !rule.enabled) return
+
+    const nextMs = nextOccurrence(rule, Date.now())
+    if (!nextMs) { console.warn('[townhall-recur] no occurrence found for rule', rule); return }
+    const scheduledAt = new Date(nextMs).toISOString()
+
+    // Already have a townhall at (or extremely near) that instant? Skip.
+    const lo = new Date(nextMs - 60000).toISOString()
+    const hi = new Date(nextMs + 60000).toISOString()
+    const { data: existing } = await sb.from('prep_townhalls')
+      .select('id')
+      .gte('scheduled_at', lo)
+      .lte('scheduled_at', hi)
+      .limit(1)
+    if (existing && existing.length) return
+
+    const room = 'preparing-you-townhall-' + Date.now().toString(36)
+    const { error } = await sb.from('prep_townhalls').insert({
+      scheduled_at: scheduledAt,
+      title: rule.title || 'Weekly Townhall',
+      topic: rule.topic || 'Open discussion',
+      daily_room: room,
+      source: 'recurring'
+    })
+    if (error) { console.warn('[townhall-recur] insert failed', error); return }
+    console.log(`[townhall-recur] created recurring townhall for ${scheduledAt}`)
+    // Announce it now rather than waiting for the next announce tick.
+    runTownhallAnnouncements().catch(e => console.error('recur announce', e))
+  } catch (e) {
+    console.error('[townhall-recur]', e)
+  }
+}
+
+// Run on boot, then on a schedule.
 setTimeout(runTownhallReminders, 5000)
 setInterval(runTownhallReminders, 5 * 60 * 1000)
+setTimeout(runTownhallAnnouncements, 8000)
+setInterval(runTownhallAnnouncements, 5 * 60 * 1000)
+setTimeout(runTownhallRecurrence, 12000)
+setInterval(runTownhallRecurrence, 60 * 60 * 1000)
