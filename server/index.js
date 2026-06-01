@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.18', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.19', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1229,6 +1229,45 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url === '/election/respond') {
       const { electionId, pcmId, accept, skipEmail } = await readJson(req)
       return send(res, 200, await respondPcm({ electionId, pcmId, accept, skipEmail }))
+    }
+
+    // Gentle reminder to the elected PCM who hasn't responded yet. Only the
+    // elector's own pending election can be nudged (verified server-side), so
+    // this can't be used to email arbitrary people.
+    if (req.method === 'POST' && req.url === '/pcm/nudge') {
+      const { electorId } = await readJson(req)
+      if (!electorId) return send(res, 400, { error: 'electorId required' })
+      const { data: el } = await sb.from('prep_pcm_elections')
+        .select('id, pcm_id, elector:elector_id(name), pcm:pcm_id(name, email)')
+        .eq('elector_id', electorId).eq('status', 'pending').maybeSingle()
+      if (!el) return send(res, 404, { error: 'no_pending_election' })
+      if (!el.pcm?.email) return send(res, 422, { error: 'no_pcm_email' })
+      const electorName = el.elector?.name || 'Someone'
+      const r = await sendEmail(el.pcm.email, 'A gentle reminder — someone is waiting for you',
+        emailWrap('A gentle reminder',
+          `<p>Dear ${el.pcm.name || 'friend'},</p>
+           <p>${electorName} has elected you as their Personal Contact Minister and is hoping to begin their preparation alongside you.</p>
+           <p>Whenever you have a quiet moment, please open Preparing You to accept or decline. There's no pressure at all — only a soul hoping for a companion on the road.</p>
+           <p>Grace and peace to you.</p>`,
+          'Open Preparing You', 'https://preparingyou.app'))
+      await notify(el.pcm_id, '⏳', `${electorName} sent you a gentle reminder about their election.`, { type:'page', page:'pcm' })
+      return send(res, 200, { ok: !!r.ok, email: r })
+    }
+
+    // Email-system smoke test. Locked to a single allowlisted address so it
+    // can never be used to send to arbitrary recipients.
+    if (req.method === 'POST' && req.url === '/email/test') {
+      const { to } = await readJson(req)
+      const ALLOW = ['markofmelb@gmail.com']
+      const dest = String(to || '').trim().toLowerCase()
+      if (!ALLOW.includes(dest)) return send(res, 403, { error: 'address_not_allowed' })
+      const r = await sendEmail(dest, 'Preparing You — email system test',
+        emailWrap('Email system test',
+          `<p>This is a test message from the Preparing You server.</p>
+           <p>If you're reading this, Resend email delivery is working correctly.</p>
+           <p>Sent at ${new Date().toISOString()}.</p>`,
+          'Open Preparing You', 'https://preparingyou.app'))
+      return send(res, 200, { ok: !!r.ok, result: r })
     }
 
     if (req.method === 'POST' && req.url === '/call/start') {

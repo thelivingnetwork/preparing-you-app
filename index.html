@@ -506,7 +506,10 @@
     <div class="card" id="pcm-pending" style="display:none;border-color:var(--gold);background:var(--gold-soft)">
       <div class="card-title" style="color:var(--gold)">⏳ Awaiting Acceptance</div>
       <div class="card-text">You have elected <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
-      <div style="text-align:right;margin-top:10px"><button class="link-btn" onclick="changePcm()">Withdraw election</button></div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <button class="link-btn" id="pcm-nudge-btn" onclick="nudgePcm()">Nudge</button>
+        <button class="link-btn" onclick="changePcm()">Withdraw election</button>
+      </div>
     </div>
 
     <!-- Inbound elections (PCM viewing requests) -->
@@ -3511,6 +3514,32 @@ async function choosePcm(pcmId){
     buildPcmPage();
   } catch(e){
     alert('Could not send election: ' + e.message);
+  }
+}
+
+// Send a gentle reminder email to the elected PCM who hasn't responded yet.
+// A short client-side cooldown prevents accidental repeat taps.
+let _nudgeCooldownUntil = 0;
+async function nudgePcm(){
+  if(!_sb || !currentUser) return;
+  const btn = document.getElementById('pcm-nudge-btn');
+  if(Date.now() < _nudgeCooldownUntil){
+    if(btn){ const o=btn.textContent; btn.textContent='Already sent'; setTimeout(()=>{ btn.textContent=o; }, 1800); }
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    const r = await fetch(_SERVER_URL + '/pcm/nudge', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ electorId: currentUser.id })
+    });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok || j.ok === false) throw new Error(j.error || 'nudge failed');
+    _nudgeCooldownUntil = Date.now() + 60000; // 1-minute cooldown
+    if(btn){ btn.textContent = 'Reminder sent ✓'; setTimeout(()=>{ btn.textContent='Nudge'; btn.disabled=false; }, 4000); }
+  } catch(e){
+    if(btn){ btn.textContent='Nudge'; btn.disabled=false; }
+    alert('Could not send the reminder: ' + e.message);
   }
 }
 
