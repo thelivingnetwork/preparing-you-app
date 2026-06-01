@@ -3104,16 +3104,16 @@ async function buildPcmPage(){
       electorsCard.style.display = 'block';
       electorsCard.querySelector('[data-electors-list]').innerHTML = accepted.map(e => {
         const invited = !!e.elector?.tln_invited_at;
-        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">'
+        return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 0;border-bottom:1px solid var(--line)">'
           + '<div class="pcm-av">' + _avInner(e.elector) + '</div>'
-          + '<div style="flex:1">'
+          + '<div style="flex:1;min-width:0">'
           +   '<div class="pcm-name">' + _esc(e.elector?.name || 'Unknown') + '</div>'
           +   (e.elector?.region ? '<div class="pcm-meta">' + _esc(e.elector.region) + '</div>' : '')
           +   (invited ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:3px">✓ TLN invited</div>' : '')
           + '</div>'
           + (invited
               ? '<span style="font-size:11px;color:var(--walnut-mid);font-style:italic">Already invited</span>'
-              : '<button class="pcm-pick" style="background:var(--teal);color:#fff" onclick="signoffToTln(\'' + e.elector_id + '\', \'' + _esc(e.elector?.name || '') + '\')">Sign off &amp; invite to TLN</button>')
+              : '<button class="pcm-pick" style="background:var(--teal);color:#fff;flex:1 1 100%;white-space:normal" onclick="signoffToTln(\'' + e.elector_id + '\', \'' + _esc(e.elector?.name || '') + '\')">Sign off &amp; invite to TLN</button>')
           + '</div>';
       }).join('');
     } else {
