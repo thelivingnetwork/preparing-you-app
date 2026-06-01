@@ -1864,6 +1864,39 @@ async function saveProfile(){
 }
 
 // ── Profile photo upload / remove ────────────────────────────────────
+// Normalise any picked photo to a small, square-ish JPEG before upload.
+// iPhone photos are often HEIC (which most browsers can't display) and can be
+// large/rotated; drawing through a canvas converts HEIC→JPEG, downscales to a
+// max edge, and strips EXIF (incl. location). Falls back to the original file
+// if the browser can't decode it. Returns { blob, ext, type }.
+function _processAvatar(file){
+  return new Promise((resolve) => {
+    const fallback = () => resolve({ blob: file, ext: (file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg', type: file.type || 'application/octet-stream' });
+    try {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const MAX = 1024;
+          let { width: w, height: h } = img;
+          if(!w || !h){ URL.revokeObjectURL(url); return fallback(); }
+          if(w > MAX || h > MAX){ const s = MAX / Math.max(w, h); w = Math.round(w*s); h = Math.round(h*s); }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          canvas.toBlob(
+            (blob) => blob ? resolve({ blob, ext: 'jpg', type: 'image/jpeg' }) : fallback(),
+            'image/jpeg', 0.85
+          );
+        } catch(_){ URL.revokeObjectURL(url); fallback(); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); fallback(); };
+      img.src = url;
+    } catch(_){ fallback(); }
+  });
+}
+
 async function onAvatarSelected(input){
   const file = input && input.files && input.files[0];
   if(!file) return;
@@ -1871,14 +1904,15 @@ async function onAvatarSelected(input){
   const show = (text, ok) => { msg.textContent = text; msg.style.color = ok ? 'var(--success)' : 'var(--terra)'; msg.style.display = 'block'; };
   input.value = '';  // allow re-selecting the same file later
   if(!_sb || !currentUser){ show('Not signed in.', false); return; }
-  if(!file.type || !file.type.startsWith('image/')){ show('Please choose an image file.', false); return; }
-  if(file.size > 5 * 1024 * 1024){ show('Image must be under 5 MB.', false); return; }
-  show('Uploading photo…', true);
+  if(file.size > 15 * 1024 * 1024){ show('Image must be under 15 MB.', false); return; }
+  show('Preparing photo…', true);
   try {
-    const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const { blob, ext, type } = await _processAvatar(file);
+    if(blob.size > 5 * 1024 * 1024){ show('Image is too large even after resizing — please pick a smaller one.', false); return; }
+    show('Uploading photo…', true);
     const path = currentUser.id + '/' + Date.now() + '.' + ext;
     const { error: upErr } = await _sb.storage.from('avatars')
-      .upload(path, file, { contentType: file.type, upsert: true });
+      .upload(path, blob, { contentType: type, upsert: true });
     if(upErr) throw new Error(upErr.message);
     const { data: pub } = _sb.storage.from('avatars').getPublicUrl(path);
     const url = pub && pub.publicUrl;
