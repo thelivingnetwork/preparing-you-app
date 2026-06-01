@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.16', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.17', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1657,49 +1657,6 @@ const server = http.createServer(async (req, res) => {
       // goes out immediately rather than waiting for the 5-min cron tick.
       runTownhallAnnouncements().catch(e => console.error('manual announce', e))
       return send(res, 200, { ok: true, triggered: true })
-    }
-
-    if (req.method === 'POST' && req.url === '/townhall/announce-test') {
-      // Admin-only: send a SINGLE sample announcement to one address so we can
-      // eyeball the per-user local-time rendering. Uses the recipient's stored
-      // timezone (so it mirrors a real send) unless an override is provided.
-      const v = await requireAdmin(req)
-      if (v.error) return send(res, v.status, { error: v.error })
-      const b = await readJson(req)
-      const email = (b.email || '').trim()
-      if (!email) return send(res, 400, { error: 'email_required' })
-      const { data: u } = await sb.from('prep_users').select('name, email, timezone').ilike('email', email).maybeSingle()
-      const tzOverride = (typeof b.timezone === 'string' && b.timezone.trim()) || null
-      const usedTz = tzOverride || (u && u.timezone) || null
-      // Sample meeting time = next occurrence of the standing rule (else +4 days).
-      const { data: rule } = await sb.from('prep_townhall_schedule').select('*').eq('id', 1).maybeSingle()
-      let nextMs = rule ? nextOccurrence(rule, Date.now()) : null
-      if (!nextMs) nextMs = Date.now() + 4 * 86400000
-      const scheduledAt = new Date(nextMs).toISOString()
-      const title = (rule && rule.title) || 'Weekly Townhall'
-      const topic = (rule && rule.topic) || 'Open discussion'
-      const localTime = fmtLocal(scheduledAt, usedTz)
-      const name = (u && u.name) || 'Friend'
-      const subject = `[TEST] New townhall set: ${title}`
-      const message =
-`Peace to you, ${name}.
-
-(This is a TEST notice — no meeting has actually been scheduled.)
-
-A new townhall has been scheduled.
-
-${title} — ${topic}
-
-Your local start time: ${localTime}.
-
-Open Preparing You: https://preparingyou.netlify.app`
-      const result = await sendEmailJS(name, email, subject, message)
-      return send(res, result.ok ? 200 : 502, {
-        ok: result.ok, to: email, foundUser: !!u,
-        storedTimezone: (u && u.timezone) || null,
-        usedTimezone: usedTz, localTime, scheduledAt,
-        emailError: result.ok ? undefined : result
-      })
     }
 
     if (req.method === 'GET' && req.url === '/townhall/schedule') {
