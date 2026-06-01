@@ -16,7 +16,7 @@ const webpush = require('web-push')
 
 const PORT = parseInt(process.env.PORT || '10000', 10)
 // Comma-separated allow-list, e.g.
-//   ALLOWED_ORIGIN=https://preparingyou.netlify.app,https://preparingyou-admin.netlify.app
+//   ALLOWED_ORIGIN=https://preparingyou.app,https://preparingyou-admin.netlify.app
 // Use "*" to allow any origin. The matching request origin is echoed back so
 // both the main app and the admin app can call the server.
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
@@ -1027,14 +1027,14 @@ async function electPcm({ electorId, pcmId, skipEmail }) {
       emailWrap('A new election',
         `<p>${elector?.name || 'A user'} has elected you as their Personal Contact Minister.</p>
          <p>Open the app to accept or decline. If you accept, you will be paired with them in messages and able to walk alongside their preparation.</p>`,
-        'Open Preparing You', 'https://preparingyou.netlify.app'))
+        'Open Preparing You', 'https://preparingyou.app'))
   }
   if (!skipEmail && elector?.email) {
     await sendEmail(elector.email, 'Your election has been sent',
       emailWrap('Election sent',
         `<p>You have elected <strong>${pcm?.name || 'a Personal Contact Minister'}</strong>.</p>
          <p>They have been emailed and will respond shortly. We will email you again once they accept or decline.</p>`,
-        'Open Preparing You', 'https://preparingyou.netlify.app'))
+        'Open Preparing You', 'https://preparingyou.app'))
   }
   await notify(pcmId, '👥', `${elector?.name || 'A user'} has elected you as their PCM.`, { type:'page', page:'pcm' })
   await notify(electorId, '⏳', `Your election to ${pcm?.name || 'a PCM'} has been sent.`, { type:'page', page:'pcm' })
@@ -1062,12 +1062,12 @@ async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
       await sendEmail(elector.email, 'Your PCM accepted your election',
         emailWrap('Accepted',
           `<p>${pcm?.name || 'Your PCM'} has accepted your election. They will walk this preparation alongside you.</p><p>You can now message them or schedule a call from inside the app.</p>`,
-          'Open Preparing You', 'https://preparingyou.netlify.app'))
+          'Open Preparing You', 'https://preparingyou.app'))
     } else {
       await sendEmail(elector.email, 'Your PCM is currently unavailable',
         emailWrap('Currently unavailable',
           `<p>${pcm?.name || 'Your PCM'} is unavailable at this time. Please choose another Personal Contact Minister from the list.</p>`,
-          'Choose another', 'https://preparingyou.netlify.app'))
+          'Choose another', 'https://preparingyou.app'))
     }
   }
   if (accept) await notify(el.elector_id, '✓', `${pcm?.name || 'Your PCM'} accepted your election.`, { type:'page', page:'messages' })
@@ -1106,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.17', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.18', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1259,7 +1259,7 @@ const server = http.createServer(async (req, res) => {
             `<p>Peace to you, ${u.name || 'friend'}.</p>
              <p>You have begun the work of preparation. Three short videos and five short books wait inside, along with Paul — an AI guide drawn from those books — and a community of Personal Contact Ministers ready to walk this with you.</p>
              <p>Begin where you are.</p>`,
-            'Open Preparing You', 'https://preparingyou.netlify.app'))
+            'Open Preparing You', 'https://preparingyou.app'))
       }
       await notify(userId, '✦', 'Welcome. Begin with the introduction videos.', { type:'page', page:'video' })
       return send(res, 200, { ok: true })
@@ -1885,7 +1885,7 @@ ${whenLine}
 
 When the moderator opens the call, a "Townhall is live" banner will appear across the app. Tap it to join.
 
-Open Preparing You: https://preparingyou.netlify.app`
+Open Preparing You: https://preparingyou.app`
           const result = await sendEmailJS(u.name || 'Friend', u.email, subject, message)
           if (!result.ok) console.warn(`[townhall-cron] email to ${u.email} failed:`, result)
           await new Promise(r => setTimeout(r, 200))
@@ -1946,7 +1946,7 @@ Your local start time: ${fmtLocal(th.scheduled_at, u.timezone)}.
 
 We'll send a reminder shortly before it begins, and a "Townhall is live" banner will appear across the app when the moderator opens the call.
 
-Open Preparing You: https://preparingyou.netlify.app`
+Open Preparing You: https://preparingyou.app`
           const result = await sendEmailJS(u.name || 'Friend', u.email, subject, message)
           if (!result.ok) console.warn(`[townhall-announce] email to ${u.email} failed:`, result)
           await new Promise(r => setTimeout(r, 200))

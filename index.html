@@ -865,7 +865,7 @@ async function doJoin(){
   await _loadProfile(data.user);
   // Welcome email (client-side via EmailJS; server still inserts welcome notif)
   sendEmail(name, email, 'Welcome to Preparing You',
-    'Peace to you, '+name+'.\n\nYou have begun the work of preparation. Three short videos and five short books wait inside, along with Paul — an AI guide drawn from those books — and a community of Personal Contact Ministers ready to walk this with you.\n\nBegin where you are: https://preparingyou.netlify.app');
+    'Peace to you, '+name+'.\n\nYou have begun the work of preparation. Three short videos and five short books wait inside, along with Paul — an AI guide drawn from those books — and a community of Personal Contact Ministers ready to walk this with you.\n\nBegin where you are: https://preparingyou.app');
   // Server still drops a notification + records the welcome event
   fetch(_SERVER_URL + '/welcome', {
     method:'POST', headers:{'Content-Type':'application/json'},
@@ -3224,11 +3224,11 @@ async function choosePcm(pcmId){
     const pcm = _pcmList.find(p => p.id === pcmId);
     if(pcm?.email){
       sendEmail(pcm.name, pcm.email, 'You have been elected as a Personal Contact Minister',
-        (currentUser.name||'A user')+' has elected you as their Personal Contact Minister. Open the app to accept or decline:\n\nhttps://preparingyou.netlify.app');
+        (currentUser.name||'A user')+' has elected you as their Personal Contact Minister. Open the app to accept or decline:\n\nhttps://preparingyou.app');
     }
     if(currentUser.email){
       sendEmail(currentUser.name, currentUser.email, 'Your election has been sent',
-        'You have elected '+(pcm?.name||'a PCM')+'. They have been emailed and will respond shortly. We will email you again once they accept or decline.\n\nhttps://preparingyou.netlify.app');
+        'You have elected '+(pcm?.name||'a PCM')+'. They have been emailed and will respond shortly. We will email you again once they accept or decline.\n\nhttps://preparingyou.app');
     }
     alert('Election sent. Your PCM has been emailed and will accept or decline shortly.');
     buildPcmPage();
@@ -3269,10 +3269,10 @@ async function pcmRespondElection(electionId, accept){
     if(electorEmail){
       if(accept){
         sendEmail(electorName, electorEmail, 'Your PCM accepted your election',
-          (currentUser.name||'Your PCM')+' has accepted your election. They will walk this preparation alongside you. You can now message them or schedule a call from inside the app.\n\nhttps://preparingyou.netlify.app');
+          (currentUser.name||'Your PCM')+' has accepted your election. They will walk this preparation alongside you. You can now message them or schedule a call from inside the app.\n\nhttps://preparingyou.app');
       } else {
         sendEmail(electorName, electorEmail, 'Your PCM is currently unavailable',
-          (currentUser.name||'Your PCM')+' is unavailable at this time. Please choose another Personal Contact Minister from the list.\n\nhttps://preparingyou.netlify.app');
+          (currentUser.name||'Your PCM')+' is unavailable at this time. Please choose another Personal Contact Minister from the list.\n\nhttps://preparingyou.app');
       }
     }
     // PCM auto-invited to TLN on their first accepted election
