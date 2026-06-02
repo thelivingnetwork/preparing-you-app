@@ -299,6 +299,8 @@
   .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
   .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Spectral',serif}
   .lib-media a:hover{background:var(--gold);color:#fff}
+  .lib-subhead{font-family:'Spectral',serif;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--walnut-mid);margin:6px 2px 10px;font-weight:600}
+  .lib-spotify{display:block;width:100%;border:0;border-radius:12px}
 </style>
 </head>
 <body>
@@ -610,6 +612,9 @@
       <button class="lib-tab" id="lib-tab-audio" onclick="setLibTab('audio')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="2.5" y="13.5" width="5" height="7" rx="2"/><rect x="16.5" y="13.5" width="5" height="7" rx="2"/></svg>Audio</button>
     </div>
     <div class="lib-letter-bar" id="lib-letter-bar"></div>
+    <!-- Featured audio (Spotify show embed). Lives outside #lib-content so it is
+         never re-rendered/reloaded when the search box filters the list. -->
+    <div id="lib-feature" style="display:none"></div>
     <div id="lib-content"><div class="empty"><span class="ico">📚</span>Loading library…</div></div>
     </div>
   </div>
@@ -3348,6 +3353,20 @@ function _libEmptyMsg(){
   return '<div class="empty">No topics match.</div>';
 }
 
+// Featured podcast at the top of the Audio tab: Spotify's official show embed.
+// Lists every episode with inline playback and auto-includes new episodes.
+const _LIB_PODCAST_SHOW = '0OyQtDzeMmzlIu48dGWsVE';  // Keys of the Kingdom — His Holy Church
+function _libAudioFeature(){
+  return '<div class="card">'
+    + '<div class="card-title">Keys of the Kingdom</div>'
+    + '<div class="card-text" style="margin-bottom:12px">Brother Gregory’s radio program from His Holy Church. Every episode plays here, and new ones appear automatically.</div>'
+    + '<iframe class="lib-spotify" title="Keys of the Kingdom podcast" loading="lazy" height="420" '
+    +   'src="https://open.spotify.com/embed/show/' + _LIB_PODCAST_SHOW + '?theme=0" '
+    +   'allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" '
+    +   'allowfullscreen></iframe>'
+    + '</div>';
+}
+
 // Switch sections. Updates the active pill + search placeholder, then re-renders
 // (honouring whatever is currently typed in the search box).
 function setLibTab(tab){
@@ -3360,6 +3379,17 @@ function setLibTab(tab){
   if(box) box.placeholder = (tab === 'literature')
     ? 'Search all of preparingyou.com…'
     : (tab === 'video') ? 'Filter videos…' : 'Filter audio…';
+  // Featured podcast: populate once, then just toggle visibility (so the
+  // Spotify iframe is never torn down / reloaded when switching tabs).
+  const feat = document.getElementById('lib-feature');
+  if(feat){
+    if(tab === 'audio'){
+      if(!feat.dataset.loaded){ feat.innerHTML = _libAudioFeature(); feat.dataset.loaded = '1'; }
+      feat.style.display = '';
+    } else {
+      feat.style.display = 'none';
+    }
+  }
   renderLibTab();
 }
 
@@ -3373,10 +3403,16 @@ function renderLibTab(){
   const bar = document.getElementById('lib-letter-bar');
   const content = document.getElementById('lib-content');
   _renderLetterBar(sections);
+  // On Audio the podcast embed is the focus and the curated list is short, so
+  // the A–Z jumper just adds clutter — keep it for Literature/Video only.
+  const useBar = (_libTab !== 'audio');
+  // Audio tab labels its curated X-SPACE recordings below the podcast.
+  const subhead = (_libTab === 'audio') ? '<div class="lib-subhead">Topical recordings</div>' : '';
 
   if(!q){
-    if(bar) bar.style.display = '';
-    content.innerHTML = _renderLibSections(sections, showMedia) || _libEmptyMsg();
+    if(bar) bar.style.display = useBar ? '' : 'none';
+    const body = _renderLibSections(sections, showMedia);
+    content.innerHTML = body ? (subhead + body) : (_libTab === 'audio' ? '' : _libEmptyMsg());
     return;
   }
   if(bar) bar.style.display = 'none';   // letter bar is irrelevant during search
@@ -3394,8 +3430,10 @@ function renderLibTab(){
     letter: s.letter,
     topics: s.topics.filter(t => (t.title || '').toLowerCase().indexOf(ql) >= 0)
   })).filter(s => s.topics.length);
-  content.innerHTML = _renderLibSections(filtered, showMedia)
-    || ('<div class="empty"><span class="ico">📭</span>No ' + _libTab + ' found for “' + _esc(q) + '”.</div>');
+  const filteredBody = _renderLibSections(filtered, showMedia);
+  content.innerHTML = filteredBody
+    ? (subhead + filteredBody)
+    : ('<div class="empty"><span class="ico">📭</span>No ' + _libTab + ' found for “' + _esc(q) + '”.</div>');
 }
 
 // Back-compat alias: a few callers still say renderLibrary().
