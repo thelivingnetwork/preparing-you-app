@@ -2767,11 +2767,15 @@ function _booksTotal(){
 
 function journeyStage(){
   if(!currentUser) return 1;
+  // Anyone already granted TLN access (graduates and volunteer PCMs) is past
+  // the linear journey. Volunteer PCMs in particular may have no pcm_id of
+  // their own, so this must come before the pcm_id check to avoid wrongly
+  // sending them back to "Choose a PCM".
+  if(currentUser.tln_invited_at) return 5;
   if(gatewayProgress().done < GATEWAY_VIDEOS.length) return 1;
   if(!currentUser.pcm_id) return 2;
   if(_bookAudioDone.size < _booksTotal()) return 3;
-  if(!currentUser.tln_invited_at) return 4;
-  return 5;
+  return 4;
 }
 
 // ── Journey gating ────────────────────────────────────────────────
