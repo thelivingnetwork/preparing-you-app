@@ -232,7 +232,12 @@
      fails to clip the overflow. The Delete's own rounded right corners cover the
      one spot (the card's right edge) where WebKit clipping could otherwise miss. */
   .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
-  .convo-track{display:flex;align-items:stretch}
+  /* will-change promotes each track to its own layer so the LAST row in the
+     scroll container repaints its revealed Delete after the swipe transform —
+     a WebKit bug where the final element otherwise never repaints. Safe here:
+     the Delete is row-height and parked off the right screen edge at rest, so
+     promoting the layer can't make it bleed (unlike the old absolute button). */
+  .convo-track{display:flex;align-items:stretch;will-change:transform}
   .convo-track > .convo-row{flex:0 0 100%;background:var(--surface);touch-action:pan-y;border-radius:10px;border-bottom:none}
   .convo-track > .convo-row:active{background:var(--gold-soft)}
   .convo-del{flex:0 0 88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer}
