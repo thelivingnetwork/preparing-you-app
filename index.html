@@ -2952,7 +2952,10 @@ function playGateway(idx){
   // Only allow already-completed or the immediate next
   if(!isDone && (!next || next.idx !== idx)) return;
   _gatewayCurrent = v;
-  _gatewayMaxTime = isDone ? Infinity : 0; // re-watching done videos: free seek
+  const resume = _loadAudioPos('gateway', v.idx);
+  // Re-watching a done video: free seek. First watch: the anti-skip ceiling
+  // starts where they last left off, so they resume instead of starting over.
+  _gatewayMaxTime = isDone ? Infinity : resume;
   const wrap = document.getElementById('gateway-player-wrap');
   const player = document.getElementById('gateway-player');
   document.getElementById('gateway-player-title').textContent = v.title;
@@ -2960,12 +2963,16 @@ function playGateway(idx){
   wrap.style.display = 'block';
   player.load();
   player.play().catch(()=>{});
+  _resumeAudioAt(player, resume);   // jump to last spot once metadata is ready
   wrap.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function stopGatewayPlayer(){
   const player = document.getElementById('gateway-player');
-  if(player){ try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  if(player){
+    if(_gatewayCurrent && _gatewayMaxTime !== Infinity) _saveAudioPos('gateway', _gatewayCurrent.idx, player.currentTime);
+    try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load();
+  }
   const wrap = document.getElementById('gateway-player-wrap');
   if(wrap) wrap.style.display = 'none';
   _gatewayCurrent = null;
@@ -2983,6 +2990,15 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if(player.currentTime > _gatewayMaxTime){
       _gatewayMaxTime = player.currentTime;
     }
+    // Remember where they are so an interruption resumes here next time.
+    const now = Date.now();
+    if(_gatewayCurrent && now - _lastAudioPosSave > 3000){
+      _lastAudioPosSave = now;
+      _saveAudioPos('gateway', _gatewayCurrent.idx, player.currentTime);
+    }
+  });
+  player.addEventListener('pause', () => {
+    if(_gatewayCurrent && _gatewayMaxTime !== Infinity) _saveAudioPos('gateway', _gatewayCurrent.idx, player.currentTime);
   });
   player.addEventListener('seeking', () => {
     if(_gatewayMaxTime === Infinity) return;
@@ -2993,6 +3009,7 @@ document.addEventListener('DOMContentLoaded', () => {
   player.addEventListener('ended', async () => {
     if(!_gatewayCurrent || !_sb || !currentUser) return;
     const v = _gatewayCurrent;
+    _clearAudioPos('gateway', v.idx); // finished — no resume needed next time
     if(currentUser[v.key]) return; // already recorded
     const now = new Date().toISOString();
     const patch = { [v.key]: now };
