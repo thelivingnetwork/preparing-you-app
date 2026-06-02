@@ -458,7 +458,10 @@
     <!-- Townhall card -->
     <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="onTownhallCardClick()">
       <div class="card-title" style="color:var(--accent-ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px 10px;min-width:0">
-        <span id="townhall-title-text" style="min-width:0">🎙 Weekly Townhall</span>
+        <span style="min-width:0;display:inline-flex;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+          <span id="townhall-title-text" style="min-width:0">Weekly Townhall</span>
+        </span>
         <span id="townhall-when" style="font-size:12px;font-weight:500;color:var(--walnut-mid);text-transform:none">—</span>
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
@@ -474,7 +477,7 @@
          evolving journey tile above and the bottom nav bar). -->
     <!-- Topical Library is a standalone reference; the Five Books now lives in the
          guided journey (stage 3) and the bottom nav, so it's not duplicated here. -->
-    <div class="tile" style="grid-column:1/-1" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Audio, Video &amp; Literature Vault</div><div class="tile-meta">Articles · videos</div></div>
+    <div class="tile" style="grid-column:1/-1" onclick="showPage('library')"><div class="tile-icon" style="color:var(--terra);display:flex;justify-content:center"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M10 8.2l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></div><div class="tile-name">Audio, Video &amp; Literature Vault</div><div class="tile-meta">Articles · videos</div></div>
   </div>
 
   <div class="page" id="page-video">
@@ -1109,7 +1112,7 @@ async function refreshTownhallCard(){
     document.getElementById('townhall-text').textContent = (st.topic || 'Townhall') + ' — tap to join';
     if(banner) banner.style.display = 'block';
   } else {
-    document.getElementById('townhall-title-text').textContent = '🎙 ' + (st.title || 'Weekly Townhall');
+    document.getElementById('townhall-title-text').textContent = (st.title || 'Weekly Townhall');
     document.getElementById('townhall-when').textContent = localTime;
     document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + (_townhallIsHost ? ' — start it when ready' : ' — moderator will start it on time');
     if(banner) banner.style.display = 'none';
