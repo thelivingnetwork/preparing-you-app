@@ -634,6 +634,19 @@
     </div><!-- /#books-content -->
   </div>
 
+  <!-- COMPOSER-UX: emoji picker + grow-with-text styles (shared by Messages & Paul) -->
+  <style>
+  .emoji-btn{margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-size:18px;cursor:pointer;line-height:1;flex-shrink:0}
+  .emoji-btn.active{background:var(--terra-soft);border-color:var(--terra)}
+  .emoji-panel{display:none;border:1px solid var(--line);border-radius:12px;background:var(--surface);max-height:208px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:4px 8px 8px;margin:0;flex-shrink:0}
+  .emoji-panel.open{display:block}
+  .emoji-cat{font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:8px 4px 3px;opacity:.85}
+  .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+  .emoji-grid button{font-size:23px;line-height:1;background:none;border:none;border-radius:8px;padding:6px 0;cursor:pointer;width:100%;margin:0;-webkit-tap-highlight-color:transparent}
+  .emoji-grid button:active{background:var(--terra-soft)}
+  @media (max-width:360px){.emoji-grid{grid-template-columns:repeat(7,1fr)}.emoji-grid button{font-size:21px}}
+  </style>
+
   <div class="page" id="page-messages">
     <div id="msg-empty" class="empty" style="display:none"><span class="ico">💬</span>You'll be able to message your PCM here once your election is accepted.</div>
 
@@ -658,10 +671,12 @@
         </div>
         <div id="msg-list" style="padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
         <div id="msg-attach-chip" style="display:none;padding:0 16px;margin:8px 0 0;align-items:center;gap:8px"></div>
+        <div class="emoji-panel" id="msg-emoji" style="margin:8px 12px 0"></div>
         <div id="msg-compose" style="padding:12px 16px calc(12px + 52px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
           <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
-          <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-size:18px;cursor:pointer" onclick="document.getElementById('msg-file').click()">📎</button>
-          <textarea id="msg-input" rows="1" placeholder="Write a message…" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-size:18px;cursor:pointer;flex-shrink:0" onclick="document.getElementById('msg-file').click()">📎</button>
+          <button type="button" id="msg-emoji-btn" class="emoji-btn" title="Emoji" aria-label="Emoji" onclick="toggleEmoji('msg-emoji','msg-input',this)">😊</button>
+          <textarea id="msg-input" rows="1" data-maxh="140" placeholder="Write a message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
       </div>
@@ -745,9 +760,11 @@
           <span id="paul-status-dot" style="width:9px;height:9px;border-radius:50%;background:var(--terra);flex-shrink:0"></span>
           <span id="paul-status-text"></span>
         </div>
+        <div class="emoji-panel" id="paul-emoji"></div>
         <div style="display:flex;gap:8px">
           <button id="paul-mic" onclick="togglePaulConversation()" title="Talk with Paul" aria-label="Talk with Paul" style="padding:10px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;line-height:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
-          <textarea id="paul-input" rows="1" placeholder="Ask Paul…" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+          <button type="button" id="paul-emoji-btn" class="emoji-btn" title="Emoji" aria-label="Emoji" style="padding:10px 11px" onclick="toggleEmoji('paul-emoji','paul-input',this)">😊</button>
+          <textarea id="paul-input" rows="1" data-maxh="120" placeholder="Ask Paul…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px;overflow-y:hidden" oninput="_autoGrow(this)" onfocus="_closeEmoji('paul-emoji','paul-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
           <button id="paul-send" onclick="sendPaul()" title="Send" aria-label="Send" style="padding:10px 14px;background:var(--terra);color:#fff;border:none;border-radius:8px;cursor:pointer;line-height:0;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
         </div>
       </div>
@@ -1605,11 +1622,88 @@ async function sendMessage(){
   if(!r.ok){
     const j = await r.json().catch(() => ({}));
     input.value = text; // restore so they don't lose their message
+    _autoGrow(input);
     if(attach){ _pendingAttachment = attach; _renderAttachChip(); } // restore attachment too
     alert('Could not send: ' + (j.error || r.status));
     return;
   }
+  _autoGrow(input); // collapse the box back to one line after sending
+  _closeEmoji('msg-emoji','msg-emoji-btn');
   await loadMessages();
+}
+
+// ═══════════════ COMPOSER UX — grow-with-text + emoji ═══════════════
+// COMPOSER-UX-MARKER
+// Grow a textarea with its content up to data-maxh (px), then scroll inside.
+// An empty textarea reports an inflated scrollHeight (a phantom extra line) in
+// some engines, so when the box is empty we drop the inline height and let the
+// rows="1" default size it back to a single line.
+function _autoGrow(el){
+  if(!el) return;
+  if(!el.value){ el.style.height = ''; el.style.overflowY = 'hidden'; return; }
+  const max = parseInt(el.dataset.maxh || '140', 10);
+  el.style.height = 'auto';
+  const sh = el.scrollHeight;
+  el.style.height = Math.min(sh, max) + 'px';
+  el.style.overflowY = sh > max ? 'auto' : 'hidden';
+}
+
+// Curated, faith-friendly emoji set for the Messenger-style picker. No library.
+const _EMOJIS = [
+  ['Smileys', '😀 😃 😄 😁 😆 😅 😂 🤣 🙂 🙃 😉 😊 😇 🥰 😍 😘 😗 😙 😚 😋 😛 😜 🤪 😝 🤗 🤭 🤫 🤔 😶 😐 😏 😌 😔 😪 😴 🥺 😢 😭 😤 😠 🤯 😳 🥳 😎 🤩 😬'],
+  ['Gestures', '👍 👎 👌 ✌️ 🤞 🤟 🤙 👋 🙌 👏 🙏 💪 🤝 👐 ✋ 🤲 👀'],
+  ['Hearts', '❤️ 🧡 💛 💚 💙 💜 🤎 🖤 🤍 💕 💞 💓 💗 💖 💘 💝 ❣️'],
+  ['Faith & Nature', '✝️ 🙏 🕊️ 📖 ✨ ⭐ 🌟 🔥 🌈 🌿 🌸 🌻 🌅 🍞 🍷 🕯️ 👑 ⛪'],
+  ['Symbols', '🎉 🎊 ✅ ❌ ⚠️ ❓ ❗ 💯 💬 📞 📌 ☕ 🎵 🔔 ⏰ 📅']
+];
+
+// Populate a panel's grid once (lazy, on first open).
+function _buildEmojiPanel(panelId, targetId){
+  const panel = document.getElementById(panelId);
+  if(!panel || panel.dataset.built) return;
+  panel.innerHTML = _EMOJIS.map(function(pair){
+    const cells = pair[1].trim().split(/\s+/).map(function(e){
+      return '<button type="button" onclick="_pickEmoji(\'' + targetId + '\',\'' + e + '\')">' + e + '</button>';
+    }).join('');
+    return '<div class="emoji-cat">' + pair[0] + '</div><div class="emoji-grid">' + cells + '</div>';
+  }).join('');
+  panel.dataset.built = '1';
+}
+
+// Insert an emoji at the cursor without stealing focus (keeps the panel open
+// for rapid entry and avoids re-summoning the soft keyboard).
+function _pickEmoji(targetId, emoji){
+  const el = document.getElementById(targetId);
+  if(!el) return;
+  const s = (el.selectionStart != null) ? el.selectionStart : el.value.length;
+  const e = (el.selectionEnd != null) ? el.selectionEnd : el.value.length;
+  el.value = el.value.slice(0, s) + emoji + el.value.slice(e);
+  const pos = s + emoji.length;
+  try { el.selectionStart = el.selectionEnd = pos; } catch(_){}
+  _autoGrow(el);
+  if(targetId === 'msg-input' && typeof _msgPinIfStuck === 'function') _msgPinIfStuck();
+}
+
+function toggleEmoji(panelId, targetId, btn){
+  const panel = document.getElementById(panelId);
+  if(!panel) return;
+  _buildEmojiPanel(panelId, targetId);
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open', opening);
+  if(btn) btn.classList.toggle('active', opening);
+  if(opening){
+    const el = document.getElementById(targetId);
+    if(el) el.blur(); // drop the soft keyboard so the panel is visible
+    if(targetId === 'msg-input' && typeof _scrollMsgBottom === 'function') _scrollMsgBottom();
+  }
+}
+
+// Close a panel (called when its input regains focus / after sending).
+function _closeEmoji(panelId, btnId){
+  const panel = document.getElementById(panelId);
+  if(panel) panel.classList.remove('open');
+  const btn = document.getElementById(btnId);
+  if(btn) btn.classList.remove('active');
 }
 
 // ── Attachments ───────────────────────────────────────────
@@ -2474,6 +2568,8 @@ async function sendPaul(){
   const text = (input.value || '').trim();
   if(!text) return;
   input.value = '';
+  _autoGrow(input); // collapse the box back to one line
+  _closeEmoji('paul-emoji','paul-emoji-btn');
   sendBtn.disabled = true; sendBtn.style.opacity = '0.5';
   _renderPaulMessage('user', text);
   _paulHistory.push({ role:'user', content:text });
