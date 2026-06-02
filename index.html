@@ -222,6 +222,12 @@
   .convo-row.unread .convo-name{font-weight:700;color:var(--brand-ink)}
   .convo-row.unread .convo-prev{color:var(--walnut);font-weight:600}
   .convo-badge{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--badge);color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;font-family:system-ui,sans-serif}
+  /* Swipe-to-delete: the row slides left to reveal a Delete action behind it. */
+  .convo-swipe{position:relative;overflow:hidden;border-radius:10px}
+  .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--parch);transform:translateX(0);touch-action:pan-y}
+  .convo-swipe > .convo-row:active{background:var(--gold-soft)}
+  .convo-del{position:absolute;top:0;right:0;bottom:1px;width:88px;border:none;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0;border-radius:0 10px 10px 0}
+  .convo-del:active{filter:brightness(.9)}
   .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .picker-row:active{background:var(--gold-soft)}
 
@@ -1331,10 +1337,12 @@ async function refreshInbox(){
   refreshMessageBadge();
 }
 
+let _inboxSig = null;
 function renderInbox(){
   const listEl  = document.getElementById('msg-convo-list');
   const emptyEl = document.getElementById('msg-inbox-empty');
   if(!_msgConvos.length){
+    _inboxSig = '';
     listEl.innerHTML = '';
     emptyEl.innerHTML = _msgPeers.length
       ? '<span class="ico">💬</span>No conversations yet. Tap the + to reach out to your PCM.'
@@ -1342,11 +1350,18 @@ function renderInbox(){
     emptyEl.style.display = 'block';
     return;
   }
+  // Skip the rebuild when nothing changed, so the 6s poll never snaps a row
+  // closed mid-swipe or flickers the list.
+  const sig = _msgConvos.map(c => c.peerId + ':' + c.last_at + ':' + c.unread).join('|');
+  if(sig === _inboxSig) return;
+  _inboxSig = sig;
   emptyEl.style.display = 'none';
   listEl.innerHTML = _msgConvos.map(c => {
     const unread = c.unread > 0;
     const prev = (c.last_mine ? 'You: ' : '') + (c.last_preview || '');
-    return '<div class="convo-row' + (unread ? ' unread' : '') + '" onclick="openThread(\'' + c.peerId + '\')">'
+    return '<div class="convo-swipe">'
+      + '<button class="convo-del" onclick="hideConvo(\'' + c.peerId + '\',event)">Delete</button>'
+      + '<div class="convo-row' + (unread ? ' unread' : '') + '" data-peer="' + c.peerId + '" onclick="onConvoTap(\'' + c.peerId + '\',event,this)">'
       + '<div class="convo-av">' + _avInner(c) + '</div>'
       + '<div class="convo-main">'
       +   '<div class="convo-top"><span class="convo-name">' + _esc(c.name) + '</span>'
@@ -1357,6 +1372,101 @@ function renderInbox(){
       + '</div>'
       + '</div>';
   }).join('');
+  _wireConvoSwipe();
+}
+
+// ── Swipe-to-delete on conversation rows (iOS-style) ──────────
+const _CONVO_ACTION_W = 88; // px of Delete revealed when a row is fully open
+let _convoSwipeWired = false;
+let _convoSwipe = null;      // active drag: {row, startX, startY, baseX, dir, moved}
+let _convoTapBlock = false;  // suppress the click that follows a horizontal drag
+
+function _convoRowX(row){ return parseFloat(row.dataset.x || '0'); }
+function _setConvoRowX(row, x, animate){
+  row.style.transition = animate ? 'transform .2s ease' : 'none';
+  row.style.transform = 'translateX(' + x + 'px)';
+  row.dataset.x = x;
+  row.dataset.open = (x <= -_CONVO_ACTION_W + 1) ? '1' : '';
+}
+function _closeConvoRow(row){ if(row) _setConvoRowX(row, 0, true); }
+function _closeOtherConvoRows(except){
+  document.querySelectorAll('#msg-convo-list .convo-row').forEach(r => {
+    if(r !== except && _convoRowX(r) !== 0) _setConvoRowX(r, 0, true);
+  });
+}
+function _wireConvoSwipe(){
+  if(_convoSwipeWired) return;
+  const list = document.getElementById('msg-convo-list');
+  if(!list) return;
+  _convoSwipeWired = true;
+  list.addEventListener('touchstart', e => {
+    const row = e.target.closest('.convo-row');
+    if(!row){ _convoSwipe = null; return; }
+    const t = e.touches[0];
+    _convoSwipe = { row, startX:t.clientX, startY:t.clientY, baseX:_convoRowX(row), dir:null, moved:false };
+    row.style.transition = 'none';
+  }, { passive:true });
+  list.addEventListener('touchmove', e => {
+    if(!_convoSwipe) return;
+    const t = e.touches[0];
+    const dx = t.clientX - _convoSwipe.startX;
+    const dy = t.clientY - _convoSwipe.startY;
+    if(_convoSwipe.dir === null){
+      if(Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      _convoSwipe.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      if(_convoSwipe.dir === 'h') _closeOtherConvoRows(_convoSwipe.row);
+    }
+    if(_convoSwipe.dir !== 'h') return; // vertical → let the list scroll
+    e.preventDefault();
+    let x = Math.max(-_CONVO_ACTION_W, Math.min(0, _convoSwipe.baseX + dx));
+    _convoSwipe.row.style.transform = 'translateX(' + x + 'px)';
+    _convoSwipe.row.dataset.x = x;
+    _convoSwipe.moved = true;
+  }, { passive:false });
+  const endDrag = () => {
+    if(!_convoSwipe) return;
+    const row = _convoSwipe.row;
+    if(_convoSwipe.dir === 'h'){
+      const open = _convoRowX(row) < -_CONVO_ACTION_W / 2;
+      _setConvoRowX(row, open ? -_CONVO_ACTION_W : 0, true);
+      if(_convoSwipe.moved){ _convoTapBlock = true; setTimeout(() => { _convoTapBlock = false; }, 350); }
+    }
+    _convoSwipe = null;
+  };
+  list.addEventListener('touchend', endDrag, { passive:true });
+  list.addEventListener('touchcancel', endDrag, { passive:true });
+}
+
+// A tap on the row: if it's swiped open, close it; if a swipe just happened,
+// swallow the tap; otherwise open the thread.
+function onConvoTap(peerId, ev, row){
+  if(row && row.dataset.open === '1'){ _closeConvoRow(row); return; }
+  if(_convoTapBlock) return;
+  openThread(peerId);
+}
+
+// Hide a conversation from my inbox (non-destructive — see /messages/clear).
+async function hideConvo(peerId, ev){
+  if(ev) ev.stopPropagation();
+  const prev = _msgConvos;
+  _msgConvos = _msgConvos.filter(c => c.peerId !== peerId);
+  renderInbox();
+  try {
+    const { data: { session } } = await _sb.auth.getSession();
+    if(!session?.access_token) throw new Error('You appear to be signed out.');
+    const r = await fetch(_SERVER_URL + '/messages/clear', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+      body: JSON.stringify({ peerId })
+    });
+    if(!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || r.status); }
+    refreshMessageBadge();
+  } catch(e){
+    _msgConvos = prev;          // restore the row on failure
+    _inboxSig = null;           // force a re-render
+    renderInbox();
+    alert('Could not delete conversation: ' + (e.message || e));
+  }
 }
 
 // ── Thread (individual conversation) ───────────────────────────────

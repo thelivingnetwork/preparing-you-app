@@ -1120,7 +1120,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.24', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.25', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1420,6 +1420,26 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { messages })
     }
 
+    // Hide a conversation from THIS user's inbox (non-destructive). Records a
+    // cleared_at for (me, peer); the inbox then suppresses that conversation
+    // until a newer message arrives. Also marks any unread from that peer read
+    // so the nav badge stays consistent. The messages are never deleted and the
+    // other participant is unaffected.
+    if (req.method === 'POST' && req.url === '/messages/clear') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { peerId } = await readJson(req)
+      if (!peerId || !_UUID_RE.test(peerId)) return send(res, 400, { error: 'valid peerId required' })
+      const nowIso = new Date().toISOString()
+      const { error } = await sb.from('prep_message_clears')
+        .upsert({ user_id: meId, peer_id: peerId, cleared_at: nowIso }, { onConflict: 'user_id,peer_id' })
+      if (error) return send(res, 500, { error: error.message })
+      await sb.from('prep_messages').update({ read_at: nowIso })
+        .eq('recipient_id', meId).eq('sender_id', peerId).is('read_at', null)
+      return send(res, 200, { ok: true })
+    }
+
     // Conversation list (Messenger-style inbox). One row per peer the user has
     // exchanged messages with: decrypted last-message preview, timestamp, and
     // unread count. Only the server can preview bodies (encrypted at rest), and
@@ -1451,7 +1471,17 @@ const server = http.createServer(async (req, res) => {
         }
         if (m.recipient_id === meId && !m.read_at) c.unread++
       }
-      const list = Array.from(convos.values())
+      // Drop conversations this user has hidden, unless a newer message has
+      // arrived since they cleared it. Defensive: if the clears table is absent
+      // (migration not yet run), treat as no clears so the inbox still works.
+      let clearMap = new Map()
+      const { data: clears } = await sb.from('prep_message_clears')
+        .select('peer_id, cleared_at').eq('user_id', meId)
+      if (clears) clearMap = new Map(clears.map(r => [r.peer_id, r.cleared_at]))
+      const list = Array.from(convos.values()).filter(c => {
+        const cl = clearMap.get(c.peerId)
+        return !cl || new Date(c.last_at) > new Date(cl)
+      })
       if (list.length) {
         const ids = list.map(c => c.peerId)
         const { data: us } = await sb.from('prep_users').select('id, name, region, avatar_url').in('id', ids)
