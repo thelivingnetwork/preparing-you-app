@@ -594,7 +594,7 @@
       <div class="card-title">Audio, Video &amp; Literature Vault</div>
       <div class="card-text">Browse curated teachings — switch between literature, video and audio below, or search to reach every article on preparingyou.com. Use Paul to ask questions about what you read.</div>
     </div>
-    <input class="lib-search" id="lib-search" type="search" placeholder="Search all of preparingyou.com…" oninput="filterLibrary(this.value)">
+    <input class="lib-search" id="lib-search" type="search" placeholder="Search…" oninput="filterLibrary(this.value)">
     <div class="lib-tabs" id="lib-tabs">
       <button class="lib-tab active" id="lib-tab-literature" onclick="setLibTab('literature')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Literature</button>
       <button class="lib-tab" id="lib-tab-video" onclick="setLibTab('video')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>Video</button>
@@ -3376,9 +3376,7 @@ function setLibTab(tab){
     if(b) b.classList.toggle('active', t === tab);
   });
   const box = document.getElementById('lib-search');
-  if(box) box.placeholder = (tab === 'literature')
-    ? 'Search all of preparingyou.com…'
-    : (tab === 'video') ? 'Filter videos…' : 'Filter audio…';
+  if(box) box.placeholder = 'Search…';
   // Featured players: populate once each, then just toggle visibility — so the
   // YouTube/Spotify iframes are never torn down or reloaded between tabs.
   const feat = document.getElementById('lib-feature');
