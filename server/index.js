@@ -1120,7 +1120,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.25', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.26', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1716,6 +1716,53 @@ const server = http.createServer(async (req, res) => {
       })
       if (!r.ok) return send(res, 500, { error: 'auth_delete_failed', status: r.status, body: await r.text() })
       return send(res, 200, { ok: true })
+    }
+
+    if (req.method === 'POST' && req.url === '/admin/update-email') {
+      // Change a member's LOGIN email (for people who lost access to their old
+      // address). Updates auth.users.email (the actual sign-in identifier) AND
+      // the prep_users.email mirror used for notifications. The password is NOT
+      // touched — they sign in with the new email + their existing password.
+      // We mark the new email confirmed so they can log in immediately without
+      // a confirmation link (which they could not receive at the old address).
+      const auth = req.headers['authorization'] || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+      if (!token) return send(res, 401, { error: 'no_token' })
+      const callerSb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: 'Bearer ' + token } },
+        auth: { persistSession: false }
+      })
+      const { data: u } = await callerSb.auth.getUser(token)
+      const callerId = u?.user?.id
+      if (!callerId) return send(res, 401, { error: 'invalid_token' })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', callerId).maybeSingle()
+      if (!adminRow) return send(res, 403, { error: 'not_admin' })
+
+      const body = await readJson(req)
+      const userId = body.userId
+      const email = (body.email || '').trim().toLowerCase()
+      if (!userId) return send(res, 400, { error: 'userId required' })
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return send(res, 400, { error: 'invalid_email' })
+
+      // 1) Update the auth account's email (login identifier), confirmed.
+      const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, email_confirm: true })
+      })
+      if (!r.ok) {
+        const txt = await r.text()
+        // Supabase returns 422 when the email is already used by another account.
+        if (r.status === 422 || /already/i.test(txt)) return send(res, 409, { error: 'email_in_use' })
+        return send(res, 500, { error: 'auth_update_failed', status: r.status, body: txt })
+      }
+      // 2) Keep the notification mirror in sync.
+      await sb.from('prep_users').update({ email }).eq('id', userId)
+      return send(res, 200, { ok: true, email })
     }
 
     if (req.method === 'POST' && req.url === '/admin/broadcast') {
