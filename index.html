@@ -226,7 +226,10 @@
   .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
   .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--parch);transform:translateX(0);touch-action:pan-y;border-radius:0;border-bottom:none}
   .convo-swipe > .convo-row:active{background:var(--gold-soft)}
-  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0}
+  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0;opacity:0;visibility:hidden;transition:opacity .12s ease}
+  /* Only the row being actively swiped shows its Delete action — prevents any
+     red bleeding through rounded corners of rows that are at rest. */
+  .convo-swipe.revealing > .convo-del{opacity:1;visibility:visible}
   .convo-del:active{filter:brightness(.9)}
   .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .picker-row:active{background:var(--gold-soft)}
@@ -1387,6 +1390,8 @@ function _setConvoRowX(row, x, animate){
   row.style.transform = 'translateX(' + x + 'px)';
   row.dataset.x = x;
   row.dataset.open = (x <= -_CONVO_ACTION_W + 1) ? '1' : '';
+  const w = row.parentElement;
+  if(w) w.classList.toggle('revealing', x < 0);
 }
 function _closeConvoRow(row){ if(row) _setConvoRowX(row, 0, true); }
 function _closeOtherConvoRows(except){
@@ -1421,6 +1426,8 @@ function _wireConvoSwipe(){
     let x = Math.max(-_CONVO_ACTION_W, Math.min(0, _convoSwipe.baseX + dx));
     _convoSwipe.row.style.transform = 'translateX(' + x + 'px)';
     _convoSwipe.row.dataset.x = x;
+    const w = _convoSwipe.row.parentElement;
+    if(w) w.classList.toggle('revealing', x < 0);
     _convoSwipe.moved = true;
   }, { passive:false });
   const endDrag = () => {
