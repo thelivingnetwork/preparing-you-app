@@ -2994,14 +2994,32 @@ function openPcmVideo(){
   if(!player.getAttribute('src')) player.src = PCM_VIDEO_SRC;
   modal.style.display = 'flex';
   player.load();
+  const resume = _loadAudioPos('pcmvid', 'choose-pcm');
   player.play().catch(()=>{});
+  _resumeAudioAt(player, resume);   // jump to last spot once metadata is ready
 }
 function closePcmVideo(){
   const player = document.getElementById('pcm-video-player');
-  if(player){ try{ player.pause(); }catch(_){} }
+  if(player){
+    if(!player.ended) _saveAudioPos('pcmvid', 'choose-pcm', player.currentTime);
+    try{ player.pause(); }catch(_){}
+  }
   const modal = document.getElementById('pcm-video-modal');
   if(modal) modal.style.display = 'none';
 }
+document.addEventListener('DOMContentLoaded', () => {
+  const player = document.getElementById('pcm-video-player');
+  if(!player) return;
+  player.addEventListener('timeupdate', () => {
+    const now = Date.now();
+    if(now - _lastAudioPosSave > 3000){
+      _lastAudioPosSave = now;
+      _saveAudioPos('pcmvid', 'choose-pcm', player.currentTime);
+    }
+  });
+  player.addEventListener('pause', () => { if(!player.ended) _saveAudioPos('pcmvid', 'choose-pcm', player.currentTime); });
+  player.addEventListener('ended', () => _clearAudioPos('pcmvid', 'choose-pcm'));
+});
 
 function stopGatewayPlayer(){
   const player = document.getElementById('gateway-player');
