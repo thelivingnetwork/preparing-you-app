@@ -491,6 +491,7 @@
   </div>
 
   <div class="page" id="page-pcm">
+    <div id="pcm-content">
     <div class="card" id="pcm-intro">
       <div class="card-title">Personal Contact Minister</div>
       <div class="card-text" id="pcm-intro-text">A PCM volunteers their time to walk this preparation alongside you. Choose someone in or near your region.</div>
@@ -541,6 +542,7 @@
       </div>
       <div id="pcm-list"></div>
     </div>
+    </div><!-- /#pcm-content -->
   </div>
 
   <!-- Volunteer modal -->
@@ -581,6 +583,7 @@
   </div>
 
   <div class="page" id="page-books">
+    <div id="books-content">
     <div class="card">
       <div class="card-title">The Five Books</div>
       <div class="card-text">Read each book in full and listen to a 15-minute audio overview — a podcast-style discussion drawn from the source. Paul can answer any question that comes up.</div>
@@ -598,6 +601,7 @@
       <audio id="book-audiobook-player" controls style="width:100%"></audio>
       <div style="text-align:right;margin-top:8px"><button class="link-btn" onclick="closeBookAudiobook()">Close player</button></div>
     </div>
+    </div><!-- /#books-content -->
   </div>
 
   <div class="page" id="page-messages">
@@ -649,6 +653,7 @@
   </div>
 
   <div class="page" id="page-join-tln">
+    <div id="join-tln-content">
     <div class="card">
       <div class="card-title">Join The Living Network</div>
       <div class="card-text" id="join-tln-text">When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.</div>
@@ -661,6 +666,7 @@
       </div>
     </div>
     <div class="empty" id="join-tln-empty"><span class="ico">✦</span>Awaiting PCM sign-off.</div>
+    </div><!-- /#join-tln-content -->
   </div>
 
   <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
@@ -1022,6 +1028,10 @@ async function buildJoinTlnPage(){
   // Refresh from server in case the invite came in since signin
   const { data: u } = await _sb.from('prep_users').select('tln_invited_at').eq('id', currentUser.id).maybeSingle();
   if(u) currentUser.tln_invited_at = u.tln_invited_at;
+  // Gate: Join The Living Network unlocks only after the Five Books are done.
+  await _refreshJourneyFields();
+  await loadBookAudioProgress();
+  if(_gateJourneyPage('page-join-tln', 'join-tln-content', 4)) return;
   const cta = document.getElementById('join-tln-cta');
   const empty = document.getElementById('join-tln-empty');
   const text = document.getElementById('join-tln-text');
@@ -2184,6 +2194,9 @@ function _bookAudioLocked(idx){
 }
 
 async function buildBooksPage(){
+  // Gate: the Five Books unlock only once a PCM is walking alongside you.
+  await _refreshJourneyFields();
+  if(_gateJourneyPage('page-books', 'books-content', 3)) return;
   const wrap = document.getElementById('books-list');
   if(!_booksData){
     if(!_sb){ wrap.innerHTML = '<div class="empty">Not signed in.</div>'; return; }
@@ -2761,6 +2774,69 @@ function journeyStage(){
   return 5;
 }
 
+// ── Journey gating ────────────────────────────────────────────────
+// Each journey step is locked until the prior one is complete. journeyStage()
+// is the single source of truth for "how far along is this user". A page that
+// belongs to step N stays locked while journeyStage() < N; we then point the
+// user back to whatever step they actually need to do next.
+const JOURNEY_STEP = {
+  1: { page:'video', cta:'Watch the videos',  what:'watch the three introduction videos' },
+  2: { page:'pcm',   cta:'Choose your PCM',   what:'choose a Personal Contact Minister' },
+  3: { page:'books', cta:'Start listening',   what:'listen to the audio overview of each of the Five Books' },
+};
+
+// Show the page's real content, or a locked card pointing to the next required
+// step. The content wrapper (contentId) is hidden while locked. Returns true
+// when locked so callers can `return` early and skip their heavy rendering.
+function _journeyGate(pageId, contentId, locked, msg, ctaLabel, ctaOnclick){
+  const page = document.getElementById(pageId);
+  const content = document.getElementById(contentId);
+  if(!page || !content) return locked;
+  let lock = document.getElementById(pageId + '-lock');
+  if(!lock){
+    lock = document.createElement('div');
+    lock.className = 'card';
+    lock.id = pageId + '-lock';
+    lock.style.cssText = 'text-align:center;padding:30px 22px;display:none';
+    page.insertBefore(lock, page.firstChild);
+  }
+  if(locked){
+    lock.innerHTML = '<div style="font-size:34px;margin-bottom:12px">🔒</div>'
+      + '<div class="card-text" style="margin-bottom:18px">' + msg + '</div>'
+      + '<button class="btn-primary" style="margin:0;padding:10px 20px;width:auto" onclick="' + ctaOnclick + '">' + _esc(ctaLabel) + '</button>';
+    lock.style.display = 'block';
+    content.style.display = 'none';
+  } else {
+    lock.style.display = 'none';
+    content.style.display = '';
+  }
+  return locked;
+}
+
+// Gate a journey page that requires the user to have reached at least minStage.
+// Anyone already granted TLN access (graduates and volunteer PCMs) is never
+// locked, since they've finished or moved beyond the linear journey.
+function _gateJourneyPage(pageId, contentId, minStage){
+  if(currentUser && currentUser.tln_invited_at){
+    return _journeyGate(pageId, contentId, false);
+  }
+  const stage = journeyStage();
+  if(stage >= minStage) return _journeyGate(pageId, contentId, false);
+  const step = JOURNEY_STEP[stage] || JOURNEY_STEP[1];
+  const msg = 'First, please ' + step.what + '. This step unlocks once you have.';
+  return _journeyGate(pageId, contentId, true, msg, step.cta, "showPage('" + step.page + "')");
+}
+
+// Refresh the few user fields the gates depend on, in case they changed since
+// sign-in (e.g. a video was finished, or a PCM accepted, on another view).
+async function _refreshJourneyFields(){
+  if(!_sb || !currentUser) return;
+  const { data: u } = await _sb.from('prep_users')
+    .select('pcm_id, tln_invited_at, gateway_v1_at, gateway_v2_at, gateway_v3_at')
+    .eq('id', currentUser.id).maybeSingle();
+  if(u) Object.assign(currentUser, u);
+}
+
 function _journeyCard(title, text, meta, ctaLabel, ctaOnclick, accent){
   const titleColor = accent ? 'color:var(--accent-ink)' : '';
   return '<div class="card-title" style="' + titleColor + '">' + _esc(title) + '</div>'
@@ -3196,6 +3272,9 @@ async function buildPcmPage(){
   const { data: me } = await _sb.from('prep_users').select('*').eq('id', currentUser.id).maybeSingle();
   if(me) currentUser = Object.assign(currentUser, me);
 
+  // Gate: can't choose a PCM until the three introduction videos are done.
+  if(_gateJourneyPage('page-pcm', 'pcm-content', 2)) return;
+
   // 2. Am I myself a PCM?
   const { data: myPcm } = await _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle();
   _pcmAmIPcm = !!(myPcm && myPcm.active);
@@ -3499,7 +3578,14 @@ async function choosePcm(pcmId){
       body: JSON.stringify({ electorId: currentUser.id, pcmId, skipEmail: true })
     });
     const j = await r.json();
-    if(!r.ok) throw new Error(j.error || 'election failed');
+    if(!r.ok){
+      if(j.error === 'gateway_incomplete'){
+        alert('Please finish the three introduction videos before choosing a Personal Contact Minister.');
+        showPage('video');
+        return;
+      }
+      throw new Error(j.error || 'election failed');
+    }
     // Client-side emails via EmailJS
     const pcm = _pcmList.find(p => p.id === pcmId);
     if(pcm?.email){

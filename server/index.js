@@ -1019,6 +1019,14 @@ async function electPcm({ electorId, pcmId, skipEmail }) {
   if (!electorId || !pcmId) throw new Error('electorId and pcmId required')
   if (electorId === pcmId) throw new Error('cannot elect self')
 
+  // Gate: the elector must have finished the three introduction videos first.
+  // This mirrors the UI lock so the journey can't be skipped via the API.
+  const { data: ev } = await sb.from('prep_users')
+    .select('gateway_v1_at, gateway_v2_at, gateway_v3_at').eq('id', electorId).maybeSingle()
+  if (!ev || !ev.gateway_v1_at || !ev.gateway_v2_at || !ev.gateway_v3_at) {
+    const e = new Error('gateway_incomplete'); e.status = 403; throw e
+  }
+
   // Insert election (unique partial idx ensures only one active per elector)
   const { data: row, error } = await sb.from('prep_pcm_elections')
     .insert({ elector_id: electorId, pcm_id: pcmId, status: 'pending' })
@@ -1112,7 +1120,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.21', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.22', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1228,8 +1236,13 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && req.url === '/elect') {
       const { electorId, pcmId, skipEmail } = await readJson(req)
-      const row = await electPcm({ electorId, pcmId, skipEmail })
-      return send(res, 200, { election: row })
+      try {
+        const row = await electPcm({ electorId, pcmId, skipEmail })
+        return send(res, 200, { election: row })
+      } catch (e) {
+        if (e.message === 'gateway_incomplete') return send(res, 403, { error: 'gateway_incomplete' })
+        throw e
+      }
     }
 
     if (req.method === 'POST' && req.url === '/election/respond') {
