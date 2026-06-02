@@ -120,7 +120,7 @@
   .hdr,.page{min-width:0;max-width:100%}
 
   .hdr{background:var(--teal);color:var(--cream);padding:16px 16px;display:flex;align-items:center;gap:10px;border-bottom:3px solid var(--terra)}
-  @media (max-width:430px){ .hdr{gap:8px;padding:14px 12px} .hdr-ark{width:44px;height:44px} .hdr-profile{width:44px;height:44px;font-size:15px} .hdr-paul{font-size:13px;padding:4px 12px 4px 4px} .hdr-paul svg{width:36px;height:36px} }
+  @media (max-width:430px){ .hdr{gap:8px;padding:14px 12px} .hdr-ark{width:44px;height:44px} .hdr-profile{width:44px;height:44px;font-size:15px} .hdr-paul{font-size:13px;padding:4px 12px 4px 4px} .hdr-paul svg,.hdr-paul .hdr-paul-av{width:36px;height:36px} }
   .hdr-ark{width:56px;height:56px;flex-shrink:0;background:#fefcf4;border-radius:50%;padding:5px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
   /* Dark-mode toggle (header). Moon shows in light mode, sun in dark mode. */
   .hdr-theme{flex-shrink:0;background:none;border:none;color:var(--cream);cursor:pointer;padding:8px;line-height:0;display:inline-flex;align-items:center}
@@ -233,10 +233,13 @@
   .prof-label{display:block;font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
   .prof-input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--walnut);font-size:14px;font-family:inherit;margin-bottom:16px}
   .prof-input:focus{outline:none;border-color:var(--teal)}
-  .hdr-paul svg{width:40px;height:40px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  .hdr-paul svg,.hdr-paul .hdr-paul-av{width:40px;height:40px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  /* Paul's portrait, framed to a circle (face focused via object-position). */
+  .hdr-paul .hdr-paul-av{object-fit:cover;object-position:50% 24%;display:block}
   /* Paul portrait at the top of the drawer */
   .paul-hero-av{flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(20,48,52,.35);border:2px solid var(--cream);display:inline-flex}
-  .paul-hero-av svg{width:100%;height:100%;display:block}
+  .paul-hero-av svg,.paul-hero-av img{width:100%;height:100%;display:block}
+  .paul-hero-av img{object-fit:cover;object-position:50% 24%}
   /* Thinking dots — wave */
   .paul-thinking{display:inline-flex;align-items:flex-end;gap:5px;height:14px}
   .paul-dot{width:8px;height:8px;border-radius:50%;background:var(--terra);display:inline-block;animation:paul-wave 1.2s ease-in-out infinite}
@@ -374,24 +377,7 @@
     <img class="hdr-ark" src="/ark-mark.png" alt="Home" role="button" tabindex="0" aria-label="Go to home screen" title="Home" style="cursor:pointer" onclick="showPage('home')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPage('home')}">
     <div style="flex:1;min-width:0"></div>
     <button class="hdr-paul" onclick="openPaul()" aria-label="Ask Paul AI" title="Ask Paul AI">
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <!-- hair (sits behind the face) -->
-        <path d="M14 43 C10 17 19 9 32 9 C45 9 54 17 50 43 C50 28 44 22 32 22 C20 22 14 28 14 43 Z" fill="#c1571f"/>
-        <!-- skin: fair European tone -->
-        <path d="M13 30 C13 19 21 14 32 14 C43 14 51 19 51 30 L51 40 C51 50 43 57 32 58 C21 57 13 50 13 40 Z" fill="#f2cba3"/>
-        <!-- beard (lower face, hangs to the chin) -->
-        <path d="M13 36c3.5 4.5 11 7 19 7s15.5-2.5 19-7c0 8 -1 14 -3 19 C46 61 41 64 35 64 L29 64 C23 64 18 61 16 55 C14 50 13 43 13 36z" fill="#c1571f"/>
-        <!-- mustache -->
-        <path d="M25.5 46c2.4 1.9 4.6 2.7 6.5 2.7s4.6-0.8 6.5-2.7" fill="none" stroke="#99431a" stroke-width="2.4" stroke-linecap="round"/>
-        <!-- eyebrows -->
-        <path d="M21.5 28.5c2.2-1.6 5.3-1.6 7.5 0" fill="none" stroke="#c1571f" stroke-width="2.1" stroke-linecap="round"/>
-        <path d="M35 28.5c2.2-1.6 5.3-1.6 7.5 0" fill="none" stroke="#c1571f" stroke-width="2.1" stroke-linecap="round"/>
-        <!-- eyes -->
-        <ellipse cx="25.5" cy="33" rx="3" ry="1.9" fill="#f7f1ea"/><circle cx="25.5" cy="32.7" r="1.6" fill="#6ea7a4"/><circle cx="25.5" cy="32.7" r="0.7" fill="#243b53"/>
-        <ellipse cx="38.5" cy="33" rx="3" ry="1.9" fill="#f7f1ea"/><circle cx="38.5" cy="32.7" r="1.6" fill="#6ea7a4"/><circle cx="38.5" cy="32.7" r="0.7" fill="#243b53"/>
-        <!-- nose -->
-        <path d="M32 34v6" fill="none" stroke="#dca57e" stroke-width="2.2" stroke-linecap="round"/>
-      </svg>
+      <img class="hdr-paul-av" src="/paul.jpg?v=1" alt="" aria-hidden="true" width="40" height="40">
       <span>ASK PAUL AI</span>
     </button>
     <button class="hdr-theme" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
@@ -720,17 +706,7 @@
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--teal);color:var(--cream)">
         <div style="display:flex;align-items:center;gap:10px">
           <span class="paul-hero-av" aria-hidden="true">
-            <svg viewBox="0 0 64 64">
-              <path d="M14 43 C10 17 19 9 32 9 C45 9 54 17 50 43 C50 28 44 22 32 22 C20 22 14 28 14 43 Z" fill="#c1571f"/>
-              <path d="M13 30 C13 19 21 14 32 14 C43 14 51 19 51 30 L51 40 C51 50 43 57 32 58 C21 57 13 50 13 40 Z" fill="#f2cba3"/>
-              <path d="M13 36c3.5 4.5 11 7 19 7s15.5-2.5 19-7c0 8 -1 14 -3 19 C46 61 41 64 35 64 L29 64 C23 64 18 61 16 55 C14 50 13 43 13 36z" fill="#c1571f"/>
-              <path d="M25.5 46c2.4 1.9 4.6 2.7 6.5 2.7s4.6-0.8 6.5-2.7" fill="none" stroke="#99431a" stroke-width="2.4" stroke-linecap="round"/>
-              <path d="M21.5 28.5c2.2-1.6 5.3-1.6 7.5 0" fill="none" stroke="#c1571f" stroke-width="2.1" stroke-linecap="round"/>
-              <path d="M35 28.5c2.2-1.6 5.3-1.6 7.5 0" fill="none" stroke="#c1571f" stroke-width="2.1" stroke-linecap="round"/>
-              <ellipse cx="25.5" cy="33" rx="3" ry="1.9" fill="#f7f1ea"/><circle cx="25.5" cy="32.7" r="1.6" fill="#6ea7a4"/><circle cx="25.5" cy="32.7" r="0.7" fill="#243b53"/>
-              <ellipse cx="38.5" cy="33" rx="3" ry="1.9" fill="#f7f1ea"/><circle cx="38.5" cy="32.7" r="1.6" fill="#6ea7a4"/><circle cx="38.5" cy="32.7" r="0.7" fill="#243b53"/>
-              <path d="M32 34v6" fill="none" stroke="#dca57e" stroke-width="2.2" stroke-linecap="round"/>
-            </svg>
+            <img src="/paul.jpg?v=1" alt="" width="44" height="44">
           </span>
           <div>
             <div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Paul, <span style="color:var(--gold)">AI Apostle</span></div>
