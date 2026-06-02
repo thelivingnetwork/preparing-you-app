@@ -1120,7 +1120,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.22', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.23', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1270,6 +1270,38 @@ const server = http.createServer(async (req, res) => {
         + `Grace and peace to you.\n\nhttps://preparingyou.app`)
       await notify(el.pcm_id, '⏳', `${electorName} sent you a gentle reminder about their election.`, { type:'page', page:'pcm' })
       return send(res, 200, { ok: !!r.ok, email: r })
+    }
+
+    // Elector withdraws their PCM election. We look up the elector's active
+    // election(s), notify the PCM, then mark the election declined and clear
+    // the pairing. Doing the withdrawal server-side (rather than only client
+    // Supabase writes) lets us reliably reach the PCM by email + in-app.
+    if (req.method === 'POST' && req.url === '/pcm/withdraw') {
+      const { electorId } = await readJson(req)
+      if (!electorId) return send(res, 400, { error: 'electorId required' })
+      const { data: el } = await sb.from('prep_pcm_elections')
+        .select('id, pcm_id, status, elector:elector_id(name), pcm:pcm_id(name, email)')
+        .eq('elector_id', electorId).in('status', ['pending', 'accepted'])
+        .order('created_at', { ascending: false }).maybeSingle()
+      // Always clear the pairing/elections, even if there's nothing to email.
+      await sb.from('prep_pcm_elections')
+        .update({ status: 'declined', responded_at: new Date().toISOString() })
+        .eq('elector_id', electorId).in('status', ['pending', 'accepted'])
+      await sb.from('prep_users').update({ pcm_id: null }).eq('id', electorId)
+      if (!el) return send(res, 200, { ok: true, emailed: false })
+      const electorName = el.elector?.name || 'Someone'
+      let emailed = false
+      if (el.pcm?.email) {
+        const r = await sendEmailJS(el.pcm.name, el.pcm.email,
+          'An update on a Personal Contact Minister election',
+          `Dear ${el.pcm.name || 'friend'},\n\n`
+          + `${electorName} has withdrawn their election of you as their Personal Contact Minister.\n\n`
+          + `This is simply part of the journey — many souls take time to find the companion who is right for them, and a withdrawal is no reflection on you. You remain ready to walk alongside whoever the Lord brings next.\n\n`
+          + `Grace and peace to you.\n\nhttps://preparingyou.app`)
+        emailed = !!r.ok
+      }
+      await notify(el.pcm_id, '🕊️', `${electorName} has withdrawn their PCM election.`, { type:'page', page:'pcm' })
+      return send(res, 200, { ok: true, emailed })
     }
 
     // Email-system smoke test. Locked to a single allowlisted address so it
