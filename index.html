@@ -129,7 +129,10 @@
   html[data-theme="dark"] .hdr-theme .ic-moon{display:none}
   html[data-theme="dark"] .hdr-theme .ic-sun{display:inline}
 
-  .page{display:none;flex:1;padding:24px 16px calc(120px + env(safe-area-inset-bottom))}
+  /* Bottom padding is anchored to the nav's *actual* rendered height at runtime
+     (--nav-clearance, set by syncNavClearance() in JS). The calc() fallback is
+     used only before the first measurement / if JS is disabled. */
+  .page{display:none;flex:1;padding:24px 16px var(--nav-clearance, calc(120px + env(safe-area-inset-bottom)))}
   .page.active{display:block}
 
   .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
@@ -753,13 +756,41 @@
   </div>
 
   <!-- Bottom nav -->
-  <div class="nav">
+  <div class="nav" id="bottom-nav">
     <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Vault</button>
     <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
     <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM<span id="nav-pcm-badge" class="nav-badge" style="display:none"></span></button>
     <button class="nav-btn" onclick="showPage('messages')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" class="nav-badge" style="display:none"></span></button>
   </div>
 </div>
+
+<!-- NAVCLEARANCE-MARKER: anchor page bottom-padding to the nav's real height so
+     content (e.g. the Vault home tile) never tucks under the fixed bottom nav,
+     on any device/safe-area. getBoundingClientRect() already includes the nav's
+     env(safe-area-inset-bottom) padding, so we add only a fixed visual gap. -->
+<script>
+(function(){
+  function syncNavClearance(){
+    var nav = document.getElementById('bottom-nav');
+    if(!nav) return;
+    var h = Math.round(nav.getBoundingClientRect().height);
+    if(!h) return; // nav hidden (e.g. landing screen) — keep CSS fallback
+    document.documentElement.style.setProperty('--nav-clearance', (h + 28) + 'px');
+  }
+  window.addEventListener('load', syncNavClearance);
+  window.addEventListener('resize', syncNavClearance);
+  window.addEventListener('orientationchange', function(){ setTimeout(syncNavClearance, 200); });
+  if(window.ResizeObserver){
+    var nav = document.getElementById('bottom-nav');
+    if(nav) new ResizeObserver(syncNavClearance).observe(nav);
+  }
+  // Run once now in case load already fired, and again shortly after to catch
+  // late layout (web fonts, safe-area settling on iOS standalone PWAs).
+  syncNavClearance();
+  setTimeout(syncNavClearance, 300);
+  window.syncNavClearance = syncNavClearance;
+})();
+</script>
 
 <!-- First-run community guidelines gate ("Before You Enter") -->
 <div id="guidelines-gate">
@@ -975,6 +1006,7 @@ function enterApp(){
   document.getElementById('guidelines-gate').style.display = 'none';
   document.getElementById('screen-landing').classList.remove('active');
   document.getElementById('screen-app').classList.add('active');
+  if(window.syncNavClearance) window.syncNavClearance(); // nav now rendered — measure it
   _refreshProfileAv();
   showPage('home');
   refreshMessageBadge();
