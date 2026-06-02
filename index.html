@@ -474,7 +474,7 @@
          evolving journey tile above and the bottom nav bar). -->
     <!-- Topical Library is a standalone reference; the Five Books now lives in the
          guided journey (stage 3) and the bottom nav, so it's not duplicated here. -->
-    <div class="tile" style="grid-column:1/-1" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Topical Library</div><div class="tile-meta">Articles · videos</div></div>
+    <div class="tile" style="grid-column:1/-1" onclick="showPage('library')"><div class="tile-icon">📚</div><div class="tile-name">Audio, Video &amp; Literature Vault</div><div class="tile-meta">Articles · videos</div></div>
   </div>
 
   <div class="page" id="page-video">
@@ -586,13 +586,15 @@
   </div>
 
   <div class="page" id="page-library">
+    <div id="library-content">
     <div class="card">
-      <div class="card-title">Topical Library</div>
+      <div class="card-title">Audio, Video &amp; Literature Vault</div>
       <div class="card-text">Curated topics with videos below — or search to reach every article on preparingyou.com. Tap any title to open the full article. Use Paul to ask questions about what you read.</div>
     </div>
     <input class="lib-search" id="lib-search" type="search" placeholder="Search…" oninput="filterLibrary(this.value)">
     <div class="lib-letter-bar" id="lib-letter-bar"></div>
     <div id="lib-content"><div class="empty"><span class="ico">📚</span>Loading library…</div></div>
+    </div>
   </div>
 
   <div class="page" id="page-books">
@@ -749,7 +751,7 @@
 
   <!-- Bottom nav -->
   <div class="nav">
-    <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Library</button>
+    <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Vault</button>
     <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
     <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM<span id="nav-pcm-badge" class="nav-badge" style="display:none"></span></button>
     <button class="nav-btn" onclick="showPage('messages')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" class="nav-badge" style="display:none"></span></button>
@@ -3205,6 +3207,8 @@ async function _loadAllWikiTitles(){
 }
 
 async function buildLibraryPage(){
+  // Locked until the user is paired with a PCM (same gate as the Five Books).
+  if(_gateJourneyPage('page-library', 'library-content', 3)) return;
   if(!_libData){
     try {
       const r = await fetch('/library.json');
