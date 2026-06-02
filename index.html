@@ -2987,6 +2987,9 @@ function playGateway(idx){
 
 // In-app popup player for the "Choosing a PCM" explainer video.
 const PCM_VIDEO_SRC = '/videos/choose-pcm.mp4';
+let _pcmMaxTime = 0;   // seconds — anti-skip ceiling for the PCM video
+const PCM_DONE_KEY = 'pp_pcmvid_done_choose-pcm';
+function _pcmDone(){ try{ return localStorage.getItem(PCM_DONE_KEY) === '1'; }catch(e){ return false; } }
 function openPcmVideo(){
   const modal = document.getElementById('pcm-video-modal');
   const player = document.getElementById('pcm-video-player');
@@ -2995,6 +2998,9 @@ function openPcmVideo(){
   modal.style.display = 'flex';
   player.load();
   const resume = _loadAudioPos('pcmvid', 'choose-pcm');
+  // First watch: ceiling starts at the last spot they reached (no skipping
+  // ahead). Once finished, free seeking is allowed on re-watch.
+  _pcmMaxTime = _pcmDone() ? Infinity : resume;
   player.play().catch(()=>{});
   _resumeAudioAt(player, resume);   // jump to last spot once metadata is ready
 }
@@ -3011,6 +3017,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const player = document.getElementById('pcm-video-player');
   if(!player) return;
   player.addEventListener('timeupdate', () => {
+    if(_pcmMaxTime !== Infinity){
+      if(player.currentTime > _pcmMaxTime + 0.5){
+        player.currentTime = _pcmMaxTime;   // tried to seek past unwatched portion — snap back
+      } else if(player.currentTime > _pcmMaxTime){
+        _pcmMaxTime = player.currentTime;    // advance the ceiling as they watch
+      }
+    }
     const now = Date.now();
     if(now - _lastAudioPosSave > 3000){
       _lastAudioPosSave = now;
@@ -3018,7 +3031,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   player.addEventListener('pause', () => { if(!player.ended) _saveAudioPos('pcmvid', 'choose-pcm', player.currentTime); });
-  player.addEventListener('ended', () => _clearAudioPos('pcmvid', 'choose-pcm'));
+  player.addEventListener('ended', () => {
+    try{ localStorage.setItem(PCM_DONE_KEY, '1'); }catch(e){}
+    _clearAudioPos('pcmvid', 'choose-pcm');
+  });
 });
 
 function stopGatewayPlayer(){
