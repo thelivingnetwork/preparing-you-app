@@ -222,12 +222,17 @@
   .convo-row.unread .convo-name{font-weight:700;color:var(--brand-ink)}
   .convo-row.unread .convo-prev{color:var(--walnut);font-weight:600}
   .convo-badge{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--badge);color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;font-family:system-ui,sans-serif}
-  /* Left-swipe to reveal a per-row Delete. The Delete action only shows on the
-     row being swiped, so it never bleeds through other rows' rounded corners. */
-  .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
-  .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--surface);touch-action:pan-y;border-radius:0;border-bottom:none;will-change:transform}
+  /* Left-swipe to reveal a per-row Delete. iOS Safari does NOT reliably clip a
+     transformed/composited child to a rounded overflow:hidden parent, so we do
+     NOT depend on that: the Delete button carries its own matching rounded right
+     corners (border-radius:0 10px 10px 0) and stays fully behind the row, so even
+     if WebKit skips the parent clip nothing square can poke past the card edge.
+     No will-change here on purpose — promoting the row to its own layer is what
+     defeats the parent clip on iOS in the first place. */
+  .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px;isolation:isolate}
+  .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--surface);touch-action:pan-y;border-radius:10px;border-bottom:none}
   .convo-swipe > .convo-row:active{background:var(--gold-soft)}
-  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0;opacity:0;visibility:hidden;transition:opacity .12s ease}
+  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0;opacity:0;visibility:hidden;transition:opacity .12s ease}
   .convo-swipe.revealing > .convo-del{opacity:1;visibility:visible}
   .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .picker-row:active{background:var(--gold-soft)}
