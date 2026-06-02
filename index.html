@@ -222,18 +222,20 @@
   .convo-row.unread .convo-name{font-weight:700;color:var(--brand-ink)}
   .convo-row.unread .convo-prev{color:var(--walnut);font-weight:600}
   .convo-badge{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--badge);color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;font-family:system-ui,sans-serif}
-  /* Left-swipe to reveal a per-row Delete. iOS Safari does NOT reliably clip a
-     transformed/composited child to a rounded overflow:hidden parent, so we do
-     NOT depend on that: the Delete button carries its own matching rounded right
-     corners (border-radius:0 10px 10px 0) and stays fully behind the row, so even
-     if WebKit skips the parent clip nothing square can poke past the card edge.
-     No will-change here on purpose — promoting the row to its own layer is what
-     defeats the parent clip on iOS in the first place. */
-  .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px;isolation:isolate}
-  .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--surface);touch-action:pan-y;border-radius:10px;border-bottom:none}
-  .convo-swipe > .convo-row:active{background:var(--gold-soft)}
-  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0;opacity:0;visibility:hidden;transition:opacity .12s ease}
-  .convo-swipe.revealing > .convo-del{opacity:1;visibility:visible}
+  /* Left-swipe to reveal a per-row Delete — the native iOS Mail pattern.
+     The row and the Delete button are FLEX SIBLINGS inside .convo-track; the
+     track is row-width + 88px and we slide the whole track left to bring the
+     Delete in from the right. No absolute positioning: the Delete is laid out
+     in normal flow so it is ALWAYS exactly the row's height (align-items:stretch)
+     and can never be taller than its row or bleed into the row below. At rest the
+     Delete sits 88px off the right screen edge, so it is invisible even if iOS
+     fails to clip the overflow. The Delete's own rounded right corners cover the
+     one spot (the card's right edge) where WebKit clipping could otherwise miss. */
+  .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
+  .convo-track{display:flex;align-items:stretch}
+  .convo-track > .convo-row{flex:0 0 100%;background:var(--surface);touch-action:pan-y;border-radius:10px;border-bottom:none}
+  .convo-track > .convo-row:active{background:var(--gold-soft)}
+  .convo-del{flex:0 0 88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer}
   .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .picker-row:active{background:var(--gold-soft)}
 
@@ -1365,8 +1367,7 @@ function renderInbox(){
   listEl.innerHTML = _msgConvos.map(c => {
     const unread = c.unread > 0;
     const prev = (c.last_mine ? 'You: ' : '') + (c.last_preview || '');
-    return '<div class="convo-swipe">'
-      + '<button class="convo-del" onclick="hideConvo(\'' + c.peerId + '\',event)">Delete</button>'
+    return '<div class="convo-swipe"><div class="convo-track">'
       + '<div class="convo-row' + (unread ? ' unread' : '') + '" data-peer="' + c.peerId + '" onclick="onConvoTap(\'' + c.peerId + '\',event,this)">'
       + '<div class="convo-av">' + _avInner(c) + '</div>'
       + '<div class="convo-main">'
@@ -1376,7 +1377,9 @@ function renderInbox(){
       +     (unread ? '<span class="convo-badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '')
       +   '</div>'
       + '</div>'
-      + '</div>';
+      + '</div>'
+      + '<button class="convo-del" onclick="hideConvo(\'' + c.peerId + '\',event)">Delete</button>'
+      + '</div></div>';
   }).join('');
   _wireConvoSwipe();
 }
@@ -1384,22 +1387,20 @@ function renderInbox(){
 // ── Left-swipe to reveal a per-row Delete ──────────────────────────
 const _CONVO_ACTION_W = 88;     // width of the revealed Delete button
 let _convoSwipeWired = false;
-let _convoDrag = null;          // active drag: {row, startX, startY, baseX, dir, moved}
+let _convoDrag = null;          // active drag: {track, startX, startY, baseX, dir, moved}
 let _convoTapBlock = false;     // swallow the click that trails a swipe
 
-function _convoRowX(row){ return parseFloat(row.dataset.x || '0'); }
-function _setConvoRowX(row, x, animate){
-  row.style.transition = animate ? 'transform .2s ease' : 'none';
-  row.style.transform = 'translateX(' + x + 'px)';
-  row.dataset.x = x;
-  row.dataset.open = (x <= -_CONVO_ACTION_W + 1) ? '1' : '';
-  const w = row.parentElement;
-  if(w) w.classList.toggle('revealing', x < -0.5);
+function _trackX(track){ return parseFloat(track.dataset.x || '0'); }
+function _setTrackX(track, x, animate){
+  track.style.transition = animate ? 'transform .2s ease' : 'none';
+  track.style.transform = 'translateX(' + x + 'px)';
+  track.dataset.x = x;
+  track.dataset.open = (x <= -_CONVO_ACTION_W + 1) ? '1' : '';
 }
-function _closeConvoRow(row){ if(row) _setConvoRowX(row, 0, true); }
+function _closeConvoRow(track){ if(track) _setTrackX(track, 0, true); }
 function _closeOtherConvoRows(except){
-  document.querySelectorAll('#msg-convo-list .convo-row').forEach(r => {
-    if(r !== except && _convoRowX(r) !== 0) _setConvoRowX(r, 0, true);
+  document.querySelectorAll('#msg-convo-list .convo-track').forEach(t => {
+    if(t !== except && _trackX(t) !== 0) _setTrackX(t, 0, true);
   });
 }
 function _wireConvoSwipe(){
@@ -1408,11 +1409,11 @@ function _wireConvoSwipe(){
   if(!list) return;
   _convoSwipeWired = true;
   list.addEventListener('touchstart', e => {
-    const row = e.target.closest('.convo-row');
-    if(!row){ _convoDrag = null; return; }
+    const track = e.target.closest('.convo-track');
+    if(!track){ _convoDrag = null; return; }
     const t = e.touches[0];
-    _convoDrag = { row, startX:t.clientX, startY:t.clientY, baseX:_convoRowX(row), dir:null, moved:false };
-    row.style.transition = 'none';
+    _convoDrag = { track, startX:t.clientX, startY:t.clientY, baseX:_trackX(track), dir:null, moved:false };
+    track.style.transition = 'none';
   }, { passive:true });
   list.addEventListener('touchmove', e => {
     if(!_convoDrag) return;
@@ -1422,23 +1423,21 @@ function _wireConvoSwipe(){
     if(_convoDrag.dir === null){
       if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;   // wait for a clear intent
       _convoDrag.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
-      if(_convoDrag.dir === 'h') _closeOtherConvoRows(_convoDrag.row);
+      if(_convoDrag.dir === 'h') _closeOtherConvoRows(_convoDrag.track);
     }
     if(_convoDrag.dir !== 'h') return;                    // vertical → let the list scroll
     e.preventDefault();
     const x = Math.max(-_CONVO_ACTION_W, Math.min(0, _convoDrag.baseX + dx));
-    _convoDrag.row.style.transform = 'translateX(' + x + 'px)';
-    _convoDrag.row.dataset.x = x;
-    const w = _convoDrag.row.parentElement;
-    if(w) w.classList.toggle('revealing', x < -0.5);
+    _convoDrag.track.style.transform = 'translateX(' + x + 'px)';
+    _convoDrag.track.dataset.x = x;
     _convoDrag.moved = true;
   }, { passive:false });
   const endDrag = () => {
     if(!_convoDrag) return;
-    const { row, dir, moved } = _convoDrag;
+    const { track, dir, moved } = _convoDrag;
     if(dir === 'h'){
-      const open = _convoRowX(row) < -_CONVO_ACTION_W * 0.4;  // forgiving snap threshold
-      _setConvoRowX(row, open ? -_CONVO_ACTION_W : 0, true);
+      const open = _trackX(track) < -_CONVO_ACTION_W * 0.4;  // forgiving snap threshold
+      _setTrackX(track, open ? -_CONVO_ACTION_W : 0, true);
       if(moved){ _convoTapBlock = true; setTimeout(() => { _convoTapBlock = false; }, 400); }
     }
     _convoDrag = null;
@@ -1450,7 +1449,8 @@ function _wireConvoSwipe(){
 // Tap an open row to close it; swallow the click that trails a swipe;
 // otherwise open the conversation.
 function onConvoTap(peerId, ev, row){
-  if(row && row.dataset.open === '1'){ _closeConvoRow(row); return; }
+  const track = row && row.parentElement;
+  if(track && track.dataset.open === '1'){ _closeConvoRow(track); return; }
   if(_convoTapBlock) return;
   openThread(peerId);
 }
