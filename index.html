@@ -572,6 +572,19 @@
     </div>
   </div>
 
+  <!-- Choose-a-PCM explainer video (in-app popup) -->
+  <div id="pcm-video-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closePcmVideo()">
+    <div class="modal-box" style="max-width:680px">
+      <div class="modal-head">
+        <span class="modal-title">Choosing a PCM</span>
+        <button class="modal-close" onclick="closePcmVideo()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:12px">
+        <video id="pcm-video-player" controls controlsList="nodownload" disablepictureinpicture playsinline preload="metadata" style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-library">
     <div class="card">
       <div class="card-title">Topical Library</div>
@@ -2841,12 +2854,16 @@ async function _refreshJourneyFields(){
   if(u) Object.assign(currentUser, u);
 }
 
-function _journeyCard(title, text, meta, ctaLabel, ctaOnclick, accent){
+function _journeyCard(title, text, meta, ctaLabel, ctaOnclick, accent, extraHtml){
   const titleColor = accent ? 'color:var(--accent-ink)' : '';
+  const footStyle = extraHtml
+    ? 'display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap'
+    : 'text-align:right';
   return '<div class="card-title" style="' + titleColor + '">' + _esc(title) + '</div>'
     + '<div class="card-text">' + text + '</div>'
     + (meta ? '<div style="margin-top:8px;font-size:12px;color:var(--walnut-mid);font-style:italic">' + _esc(meta) + '</div>' : '')
-    + '<div style="margin-top:14px;text-align:right">'
+    + '<div style="margin-top:14px;' + footStyle + '">'
+    +   (extraHtml || '')
     +   '<button class="btn-primary" style="margin:0;padding:9px 18px;width:auto" onclick="' + ctaOnclick + '">' + _esc(ctaLabel) + '</button>'
     + '</div>';
 }
@@ -2863,9 +2880,10 @@ function renderJourneyTile(){
       done + '/3 videos watched',
       done > 0 ? 'Continue watching' : 'Watch the videos', "showPage('video')");
   } else if(stage === 2){
+    const videoBtn = '<button style="margin:0;padding:9px 16px;width:auto;background:transparent;border:1px solid var(--accent-ink);color:var(--accent-ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="openPcmVideo()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Video</button>';
     html = _journeyCard('Choose a Personal Contact Minister',
       'You have finished the introduction videos. Now choose a Personal Contact Minister &mdash; someone who will walk this preparation alongside you.',
-      '', 'Choose your PCM', "showPage('pcm')", true);
+      '', 'Choose your PCM', "showPage('pcm')", true, videoBtn);
   } else if(stage === 3){
     html = _journeyCard('Listen to the Five Books',
       'With your PCM alongside you, listen to the audio overview of each of the Five Books &mdash; in order. Each one unlocks the next.',
@@ -2965,6 +2983,24 @@ function playGateway(idx){
   player.play().catch(()=>{});
   _resumeAudioAt(player, resume);   // jump to last spot once metadata is ready
   wrap.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// In-app popup player for the "Choosing a PCM" explainer video.
+const PCM_VIDEO_SRC = '/videos/choose-pcm.mp4';
+function openPcmVideo(){
+  const modal = document.getElementById('pcm-video-modal');
+  const player = document.getElementById('pcm-video-player');
+  if(!modal || !player) return;
+  if(!player.getAttribute('src')) player.src = PCM_VIDEO_SRC;
+  modal.style.display = 'flex';
+  player.load();
+  player.play().catch(()=>{});
+}
+function closePcmVideo(){
+  const player = document.getElementById('pcm-video-player');
+  if(player){ try{ player.pause(); }catch(_){} }
+  const modal = document.getElementById('pcm-video-modal');
+  if(modal) modal.style.display = 'none';
 }
 
 function stopGatewayPlayer(){
