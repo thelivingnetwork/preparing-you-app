@@ -222,11 +222,13 @@
   .convo-row.unread .convo-name{font-weight:700;color:var(--brand-ink)}
   .convo-row.unread .convo-prev{color:var(--walnut);font-weight:600}
   .convo-badge{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--badge);color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;font-family:system-ui,sans-serif}
-  /* Per-row delete: a trash button on the right of each conversation. First
-     tap arms it (turns into a red "Delete"), a second tap hides the convo. */
-  .convo-trash{flex-shrink:0;width:34px;height:34px;border:none;background:transparent;color:var(--walnut-soft);display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;padding:0;line-height:0;transition:background .12s ease,color .12s ease}
-  .convo-trash:active{background:var(--line)}
-  .convo-trash.armed{width:auto;height:30px;padding:0 13px;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:13px;font-weight:600;letter-spacing:.02em;line-height:1}
+  /* Left-swipe to reveal a per-row Delete. The Delete action only shows on the
+     row being swiped, so it never bleeds through other rows' rounded corners. */
+  .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
+  .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--surface);touch-action:pan-y;border-radius:0;border-bottom:none;will-change:transform}
+  .convo-swipe > .convo-row:active{background:var(--gold-soft)}
+  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0;opacity:0;visibility:hidden;transition:opacity .12s ease}
+  .convo-swipe.revealing > .convo-del{opacity:1;visibility:visible}
   .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .picker-row:active{background:var(--gold-soft)}
 
@@ -1358,7 +1360,9 @@ function renderInbox(){
   listEl.innerHTML = _msgConvos.map(c => {
     const unread = c.unread > 0;
     const prev = (c.last_mine ? 'You: ' : '') + (c.last_preview || '');
-    return '<div class="convo-row' + (unread ? ' unread' : '') + '" data-peer="' + c.peerId + '" onclick="onConvoTap(\'' + c.peerId + '\',event,this)">'
+    return '<div class="convo-swipe">'
+      + '<button class="convo-del" onclick="hideConvo(\'' + c.peerId + '\',event)">Delete</button>'
+      + '<div class="convo-row' + (unread ? ' unread' : '') + '" data-peer="' + c.peerId + '" onclick="onConvoTap(\'' + c.peerId + '\',event,this)">'
       + '<div class="convo-av">' + _avInner(c) + '</div>'
       + '<div class="convo-main">'
       +   '<div class="convo-top"><span class="convo-name">' + _esc(c.name) + '</span>'
@@ -1367,38 +1371,83 @@ function renderInbox(){
       +     (unread ? '<span class="convo-badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '')
       +   '</div>'
       + '</div>'
-      + '<button class="convo-trash" onclick="confirmHideConvo(\'' + c.peerId + '\',this,event)" aria-label="Delete conversation" title="Delete conversation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
       + '</div>';
   }).join('');
+  _wireConvoSwipe();
 }
 
-// A tap anywhere on the row (the trash button stops propagation) opens the
-// conversation. Tapping a row also disarms any armed trash button.
+// ── Left-swipe to reveal a per-row Delete ──────────────────────────
+const _CONVO_ACTION_W = 88;     // width of the revealed Delete button
+let _convoSwipeWired = false;
+let _convoDrag = null;          // active drag: {row, startX, startY, baseX, dir, moved}
+let _convoTapBlock = false;     // swallow the click that trails a swipe
+
+function _convoRowX(row){ return parseFloat(row.dataset.x || '0'); }
+function _setConvoRowX(row, x, animate){
+  row.style.transition = animate ? 'transform .2s ease' : 'none';
+  row.style.transform = 'translateX(' + x + 'px)';
+  row.dataset.x = x;
+  row.dataset.open = (x <= -_CONVO_ACTION_W + 1) ? '1' : '';
+  const w = row.parentElement;
+  if(w) w.classList.toggle('revealing', x < -0.5);
+}
+function _closeConvoRow(row){ if(row) _setConvoRowX(row, 0, true); }
+function _closeOtherConvoRows(except){
+  document.querySelectorAll('#msg-convo-list .convo-row').forEach(r => {
+    if(r !== except && _convoRowX(r) !== 0) _setConvoRowX(r, 0, true);
+  });
+}
+function _wireConvoSwipe(){
+  if(_convoSwipeWired) return;
+  const list = document.getElementById('msg-convo-list');
+  if(!list) return;
+  _convoSwipeWired = true;
+  list.addEventListener('touchstart', e => {
+    const row = e.target.closest('.convo-row');
+    if(!row){ _convoDrag = null; return; }
+    const t = e.touches[0];
+    _convoDrag = { row, startX:t.clientX, startY:t.clientY, baseX:_convoRowX(row), dir:null, moved:false };
+    row.style.transition = 'none';
+  }, { passive:true });
+  list.addEventListener('touchmove', e => {
+    if(!_convoDrag) return;
+    const t = e.touches[0];
+    const dx = t.clientX - _convoDrag.startX;
+    const dy = t.clientY - _convoDrag.startY;
+    if(_convoDrag.dir === null){
+      if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;   // wait for a clear intent
+      _convoDrag.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      if(_convoDrag.dir === 'h') _closeOtherConvoRows(_convoDrag.row);
+    }
+    if(_convoDrag.dir !== 'h') return;                    // vertical → let the list scroll
+    e.preventDefault();
+    const x = Math.max(-_CONVO_ACTION_W, Math.min(0, _convoDrag.baseX + dx));
+    _convoDrag.row.style.transform = 'translateX(' + x + 'px)';
+    _convoDrag.row.dataset.x = x;
+    const w = _convoDrag.row.parentElement;
+    if(w) w.classList.toggle('revealing', x < -0.5);
+    _convoDrag.moved = true;
+  }, { passive:false });
+  const endDrag = () => {
+    if(!_convoDrag) return;
+    const { row, dir, moved } = _convoDrag;
+    if(dir === 'h'){
+      const open = _convoRowX(row) < -_CONVO_ACTION_W * 0.4;  // forgiving snap threshold
+      _setConvoRowX(row, open ? -_CONVO_ACTION_W : 0, true);
+      if(moved){ _convoTapBlock = true; setTimeout(() => { _convoTapBlock = false; }, 400); }
+    }
+    _convoDrag = null;
+  };
+  list.addEventListener('touchend', endDrag, { passive:true });
+  list.addEventListener('touchcancel', endDrag, { passive:true });
+}
+
+// Tap an open row to close it; swallow the click that trails a swipe;
+// otherwise open the conversation.
 function onConvoTap(peerId, ev, row){
-  const armed = document.querySelector('#msg-convo-list .convo-trash.armed');
-  if(armed){ _disarmTrash(armed); return; }
+  if(row && row.dataset.open === '1'){ _closeConvoRow(row); return; }
+  if(_convoTapBlock) return;
   openThread(peerId);
-}
-
-// Trash button: first tap arms it (shows a red "Delete"), a second tap hides
-// the conversation. Auto-disarms after a few seconds, or when another arms.
-function confirmHideConvo(peerId, btn, ev){
-  if(ev) ev.stopPropagation();
-  if(btn.dataset.armed === '1'){ hideConvo(peerId, ev); return; }
-  document.querySelectorAll('#msg-convo-list .convo-trash.armed').forEach(_disarmTrash);
-  btn.dataset.icon = btn.innerHTML;
-  btn.dataset.armed = '1';
-  btn.classList.add('armed');
-  btn.textContent = 'Delete';
-  clearTimeout(btn._disarmT);
-  btn._disarmT = setTimeout(() => _disarmTrash(btn), 3500);
-}
-function _disarmTrash(btn){
-  if(!btn) return;
-  clearTimeout(btn._disarmT);
-  btn.classList.remove('armed');
-  btn.dataset.armed = '';
-  if(btn.dataset.icon){ btn.innerHTML = btn.dataset.icon; }
 }
 
 // Hide a conversation from my inbox (non-destructive — see /messages/clear).
