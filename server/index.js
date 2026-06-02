@@ -1120,7 +1120,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.23', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.24', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1279,10 +1279,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && req.url === '/pcm/withdraw') {
       const { electorId } = await readJson(req)
       if (!electorId) return send(res, 400, { error: 'electorId required' })
+      // At most one active election per elector (partial unique index), so a
+      // bare maybeSingle() is safe — no ordering needed.
       const { data: el } = await sb.from('prep_pcm_elections')
         .select('id, pcm_id, status, elector:elector_id(name), pcm:pcm_id(name, email)')
         .eq('elector_id', electorId).in('status', ['pending', 'accepted'])
-        .order('created_at', { ascending: false }).maybeSingle()
+        .maybeSingle()
       // Always clear the pairing/elections, even if there's nothing to email.
       await sb.from('prep_pcm_elections')
         .update({ status: 'declined', responded_at: new Date().toISOString() })
