@@ -654,10 +654,10 @@
     <div id="msg-inbox" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 12px">
         <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:var(--brand-ink)">Messages</div>
-        <button class="link-btn" onclick="openNewMessagePicker()" style="padding:7px 12px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--brand-ink);font-size:13px">✎ New message</button>
+        <button onclick="openNewMessagePicker()" title="New message" aria-label="New message" style="margin:0;padding:0;width:40px;height:40px;flex-shrink:0;border:none;border-radius:50%;background:linear-gradient(180deg,var(--terra),var(--teal));color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(55,23,81,.22)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       </div>
       <div id="msg-convo-list"></div>
-      <div id="msg-inbox-empty" class="empty" style="display:none"><span class="ico">💬</span>No conversations yet. Tap “New message” to reach out to your PCM.</div>
+      <div id="msg-inbox-empty" class="empty" style="display:none"><span class="ico">💬</span>No conversations yet. Tap the + to reach out to your PCM.</div>
     </div>
 
     <!-- Individual thread -->
@@ -1337,7 +1337,7 @@ function renderInbox(){
   if(!_msgConvos.length){
     listEl.innerHTML = '';
     emptyEl.innerHTML = _msgPeers.length
-      ? '<span class="ico">💬</span>No conversations yet. Tap “New message” to reach out to your PCM.'
+      ? '<span class="ico">💬</span>No conversations yet. Tap the + to reach out to your PCM.'
       : '<span class="ico">💬</span>You’ll be able to message your PCM here once your election is accepted.';
     emptyEl.style.display = 'block';
     return;
