@@ -761,7 +761,7 @@
       <div class="card" style="border-color:var(--terra);background:var(--terra-soft);text-align:center">
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--brand-ink);margin-bottom:6px">You have been invited.</div>
         <div style="font-size:13px;color:var(--walnut-mid);margin-bottom:14px" id="join-tln-when">—</div>
-        <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>
+        <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Enter The Living Network →</button>
       </div>
     </div>
     <div class="empty" id="join-tln-empty"><span class="ico">✦</span>Awaiting PCM sign-off.</div>
@@ -1475,7 +1475,7 @@ async function buildJoinTlnPage(){
   if(currentUser.tln_invited_at){
     cta.style.display = 'block';
     empty.style.display = 'none';
-    text.textContent = 'Your invitation has been issued. Tap the button below to open The Living Network — your name and email will be prefilled on the Join screen.';
+    text.textContent = 'Your invitation has been issued. Tap the button below to enter The Living Network — your name and email will be prefilled on the Join screen.';
     const when = new Date(currentUser.tln_invited_at);
     document.getElementById('join-tln-when').textContent = 'Invited ' + when.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
   } else {
@@ -3666,8 +3666,8 @@ function renderJourneyTile(){
     html = '<div class="card-title" style="color:var(--accent-ink)">✦ The Living Network</div>'
       + '<div class="card-text">You have been granted access to The Living Network. You may also choose to become a Personal Contact Minister yourself and walk this preparation alongside others.</div>'
       + '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'
-      +   '<button class="link-btn" onclick="showPage(\'pcm\')">Become a PCM</button>'
-      +   '<button class="btn-primary" style="margin:0;padding:9px 18px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>'
+      +   '<button class="btn-secondary" style="margin:0;padding:9px 18px;width:auto" onclick="showPage(\'pcm\')">Become a PCM</button>'
+      +   '<button class="btn-primary" style="margin:0;padding:9px 18px;width:auto" onclick="openTlnHandoff()">Enter The Living Network →</button>'
       + '</div>';
   }
   tile.innerHTML = html;
