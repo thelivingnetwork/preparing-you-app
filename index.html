@@ -80,16 +80,25 @@
   html[data-theme="dark"] .auth-error{color:#e98a6a}
   html{background:var(--parch)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55;overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55}
+  /* Horizontal clip + overscroll containment live on the scroll ROOT only.
+     Putting overflow-x:hidden on BOTH html and body turns the flex/100dvh body
+     into a second scroll container, which froze vertical scrolling on some
+     Android Chrome builds (Rafi's phone). Clip on html alone; body stays a
+     plain flex child. The .screen/.page rules already guard their own width. */
+  html{overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain}
   .ptr-spinning{animation:ptrspin .7s linear infinite}
   @keyframes ptrspin{to{transform:rotate(360deg)}}
   h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
   body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
-    /* Faint paper grain — subtle radial pattern that mimics parchment */
+    /* Faint paper grain — subtle radial pattern that mimics parchment.
+       background-attachment:fixed was removed: it creates a fixed positioning
+       context that costs paint on every scroll frame and has caused scroll
+       jank/freezes on mobile (and Android Chrome ignores it anyway). At ~5%
+       opacity the scrolling vs fixed difference is imperceptible. */
     background-image:
       radial-gradient(circle at 25% 15%, rgba(79,33,112,.045) 0, transparent 40%),
       radial-gradient(circle at 75% 85%, rgba(160,119,42,.05) 0, transparent 50%);
-    background-attachment:fixed;
   }
 
   /* ── Landing ────────────────────────────────────────────────── */
