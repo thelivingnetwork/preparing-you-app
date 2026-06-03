@@ -3763,11 +3763,19 @@ function renderJourneyTile(){
       done + '/3 videos watched',
       done > 0 ? 'Continue watching' : 'Watch the videos', "showPage('video')");
   } else if(stage === 2){
-    const videoBtn = '<button style="margin:0;padding:9px 16px;width:auto;background:transparent;border:1px solid var(--accent-ink);color:var(--accent-ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="openPcmVideo()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Choosing a PCM</button>';
-    html = _journeyCard('Choose a Personal Contact Minister',
-      'You have finished the introduction videos. Now choose a Personal Contact Minister &mdash; someone who will walk this preparation alongside you.'
-      + '<div style="margin-top:9px"><a onclick="showPage(\'video\')" style="font-size:13px;color:var(--accent-ink);text-decoration:underline;cursor:pointer">Re-watch intro videos</a></div>',
-      '', 'Choose your PCM', "showPage('pcm')", true, videoBtn);
+    // Left: the small "Choosing a PCM" explainer button (where the old Video
+    // button sat). Right: the primary CTA with a compact, no-underline
+    // "Re-watch intro videos" link tucked beneath it. Kept tight so the tile
+    // stays the same height as before the link was added.
+    html = '<div class="card-title" style="color:var(--accent-ink)">Choose a Personal Contact Minister</div>'
+      + '<div class="card-text">You have finished the introduction videos. Now choose a Personal Contact Minister &mdash; someone who will walk this preparation alongside you.</div>'
+      + '<div style="margin-top:9px;display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap">'
+      +   '<button style="margin:0;padding:6px 11px;width:auto;background:transparent;border:1px solid var(--accent-ink);color:var(--accent-ink);border-radius:10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px" onclick="openPcmVideo()"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Choosing a PCM</button>'
+      +   '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">'
+      +     '<button class="btn-primary" style="margin:0;padding:7px 16px;width:auto" onclick="showPage(\'pcm\')">Choose your PCM</button>'
+      +     '<a onclick="showPage(\'video\')" style="font-size:11px;color:var(--accent-ink);text-decoration:none;cursor:pointer">Re-watch intro videos</a>'
+      +   '</div>'
+      + '</div>';
   } else if(stage === 3){
     html = _journeyCard('Listen to the Five Books',
       'With your PCM alongside you, listen to the audio overview of each of the Five Books &mdash; in order. Each one unlocks the next.',
