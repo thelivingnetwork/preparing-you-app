@@ -164,6 +164,26 @@
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
   .tile-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
   .tile-meta{font-size:13px;color:var(--walnut-mid);margin-top:6px;font-weight:500}
+  /* Local Almanac home card */
+  .alm-date{font-size:13px;font-weight:600;color:var(--brand-ink);margin:0 0 12px}
+  .alm-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .alm-temp{display:flex;align-items:center;gap:12px;min-width:0}
+  .alm-t{font-size:34px;font-weight:600;line-height:1;color:var(--brand-ink)}
+  .alm-cond{font-size:13px;color:var(--walnut-mid);margin-top:3px}
+  .alm-loc{text-align:right;min-width:0}
+  .alm-city{font-size:15px;font-weight:600;color:var(--accent-ink);overflow-wrap:anywhere}
+  .alm-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--walnut-soft);margin-top:2px}
+  .alm-div{height:1px;background:var(--line);margin:14px 0}
+  .alm-sky{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px;text-align:center}
+  .alm-k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-soft);margin-bottom:5px}
+  .alm-v{font-size:14px;font-weight:600;color:var(--walnut);margin-top:4px}
+  .alm-sub{font-size:11px;color:var(--walnut-mid);margin-top:1px}
+  .alm-col{display:flex;flex-direction:column;align-items:center}
+  .alm-fc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;margin-top:2px}
+  .alm-d{font-size:11px;font-weight:600;color:var(--walnut-mid);margin-bottom:5px}
+  .alm-hl{font-size:12px;margin-top:4px;color:var(--walnut)}
+  .alm-hl b{color:var(--walnut)}
+  .alm-hl span{color:var(--walnut-soft)}
 
   .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:4px 0 calc(6px + env(safe-area-inset-bottom));z-index:50}
   .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.02em;padding:3px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500}
@@ -533,7 +553,11 @@
          evolving journey tile above and the bottom nav bar). -->
     <!-- Topical Library is a standalone reference; the Five Books now lives in the
          guided journey (stage 3) and the bottom nav, so it's not duplicated here. -->
-    <div class="tile" style="grid-column:1/-1" onclick="showPage('library')"><div class="tile-icon" style="color:var(--terra);display:flex;justify-content:center"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M10 8.2l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></div><div class="tile-name">Audio, Video &amp; Literature Vault</div><div class="tile-meta">Articles · videos</div></div>
+    <!-- Local Almanac card — weather / sunrise-sunset / moon for the member area,
+         derived from their stored timezone (no location prompt). Filled by
+         renderAlmanac(); stays hidden until data loads. Replaced the old Vault
+         tile (the Vault is already reachable from the bottom nav). -->
+    <div class="card" id="almanac-card" style="display:none"></div>
   </div>
 
   <div class="page" id="page-video">
@@ -1448,6 +1472,7 @@ function enterApp(){
   refreshMessageBadge();
   refreshNavBadges();
   refreshTownhallCard();
+  renderAlmanac();
   setInterval(refreshMessageBadge, 30000);
   if(_notifPollTimer) clearInterval(_notifPollTimer);
   _notifPollTimer = setInterval(refreshNavBadges, 30000);
@@ -1495,7 +1520,7 @@ function showPage(name){
   if(name === 'library') buildLibraryPage();
   if(name === 'video') buildGatewayPage();
   if(name !== 'video') stopGatewayPlayer();
-  if(name === 'home'){ refreshHomeTiles(); refreshTownhallCard(); }
+  if(name === 'home'){ refreshHomeTiles(); refreshTownhallCard(); renderAlmanac(); }
   if(name === 'books') buildBooksPage();
   if(name !== 'books') closeBookListen();
   if(name === 'messages') buildMessagesPage();
@@ -3726,6 +3751,126 @@ function renderJourneyTile(){
       + '</div>';
   }
   tile.innerHTML = html;
+}
+
+// ════════════════ LOCAL ALMANAC (home weather card) ═══════════════
+// A self-contained weather / sunrise-sunset / moon-phase card on the home
+// screen (it replaced the redundant Vault tile). Location is derived with NO
+// prompt from the member's stored IANA timezone (the city after the last "/"),
+// with the region country as a geocoding hint. Data comes from Open-Meteo
+// (keyless, CORS-friendly); the moon phase is computed locally. Units: °F for
+// US members, °C everywhere else. If anything fails to load, the card stays
+// hidden rather than showing an error.
+const _ALM_A = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+function _almSvg(p, px){ px = px||24; return '<svg width="'+px+'" height="'+px+'" '+_ALM_A+' style="color:var(--terra)">'+p+'</svg>'; }
+const _ALM_ICONS = {
+  sun:'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/>',
+  partly:'<path d="M8 5a4 4 0 0 1 7.5 1.5"/><path d="M17 18a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.5 3.5 0 0 0 6.5 18z"/>',
+  cloud:'<path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.6A4 4 0 0 0 6 19z"/>',
+  fog:'<path d="M16 16a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.5 3.5 0 0 0 5.5 16z"/><line x1="3" y1="20" x2="15" y2="20"/><line x1="8" y1="23" x2="20" y2="23"/>',
+  rain:'<path d="M17.5 15a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.6A4 4 0 0 0 6 15z"/><line x1="8" y1="18" x2="7" y2="21"/><line x1="12" y1="18" x2="11" y2="21"/><line x1="16" y1="18" x2="15" y2="21"/>',
+  snow:'<path d="M17.5 14a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.6A4 4 0 0 0 6 14z"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="20" x2="12" y2="20.01"/><line x1="16" y1="18" x2="16" y2="18.01"/>',
+  thunder:'<path d="M17.5 13a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.6A4 4 0 0 0 6 13z"/><polyline points="12 14 10 18 13 18 11 22"/>',
+  sunrise:'<path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="5.2" y1="11.2" x2="4" y2="10"/><line x1="18.8" y1="11.2" x2="20" y2="10"/><line x1="1" y1="18" x2="23" y2="18"/><polyline points="8 6 12 2 16 6"/>',
+  sunset:'<path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="9" x2="12" y2="2"/><line x1="5.2" y1="11.2" x2="4" y2="10"/><line x1="18.8" y1="11.2" x2="20" y2="10"/><line x1="1" y1="18" x2="23" y2="18"/><polyline points="16 5 12 9 8 5"/>'
+};
+function _almCodeInfo(c){
+  if(c===0) return {l:'Clear',i:'sun'};
+  if(c<=2) return {l:'Partly cloudy',i:'partly'};
+  if(c===3) return {l:'Overcast',i:'cloud'};
+  if(c===45||c===48) return {l:'Fog',i:'fog'};
+  if(c>=51&&c<=57) return {l:'Drizzle',i:'rain'};
+  if(c>=71&&c<=77) return {l:'Snow',i:'snow'};
+  if(c>=80&&c<=82) return {l:'Rain showers',i:'rain'};
+  if(c>=85&&c<=86) return {l:'Snow showers',i:'snow'};
+  if(c>=95) return {l:'Thunderstorm',i:'thunder'};
+  if(c>=61&&c<=67) return {l:'Rain',i:'rain'};
+  return {l:'Cloudy',i:'cloud'};
+}
+function _almMoonInfo(date){
+  const synodic = 29.530588853;
+  const knownNew = Date.UTC(2000,0,6,18,14,0)/86400000;
+  const days = date.getTime()/86400000;
+  const age = ((((days - knownNew) % synodic) + synodic) % synodic);
+  const phase = age / synodic; // 0..1
+  const illum = Math.round((1 - Math.cos(phase*2*Math.PI))/2 * 100);
+  const names = ['New Moon','Waxing Crescent','First Quarter','Waxing Gibbous','Full Moon','Waning Gibbous','Last Quarter','Waning Crescent'];
+  return {phase, illum, name: names[Math.round(phase*8) % 8]};
+}
+function _almMoonSVG(phase, size){
+  const r = size/2;
+  const frac = (1 - Math.cos(phase*2*Math.PI))/2;
+  const waxing = phase <= 0.5;
+  const rx = r*Math.abs(2*frac - 1);
+  const outerSweep = waxing ? 1 : 0;
+  const innerSweep = (frac >= 0.5) ? (waxing ? 1 : 0) : (waxing ? 0 : 1);
+  const d = 'M '+r+' 0 A '+r+' '+r+' 0 0 '+outerSweep+' '+r+' '+(2*r)+' A '+rx+' '+r+' 0 0 '+innerSweep+' '+r+' 0 Z';
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+    + '<circle cx="'+r+'" cy="'+r+'" r="'+r+'" fill="#2c2238"/>'
+    + '<path d="'+d+'" fill="#f3e3c0"/>'
+    + '<circle cx="'+r+'" cy="'+r+'" r="'+(r-0.5)+'" fill="none" stroke="#cbb88e" stroke-width="1"/></svg>';
+}
+let _almLoaded = false, _almFetching = false;
+function _almCity(){
+  const tz = (currentUser && currentUser.timezone) || '';
+  if(tz.indexOf('/') >= 0) return tz.slice(tz.lastIndexOf('/')+1).replace(/_/g,' ');
+  return _regionState((currentUser && currentUser.region) || '');
+}
+async function renderAlmanac(){
+  const card = document.getElementById('almanac-card');
+  if(!card || !currentUser || _almLoaded || _almFetching) return;
+  const city = _almCity();
+  if(!city) return; // no location info — leave the card hidden
+  const country = _regionCountry(currentUser.region || '');
+  const useF = /united states|u\.?s\.?a?\.?$|^us$|america/i.test(country.trim());
+  _almFetching = true;
+  try {
+    const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1')).json();
+    if(!g.results || !g.results.length) throw 0;
+    const r = g.results[0];
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude='+r.latitude+'&longitude='+r.longitude
+      + '&current=temperature_2m,weather_code'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
+      + '&temperature_unit='+(useF?'fahrenheit':'celsius')
+      + '&timezone='+encodeURIComponent(r.timezone||'auto')+'&forecast_days=4';
+    const w = await (await fetch(url)).json();
+    const cur = w.current, d = w.daily;
+    if(!cur || !d) throw 0;
+    const ci = _almCodeInfo(cur.weather_code);
+    const moon = _almMoonInfo(new Date());
+    const tz = r.timezone || currentUser.timezone || undefined;
+    const localDate = new Date().toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long', timeZone: tz});
+    const deg = useF ? '°F' : '°C';
+    const fmtTime = iso => new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+    const fmtDay = iso => new Date(iso+'T00:00').toLocaleDateString(undefined,{weekday:'short'});
+    let fc = '';
+    for(let i=1;i<=3 && i<d.time.length;i++){
+      const fi = _almCodeInfo(d.weather_code[i]);
+      fc += '<div class="alm-col"><div class="alm-d">'+fmtDay(d.time[i])+'</div>'+_almSvg(_ALM_ICONS[fi.i],26)
+          + '<div class="alm-hl"><b>'+Math.round(d.temperature_2m_max[i])+'°</b> <span>'+Math.round(d.temperature_2m_min[i])+'°</span></div></div>';
+    }
+    card.innerHTML =
+        '<div class="alm-date">'+_esc(localDate)+'</div>'
+      + '<div class="alm-head">'
+      +   '<div class="alm-temp">'+_almSvg(_ALM_ICONS[ci.i],44)
+      +     '<div><div class="alm-t">'+Math.round(cur.temperature_2m)+deg+'</div><div class="alm-cond">'+_esc(ci.l)+'</div></div></div>'
+      +   '<div class="alm-loc"><div class="alm-city">'+_esc(r.name)+'</div><div class="alm-lbl">'+_esc(r.country||country||'')+'</div></div>'
+      + '</div>'
+      + '<div class="alm-div"></div>'
+      + '<div class="alm-sky">'
+      +   '<div class="alm-col"><div class="alm-k">Sunrise</div>'+_almSvg(_ALM_ICONS.sunrise,24)+'<div class="alm-v">'+fmtTime(d.sunrise[0])+'</div></div>'
+      +   '<div class="alm-col"><div class="alm-k">Sunset</div>'+_almSvg(_ALM_ICONS.sunset,24)+'<div class="alm-v">'+fmtTime(d.sunset[0])+'</div></div>'
+      +   '<div class="alm-col"><div class="alm-k">Moon</div>'+_almMoonSVG(moon.phase,26)+'<div class="alm-v" style="font-size:12px">'+_esc(moon.name)+'</div><div class="alm-sub">'+moon.illum+'% lit</div></div>'
+      + '</div>'
+      + '<div class="alm-div"></div>'
+      + '<div class="alm-fc">'+fc+'</div>';
+    card.style.display = 'block';
+    _almLoaded = true;
+  } catch(e){
+    /* silent — leave the card hidden if weather can't load */
+  } finally {
+    _almFetching = false;
+  }
 }
 
 async function refreshHomeTiles(){

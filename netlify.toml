@@ -20,7 +20,7 @@
     # console WITHOUT blocking anything, so it cannot break a feature. After you
     # click through every flow and confirm zero violations, rename this header to
     # "Content-Security-Policy" (drop "-Report-Only") to actually enforce it.
-    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net https://geocoding-api.open-meteo.com https://api.open-meteo.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 # Always revalidate the app shell so deploys show up immediately instead of
 # being served stale from the browser / PWA cache.
