@@ -603,7 +603,7 @@
       <div class="card-text">You have chosen <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="link-btn" id="pcm-nudge-btn" onclick="nudgePcm()">Nudge</button>
-        <button class="link-btn" onclick="changePcm()">Withdraw election</button>
+        <button class="link-btn" onclick="changePcm()">Withdraw choice</button>
       </div>
     </div>
 
@@ -754,7 +754,7 @@
   </style>
 
   <div class="page" id="page-messages">
-    <div id="msg-empty" class="empty" style="display:none"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You'll be able to message your PCM here once your election is accepted.</div>
+    <div id="msg-empty" class="empty" style="display:none"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You'll be able to message your PCM here once your choice is accepted.</div>
 
     <!-- Conversation list (Messenger-style inbox) -->
     <div id="msg-inbox" style="display:none">
@@ -981,7 +981,7 @@
       <div class="gl-item">
         <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div><h2>Help them choose their own</h2>
-        <p>When someone is ready, you <b>help them elect their own Contact Minister</b> freely. No one is bound to you; every member chooses for themselves.</p></div>
+        <p>When someone is ready, you <b>help them choose their own Contact Minister</b> freely. No one is bound to you; every member chooses for themselves.</p></div>
       </div>
       <div class="gl-item">
         <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
@@ -1830,7 +1830,7 @@ function renderInbox(){
     listEl.innerHTML = '';
     emptyEl.innerHTML = _msgPeers.length
       ? '<span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>No conversations yet. Tap the + to reach out to your PCM.'
-      : '<span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You’ll be able to message your PCM here once your election is accepted.';
+      : '<span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You’ll be able to message your PCM here once your choice is accepted.';
     emptyEl.style.display = 'block';
     return;
   }
@@ -1997,7 +1997,7 @@ async function renderActivePeer(){
 function openNewMessagePicker(){
   const listEl = document.getElementById('msg-newpicker-list');
   if(!_msgPeers.length){
-    listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>There’s no one to message yet. Once your PCM election is accepted, they’ll appear here.</div>';
+    listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>There’s no one to message yet. Once your PCM choice is accepted, they’ll appear here.</div>';
   } else {
     listEl.innerHTML = _msgPeers.map(p =>
       '<div class="picker-row" onclick="openThread(\'' + p.id + '\')">'
@@ -4890,7 +4890,7 @@ async function choosePcm(pcmId){
     .select('id, status').eq('elector_id', currentUser.id).in('status', ['pending','accepted']).maybeSingle();
   if(existing){
     alert(existing.status === 'pending'
-      ? 'You already have an election awaiting response. Please wait or withdraw it.'
+      ? 'You already have a choice awaiting response. Please wait or withdraw it.'
       : 'You already have an accepted PCM. Withdraw the current pairing first.');
     return;
   }
@@ -4906,22 +4906,22 @@ async function choosePcm(pcmId){
         showPage('video');
         return;
       }
-      throw new Error(j.error || 'election failed');
+      throw new Error(j.error || 'request failed');
     }
     // Client-side emails via EmailJS
     const pcm = _pcmList.find(p => p.id === pcmId);
     if(pcm?.email){
-      sendEmail(pcm.name, pcm.email, 'You have been elected as a Personal Contact Minister',
-        (currentUser.name||'A user')+' has elected you as their Personal Contact Minister. Open the app to accept or decline:\n\nhttps://preparingyou.app');
+      sendEmail(pcm.name, pcm.email, 'You have been chosen as a Personal Contact Minister',
+        (currentUser.name||'A user')+' has chosen you as their Personal Contact Minister. Open the app to accept or decline:\n\nhttps://preparingyou.app');
     }
     if(currentUser.email){
-      sendEmail(currentUser.name, currentUser.email, 'Your election has been sent',
-        'You have elected '+(pcm?.name||'a PCM')+'. They have been emailed and will respond shortly. We will email you again once they accept or decline.\n\nhttps://preparingyou.app');
+      sendEmail(currentUser.name, currentUser.email, 'Your choice has been sent',
+        'You have chosen '+(pcm?.name||'a PCM')+'. They have been emailed and will respond shortly. We will email you again once they accept or decline.\n\nhttps://preparingyou.app');
     }
-    alert('Election sent. Your PCM has been emailed and will accept or decline shortly.');
+    alert('Your choice has been sent. Your PCM has been emailed and will accept or decline shortly.');
     buildPcmPage();
   } catch(e){
-    alert('Could not send election: ' + e.message);
+    alert('Could not send your choice: ' + e.message);
   }
 }
 
@@ -4980,7 +4980,7 @@ let _inboundElections = [];
 
 async function pcmRespondElection(electionId, accept){
   if(!_sb || !currentUser) return;
-  if(!accept && !confirm('Decline this election? The user will be told you are currently unavailable.')) return;
+  if(!accept && !confirm('Decline this request? The user will be told you are currently unavailable.')) return;
   // Capture elector details before the row goes away
   const el = _inboundElections.find(x => x.id === electionId);
   const electorEmail = el?.elector?.email;
@@ -4995,8 +4995,8 @@ async function pcmRespondElection(electionId, accept){
     // Client-side email to elector
     if(electorEmail){
       if(accept){
-        sendEmail(electorName, electorEmail, 'Your PCM accepted your election',
-          (currentUser.name||'Your PCM')+' has accepted your election. They will walk this preparation alongside you. You can now message them or schedule a call from inside the app.\n\nhttps://preparingyou.app');
+        sendEmail(electorName, electorEmail, 'Your PCM accepted your choice',
+          (currentUser.name||'Your PCM')+' has accepted your choice. They will walk this preparation alongside you. You can now message them or schedule a call from inside the app.\n\nhttps://preparingyou.app');
       } else {
         sendEmail(electorName, electorEmail, 'Your PCM is currently unavailable',
           (currentUser.name||'Your PCM')+' is unavailable at this time. Please choose another Personal Contact Minister from the list.\n\nhttps://preparingyou.app');
@@ -5010,7 +5010,7 @@ async function pcmRespondElection(electionId, accept){
         + '&email=' + encodeURIComponent(j.pcmEmail)
         + '&inviter=' + encodeURIComponent(j.electorName || '');
       sendEmail(j.pcmName, j.pcmEmail, 'You have been invited to The Living Network',
-        'You have been chosen by '+(j.electorName||'someone')+' as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network.\n\nThe link below will take you straight to the Join screen with your details prefilled:\n\n'+handoff);
+        'You have been chosen by '+(j.electorName||'someone')+' as their Personal Contact Minister. The act of being chosen is itself the qualifying event — you are now invited to enter The Living Network.\n\nThe link below will take you straight to the Join screen with your details prefilled:\n\n'+handoff);
     }
     buildPcmPage();
   } catch(e){
