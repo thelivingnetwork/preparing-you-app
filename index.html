@@ -523,7 +523,6 @@
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
       <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
-        <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Start Townhall</button>
         <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/></svg>End Townhall</button>
       </div>
       <div id="townhall-replay" style="margin-top:10px;display:none;text-align:right">
@@ -1550,6 +1549,7 @@ function openTlnHandoff(){
 let _townhallState = null;        // last fetched state from /townhall/state
 let _townhallIsHost = false;      // am I in prep_townhall_hosts?
 let _townhallPollTimer = null;
+const TOWNHALL_MINUTES = 90; // mirrors server TOWNHALL_AUTOCLOSE_MS (auto-close after 90 min)
 
 async function refreshTownhallCard(){
   if(!_sb || !currentUser) return;
@@ -1574,7 +1574,10 @@ async function refreshTownhallCard(){
 
   card.style.display = 'block';
   const at = new Date(st.scheduled_at);
-  const localTime = at.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  const end = new Date(at.getTime() + TOWNHALL_MINUTES * 60000);
+  const _thDay = at.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric' });
+  const _thTime = d => d.toLocaleString(undefined, { hour:'numeric', minute:'2-digit' });
+  const localTime = _thDay + ' \u00b7 ' + _thTime(at) + ' \u2013 ' + _thTime(end);
 
   if(st.isLive){
     document.getElementById('townhall-title-text').textContent = '🔴 Townhall is LIVE';
@@ -1584,20 +1587,21 @@ async function refreshTownhallCard(){
   } else {
     document.getElementById('townhall-title-text').textContent = (st.title || 'Weekly Townhall');
     document.getElementById('townhall-when').textContent = localTime;
-    document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + (_townhallIsHost ? ' — start it when ready' : ' — moderator will start it on time');
+    document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + ' — opens automatically at the scheduled time';
     if(banner) banner.style.display = 'none';
   }
 
-  // Host-only controls
+  // Host-only control: End early. Townhalls auto-open on schedule and
+  // auto-close after 90 min, so there is no manual Start — a host just taps the
+  // live card to join. End lets them wrap up before the auto-close.
   const actions = document.getElementById('townhall-actions');
-  const startBtn = document.getElementById('townhall-start-btn');
   const endBtn = document.getElementById('townhall-end-btn');
-  if(_townhallIsHost){
+  if(_townhallIsHost && st.isLive){
     actions.style.display = 'block';
-    startBtn.style.display = st.isLive ? 'none' : 'inline-block';
-    endBtn.style.display = st.isLive ? 'inline-block' : 'none';
+    endBtn.style.display = 'inline-block';
   } else {
     actions.style.display = 'none';
+    endBtn.style.display = 'none';
   }
 
   // Replay button — most recent ended townhall with a recording_url
@@ -1624,8 +1628,8 @@ function replayLastTownhall(){
 
 function onTownhallCardClick(){
   if(_townhallState?.isLive) joinTownhall();
-  else if(_townhallIsHost) startTownhall();
-  // non-host with non-live: nothing — they have to wait
+  // not live: the townhall opens automatically at its scheduled time — nothing
+  // to do yet (applies to hosts and members alike).
 }
 
 async function startTownhall(){
