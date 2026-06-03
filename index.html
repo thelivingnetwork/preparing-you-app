@@ -693,13 +693,14 @@
           <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
         </div>
         <div id="msg-list" style="padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
+        <div id="msg-typing" style="display:none;padding:2px 16px 6px;font-size:12px;font-style:italic;color:var(--walnut-mid)"></div>
         <div id="msg-attach-chip" style="display:none;padding:0 16px;margin:8px 0 0;align-items:center;gap:8px"></div>
         <div class="emoji-panel" id="msg-emoji" style="margin:8px 12px 0"></div>
         <div id="msg-compose" style="padding:12px 16px calc(12px + 52px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
           <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
           <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);cursor:pointer;flex-shrink:0;line-height:0;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('msg-file').click()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
           <button type="button" id="msg-emoji-btn" class="emoji-btn" title="Emoji" aria-label="Emoji" onclick="toggleEmoji('msg-emoji','msg-input',this)">😊</button>
-          <textarea id="msg-input" rows="1" data-maxh="140" placeholder="Write a message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <textarea id="msg-input" rows="1" data-maxh="140" placeholder="Write a message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck();_onMsgTyping()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
       </div>
@@ -1055,6 +1056,7 @@ function enterApp(){
   if(_notifPollTimer) clearInterval(_notifPollTimer);
   _notifPollTimer = setInterval(refreshNavBadges, 30000);
   _subscribeNotifRealtime();
+  _subscribeMsgRealtime();
   if(_townhallPollTimer) clearInterval(_townhallPollTimer);
   _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
   _maybeOfferPushPrompt();
@@ -1324,6 +1326,7 @@ async function buildMessagesPage(){
 // ── Inbox (conversation list) ──────────────────────────────────────
 async function showMsgList(){
   _msgView = 'list';
+  _closeTypingChannel(); // leaving the thread — drop its typing channel
   closeNewMessagePicker();
   document.getElementById('msg-thread-wrap').style.display = 'none';
   _msgUnpin(); // release the viewport pin so the inbox lays out normally
@@ -1333,7 +1336,7 @@ async function showMsgList(){
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
     if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'list') refreshInbox();
-  }, 6000);
+  }, 15000); // Realtime is primary now; this is a dropped-socket fallback
 }
 
 async function refreshInbox(){
@@ -1492,6 +1495,8 @@ async function openThread(id){
   _msgPeerId = id;
   _msgView = 'thread';
   _msgSig = ''; _msgRenderedPeer = null; // force a fresh render
+  _hidePeerTyping();
+  _openTypingChannel(id); // ephemeral typing-presence channel for this conversation
   closeNewMessagePicker();
   document.getElementById('msg-inbox').style.display = 'none';
   document.getElementById('msg-empty').style.display = 'none';
@@ -1502,7 +1507,7 @@ async function openThread(id){
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
     if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'thread') loadMessages();
-  }, 5000);
+  }, 12000); // Realtime is primary now; this is a dropped-socket fallback
 }
 
 async function renderActivePeer(){
@@ -2143,6 +2148,96 @@ function _subscribeNotifRealtime(){
       refreshNavBadges();
     })
     .subscribe();
+}
+
+// ─────────────────── REAL-TIME MESSAGES (signal only) ───────────────────
+// Message bodies are encrypted at rest; only the server can decrypt them, so
+// Realtime can't carry readable text. Instead we use the postgres_changes
+// event purely as a SIGNAL ("a row landed in your conversation") and then call
+// the existing server endpoints to fetch the decrypted thread/inbox. This
+// drops delivery latency from the poll interval to ~instant without touching
+// the encryption model. The RLS SELECT policy (see SQL migration) only exposes
+// ciphertext + metadata to the participant, who already sees the plaintext.
+let _msgChannel = null;
+function _subscribeMsgRealtime(){
+  if(!_sb || !currentUser) return;
+  if(_msgChannel){ _sb.removeChannel(_msgChannel); _msgChannel = null; }
+  _msgChannel = _sb
+    .channel('user-msgs-' + currentUser.id)
+    // Someone messaged me — pull it in immediately.
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'prep_messages',
+      filter: `recipient_id=eq.${currentUser.id}`
+    }, (payload) => { _onRealtimeMsgInsert(payload && payload.new || {}); })
+    // A message I SENT was just read (peer flipped read_at) — flip "Seen" live.
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'prep_messages',
+      filter: `sender_id=eq.${currentUser.id}`
+    }, () => {
+      if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
+    })
+    .subscribe();
+}
+function _onRealtimeMsgInsert(row){
+  // Keep the unread badge current even when off the Messages page.
+  refreshMessageBadge();
+  const onMessages = document.getElementById('page-messages').classList.contains('active');
+  if(!onMessages) return;
+  if(_msgView === 'thread' && row.sender_id === _msgPeerId){
+    loadMessages();   // the open conversation — fetch the decrypted text now
+  } else if(_msgView === 'list'){
+    refreshInbox();   // inbox — re-sort with the newly arrived message
+  }
+}
+
+// ─────────────────── TYPING INDICATORS (ephemeral broadcast) ───────────────────
+// No DB writes: a per-conversation Realtime broadcast channel both participants
+// derive from the same sorted id pair. While composing, each side emits a
+// throttled "typing" ping; the other side shows "<name> is typing…" and
+// auto-hides it after 3s of silence.
+let _typingChannel = null;
+let _typingChannelKey = null;
+let _typingSendThrottle = 0;
+let _peerTypingTimer = null;
+function _convoKey(peerId){ return [currentUser.id, peerId].sort().join('__'); }
+function _openTypingChannel(peerId){
+  if(!_sb || !currentUser || !peerId) return;
+  const key = _convoKey(peerId);
+  if(_typingChannel && _typingChannelKey === key) return; // already open for this convo
+  _closeTypingChannel();
+  _typingChannelKey = key;
+  _typingChannel = _sb.channel('typing-' + key, { config: { broadcast: { self: false } } });
+  _typingChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
+    if(payload && payload.from === _msgPeerId) _showPeerTyping();
+  });
+  _typingChannel.subscribe();
+}
+function _closeTypingChannel(){
+  if(_typingChannel){ try { _sb.removeChannel(_typingChannel); } catch(_){} }
+  _typingChannel = null; _typingChannelKey = null;
+  _hidePeerTyping();
+}
+function _onMsgTyping(){
+  const now = Date.now();
+  if(_typingChannel && now - _typingSendThrottle > 1500){
+    _typingSendThrottle = now;
+    _typingChannel.send({ type: 'broadcast', event: 'typing', payload: { from: currentUser.id } });
+  }
+}
+function _showPeerTyping(){
+  const el = document.getElementById('msg-typing');
+  if(!el) return;
+  const peer = _findPeer(_msgPeerId);
+  const name = (peer && peer.name) ? String(peer.name).split(' ')[0] : 'They';
+  el.textContent = name + ' is typing…';
+  el.style.display = 'block';
+  if(_peerTypingTimer) clearTimeout(_peerTypingTimer);
+  _peerTypingTimer = setTimeout(_hidePeerTyping, 3000);
+}
+function _hidePeerTyping(){
+  const el = document.getElementById('msg-typing');
+  if(el){ el.style.display = 'none'; el.textContent = ''; }
+  if(_peerTypingTimer){ clearTimeout(_peerTypingTimer); _peerTypingTimer = null; }
 }
 
 // Map a notification's target page onto the bottom-nav icon that should carry
