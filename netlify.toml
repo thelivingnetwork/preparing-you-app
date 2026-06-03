@@ -8,6 +8,19 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "geolocation=(), camera=(), microphone=(self), payment=()"
+    # Content-Security-Policy: allow-lists exactly the origins this app talks to.
+    # 'unsafe-inline' is required for script-src because the app ships inline
+    # scripts + inline onclick handlers (single-file, no bundler/nonce). It still
+    # blocks injecting EXTERNAL scripts and limits where data can be sent — the
+    # hand-rolled output escaping remains the primary XSS defense. If a future
+    # dependency needs eval(), add 'unsafe-eval' to script-src.
+    # NOTE: shipped as Report-Only first — it logs violations to the browser
+    # console WITHOUT blocking anything, so it cannot break a feature. After you
+    # click through every flow and confirm zero violations, rename this header to
+    # "Content-Security-Policy" (drop "-Report-Only") to actually enforce it.
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 # Always revalidate the app shell so deploys show up immediately instead of
 # being served stale from the browser / PWA cache.
