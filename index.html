@@ -166,8 +166,8 @@
   .tile-meta{font-size:13px;color:var(--walnut-mid);margin-top:6px;font-weight:500}
   /* Local Almanac home card — kept compact so the whole thing is glanceable
      above the bottom nav without scrolling. */
-  #almanac-card{padding:13px 15px}
-  .alm-date{font-size:12px;font-weight:600;color:var(--brand-ink);margin:0 0 9px}
+  #almanac-card{padding:11px 15px}
+  .alm-date{font-size:12px;font-weight:600;color:var(--brand-ink);margin:0 0 7px}
   .alm-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .alm-temp{display:flex;align-items:center;gap:10px;min-width:0}
   .alm-t{font-size:27px;font-weight:600;line-height:1;color:var(--brand-ink)}
@@ -175,7 +175,7 @@
   .alm-loc{text-align:right;min-width:0}
   .alm-city{font-size:14px;font-weight:600;color:var(--accent-ink);overflow-wrap:anywhere}
   .alm-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--walnut-soft);margin-top:2px}
-  .alm-div{height:1px;background:var(--line);margin:9px 0}
+  .alm-div{height:1px;background:var(--line);margin:7px 0}
   .alm-sky{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px;text-align:center}
   .alm-k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-soft);margin-bottom:3px}
   .alm-v{font-size:13px;font-weight:600;color:var(--walnut);margin-top:3px}
@@ -186,6 +186,15 @@
   .alm-hl{font-size:12px;margin-top:2px;color:var(--walnut)}
   .alm-hl b{color:var(--walnut)}
   .alm-hl span{color:var(--walnut-soft)}
+  /* Home cards kept tight so Welcome + Townhall + Almanac all fit at a glance
+     (above the bottom nav) without scrolling, even with three cards stacked. */
+  #page-home .card{margin-bottom:10px}
+  #journey-tile{padding:13px 16px}
+  #journey-tile .card-title{margin-bottom:5px}
+  #journey-tile .card-text{font-size:13px;line-height:1.4}
+  #townhall-card{padding:12px 15px}
+  #townhall-card .card-title{margin-bottom:4px}
+  #townhall-card .card-text{font-size:13px;line-height:1.4}
 
   .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:4px 0 calc(6px + env(safe-area-inset-bottom));z-index:50}
   .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.02em;padding:3px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500}
@@ -3712,10 +3721,10 @@ function _journeyCard(title, text, meta, ctaLabel, ctaOnclick, accent, extraHtml
     : 'text-align:right';
   return '<div class="card-title" style="' + titleColor + '">' + _esc(title) + '</div>'
     + '<div class="card-text">' + text + '</div>'
-    + (meta ? '<div style="margin-top:8px;font-size:12px;color:var(--walnut-mid);font-style:italic">' + _esc(meta) + '</div>' : '')
-    + '<div style="margin-top:14px;' + footStyle + '">'
+    + (meta ? '<div style="margin-top:5px;font-size:12px;color:var(--walnut-mid);font-style:italic">' + _esc(meta) + '</div>' : '')
+    + '<div style="margin-top:9px;' + footStyle + '">'
     +   (extraHtml || '')
-    +   '<button class="btn-primary" style="margin:0;padding:9px 18px;width:auto" onclick="' + ctaOnclick + '">' + _esc(ctaLabel) + '</button>'
+    +   '<button class="btn-primary" style="margin:0;padding:7px 16px;width:auto" onclick="' + ctaOnclick + '">' + _esc(ctaLabel) + '</button>'
     + '</div>';
 }
 
