@@ -523,11 +523,11 @@
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
       <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
-        <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()">▶ Start Townhall</button>
-        <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()">⏹ End Townhall</button>
+        <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Start Townhall</button>
+        <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/></svg>End Townhall</button>
       </div>
       <div id="townhall-replay" style="margin-top:10px;display:none;text-align:right">
-        <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()">▶ Replay last townhall</button>
+        <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Replay last townhall</button>
       </div>
     </div>
     <!-- Always-available resource tiles (journey navigation lives in the
@@ -559,13 +559,13 @@
 
     <!-- Current chosen PCM (only visible once selected) -->
     <div class="card" id="pcm-current" style="display:none">
-      <div class="card-title" style="color:var(--success)">✓ Your Personal Contact Minister</div>
+      <div class="card-title" style="color:var(--success)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Your Personal Contact Minister</div>
       <div id="pcm-current-body"></div>
     </div>
 
     <!-- Pending outbound election (elector waiting) -->
     <div class="card" id="pcm-pending" style="display:none;border-color:var(--gold);background:var(--gold-soft)">
-      <div class="card-title" style="color:var(--gold)">⏳ Awaiting Acceptance</div>
+      <div class="card-title" style="color:var(--gold)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Awaiting Acceptance</div>
       <div class="card-text">You have elected <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="link-btn" id="pcm-nudge-btn" onclick="nudgePcm()">Nudge</button>
@@ -575,19 +575,19 @@
 
     <!-- Inbound elections (PCM viewing requests) -->
     <div class="card" id="pcm-inbound" style="display:none;border-color:var(--terra)">
-      <div class="card-title" style="color:var(--accent-ink)">✦ Elections Awaiting Your Response</div>
+      <div class="card-title" style="color:var(--accent-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg>Elections Awaiting Your Response</div>
       <div data-inbound-list></div>
     </div>
 
     <!-- Electors I have accepted — ready for sign-off into TLN -->
     <div class="card" id="pcm-electors" style="display:none">
-      <div class="card-title" style="color:var(--brand-ink)">📜 Your Electors</div>
+      <div class="card-title" style="color:var(--brand-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Your Electors</div>
       <div data-electors-list></div>
     </div>
 
     <!-- Volunteer status (only visible once user is a PCM themselves) -->
     <div class="card" id="pcm-mine" style="display:none;border-color:var(--gold)">
-      <div class="card-title">✦ You Are a PCM</div>
+      <div class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg>You Are a PCM</div>
       <div id="pcm-mine-body"></div>
       <div style="text-align:right;margin-top:8px">
         <button class="link-btn" onclick="openPcmVolunteer()">Edit contact details</button>
@@ -610,7 +610,7 @@
     <div class="modal-box">
       <div class="modal-head">
         <span class="modal-title">Volunteer as a PCM</span>
-        <button class="modal-close" onclick="closePcmVolunteer()">✕</button>
+        <button class="modal-close" onclick="closePcmVolunteer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
         <div class="card-text" style="font-size:13px;margin-bottom:12px">
@@ -639,7 +639,7 @@
     <div class="modal-box" style="max-width:680px">
       <div class="modal-head">
         <span class="modal-title">Choosing a PCM</span>
-        <button class="modal-close" onclick="closePcmVideo()">✕</button>
+        <button class="modal-close" onclick="closePcmVideo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body" style="padding:12px">
         <video id="pcm-video-player" controls controlsList="nodownload" disablepictureinpicture playsinline preload="metadata" style="width:100%;border-radius:10px;background:#000;display:block"></video>
@@ -667,7 +667,7 @@
       <div id="lib-feat-audio" style="display:none"></div>
     </div>
     <div class="lib-letter-bar" id="lib-letter-bar"></div>
-    <div id="lib-content"><div class="empty"><span class="ico">📚</span>Loading library…</div></div>
+    <div id="lib-content"><div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Loading library…</div></div>
     </div>
   </div>
 
@@ -677,7 +677,7 @@
       <div class="card-title">The Five Books</div>
       <div class="card-text">Read each book in full and listen to a 15-minute audio overview — a podcast-style discussion drawn from the source. Paul can answer any question that comes up.</div>
     </div>
-    <div id="books-list"><div class="empty"><span class="ico">📖</span>Loading…</div></div>
+    <div id="books-list"><div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M2 4h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2H2z"/><path d="M22 4h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2H22z"/></svg></span>Loading…</div></div>
 
     <div id="book-listen-wrap" style="display:none;margin-top:14px">
       <div class="card-title" id="book-listen-title" style="margin-bottom:8px"></div>
@@ -707,7 +707,7 @@
   </style>
 
   <div class="page" id="page-messages">
-    <div id="msg-empty" class="empty" style="display:none"><span class="ico">💬</span>You'll be able to message your PCM here once your election is accepted.</div>
+    <div id="msg-empty" class="empty" style="display:none"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You'll be able to message your PCM here once your election is accepted.</div>
 
     <!-- Conversation list (Messenger-style inbox) -->
     <div id="msg-inbox" style="display:none">
@@ -716,7 +716,7 @@
         <button onclick="openNewMessagePicker()" title="New message" aria-label="New message" style="margin:0;padding:0;width:40px;height:40px;flex-shrink:0;border:none;border-radius:50%;background:linear-gradient(180deg,var(--terra),var(--teal));color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(55,23,81,.22)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       </div>
       <div id="msg-convo-list"></div>
-      <div id="msg-inbox-empty" class="empty" style="display:none"><span class="ico">💬</span>No conversations yet. Tap the + to reach out to your PCM.</div>
+      <div id="msg-inbox-empty" class="empty" style="display:none"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>No conversations yet. Tap the + to reach out to your PCM.</div>
     </div>
 
     <!-- Individual thread -->
@@ -770,14 +770,14 @@
         <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Enter The Living Network →</button>
       </div>
     </div>
-    <div class="empty" id="join-tln-empty"><span class="ico">✦</span>Awaiting PCM sign-off.</div>
+    <div class="empty" id="join-tln-empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></span>Awaiting PCM sign-off.</div>
     </div><!-- /#join-tln-content -->
   </div>
 
   <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
   <div id="live-banner" onclick="joinTownhall()" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:linear-gradient(90deg,var(--terra),var(--terra-deep));color:#fff;padding:10px 16px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:.04em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)">
     <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:8px;animation:livepulse 1.4s infinite"></span>
-    🎙 Townhall is live — tap to join
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>Townhall is live — tap to join
   </div>
   <style>@keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}</style>
 
@@ -871,33 +871,33 @@
 <!-- First-run community guidelines gate ("Before You Enter") -->
 <div id="guidelines-gate">
   <div class="gl-card">
-    <div class="gl-seal">✦</div>
+    <div class="gl-seal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
     <h1>Before You Enter</h1>
     <p class="gl-sub">This is a fellowship of charity and free will.<br>By entering, you walk by these few guidelines.</p>
 
     <div class="gl-list">
       <div class="gl-item">
-        <div class="gl-ic">☐</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></div>
         <div><h2>A house of charity, not commerce</h2>
         <p>No soliciting, selling, advertising, or fundraising. We gather to serve, not to profit.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">♥</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="currentColor" stroke="none"/></svg></div>
         <div><h2>Honor one another</h2>
         <p>Speak with grace. No harassment, slander, or contention — treat every member as family.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">🔒</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <div><h2>Your messages are private</h2>
         <p><b>Private messages are end-to-end encrypted</b> — sealed on your device with a key only you hold, unlocked by your password. We cannot read them, and your information is never sold or shared.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">✦</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
         <div><h2>Come of your own free will</h2>
         <p>Participation is voluntary — no coercion, no obligation. You may step away at any time.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">✓</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div><h2>Walk in good faith</h2>
         <p>Be honest, keep confidences, and protect one another.</p></div>
       </div>
@@ -911,39 +911,39 @@
 
 <div id="pcm-agree-gate">
   <div class="gl-card">
-    <div class="gl-seal">✦</div>
+    <div class="gl-seal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
     <h1>Becoming a Contact Minister</h1>
     <p class="gl-sub">You have walked the preparation and been welcomed by a minister.<br>Now you may walk it beside others.</p>
     <p class="gl-quote">The Contact Minister is not a position of power, but of service.</p>
 
     <div class="gl-list">
       <div class="gl-item">
-        <div class="gl-ic">♥</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="currentColor" stroke="none"/></svg></div>
         <div><h2>Service, not authority</h2>
         <p>A Personal Contact Minister holds <b>no office or power over anyone</b>. You do not rule, command, or judge — you simply serve, walking beside those who come as an equal in the family.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">✦</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
         <div><h2>Faith, hope, and charity</h2>
         <p>You give freely and expect nothing in return. The work is unpaid and uncoerced — offered in <b>charity</b>, kept by faith and hope.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">☐</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></div>
         <div><h2>Greet and welcome</h2>
         <p>You greet those who arrive, help them feel at home, and confirm they come of their own free will — never pressing, never gatekeeping out of pride.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">✓</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div><h2>Help them choose their own</h2>
         <p>When someone is ready, you <b>help them elect their own Contact Minister</b> freely. No one is bound to you; every member chooses for themselves.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">🔒</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <div><h2>Connect and protect</h2>
         <p>You keep members' contact details in confidence — <b>connecting people while protecting what is entrusted to you</b>. Their information is never sold, shared, or used for any purpose but service.</p></div>
       </div>
       <div class="gl-item">
-        <div class="gl-ic">⛺</div>
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
         <div><h2>Walk as a team</h2>
         <p>You serve alongside other ministers, sharing the work and holding one another accountable in charity and good faith.</p></div>
       </div>
@@ -1777,8 +1777,8 @@ function renderInbox(){
     _inboxSig = '';
     listEl.innerHTML = '';
     emptyEl.innerHTML = _msgPeers.length
-      ? '<span class="ico">💬</span>No conversations yet. Tap the + to reach out to your PCM.'
-      : '<span class="ico">💬</span>You’ll be able to message your PCM here once your election is accepted.';
+      ? '<span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>No conversations yet. Tap the + to reach out to your PCM.'
+      : '<span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You’ll be able to message your PCM here once your election is accepted.';
     emptyEl.style.display = 'block';
     return;
   }
@@ -1936,7 +1936,7 @@ async function renderActivePeer(){
 function openNewMessagePicker(){
   const listEl = document.getElementById('msg-newpicker-list');
   if(!_msgPeers.length){
-    listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="ico">👥</span>There’s no one to message yet. Once your PCM election is accepted, they’ll appear here.</div>';
+    listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>There’s no one to message yet. Once your PCM election is accepted, they’ll appear here.</div>';
   } else {
     listEl.innerHTML = _msgPeers.map(p =>
       '<div class="picker-row" onclick="openThread(\'' + p.id + '\')">'
@@ -2312,7 +2312,7 @@ async function onAttachSelected(inputEl){
   if(file.size > _ATTACH_MAX_BYTES){ alert('That file is too large (max 25 MB).'); return; }
 
   const btn = document.getElementById('msg-attach-btn');
-  if(btn){ btn.disabled = true; btn.dataset.icon = btn.innerHTML; btn.textContent = '⏳'; btn.style.fontSize = '16px'; }
+  if(btn){ btn.disabled = true; btn.dataset.icon = btn.innerHTML; btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;animation:ptrspin .8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>'; }
   _pendingAttachment = null;
   _renderAttachChip('Uploading ' + file.name + '…');
   try {
@@ -2355,12 +2355,12 @@ function _renderAttachChip(loadingLabel){
   const isImg = (a.type || '').startsWith('image/');
   const thumb = isImg
     ? `<img src="${a.url}" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover">`
-    : `<span style="font-size:18px">📄</span>`;
+    : `<span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;color:var(--walnut)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>`;
   chip.style.display = 'flex';
   chip.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-width:100%">
       ${thumb}
       <span style="font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(a.name)}</span>
-      <button onclick="clearAttachment()" title="Remove" aria-label="Remove attachment" style="border:none;background:none;cursor:pointer;font-size:16px;color:var(--walnut);line-height:1">✕</button>
+      <button onclick="clearAttachment()" title="Remove" aria-label="Remove attachment" style="border:none;background:none;cursor:pointer;font-size:16px;color:var(--walnut);line-height:0;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>`;
 }
 
@@ -2373,7 +2373,7 @@ function _renderAttachment(m, mine){
     return `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${_esc(name)}" style="max-width:100%;border-radius:10px;display:block"></a>`;
   }
   const linkColor = mine ? 'var(--cream)' : 'var(--accent-ink)';
-  return `<a href="${url}" target="_blank" rel="noopener" download style="display:inline-flex;align-items:center;gap:6px;color:${linkColor};text-decoration:underline">📄 ${_esc(name)}</a>`;
+  return `<a href="${url}" target="_blank" rel="noopener" download style="display:inline-flex;align-items:center;gap:6px;color:${linkColor};text-decoration:underline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>${_esc(name)}</a>`;
 }
 
 async function _pairRoomName(a, b){
@@ -3047,22 +3047,22 @@ async function buildBooksPage(){
     const locked = !done && _bookAudioLocked(idx);
     // Listen button reflects sequential progress: done (✓), locked (🔒), or open.
     let listenLabel, listenStyle, listenEnabled;
-    if(!hasAudio){ listenLabel = '▶ Listen'; listenStyle = 'opacity:.4;cursor:not-allowed'; listenEnabled = false; }
-    else if(done){ listenLabel = '✓ Listen again'; listenStyle = ''; listenEnabled = true; }
-    else if(locked){ listenLabel = '🔒 Listen'; listenStyle = 'opacity:.4;cursor:not-allowed'; listenEnabled = false; }
-    else { listenLabel = '▶ Listen'; listenStyle = ''; listenEnabled = true; }
+    if(!hasAudio){ listenLabel = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Listen'; listenStyle = 'opacity:.4;cursor:not-allowed'; listenEnabled = false; }
+    else if(done){ listenLabel = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Listen again'; listenStyle = ''; listenEnabled = true; }
+    else if(locked){ listenLabel = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Listen'; listenStyle = 'opacity:.4;cursor:not-allowed'; listenEnabled = false; }
+    else { listenLabel = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Listen'; listenStyle = ''; listenEnabled = true; }
     const note = (hasAudio && locked)
-      ? '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin-top:6px">🔒 Finish the previous book\'s audio first</div>'
-      : (done ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:6px">✓ Audio overview completed</div>' : '');
+      ? '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin-top:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Finish the previous book\'s audio first</div>'
+      : (done ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Audio overview completed</div>' : '');
     return `<div class="card" style="display:flex;align-items:flex-start;gap:14px">
-      <div style="font-size:24px;width:36px;text-align:center;padding-top:2px">${done ? '✅' : '📖'}</div>
+      <div style="font-size:24px;width:36px;text-align:center;padding-top:2px">${done ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; color:var(--success);"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M2 4h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2H2z"/><path d="M22 4h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2H22z"/></svg>'}</div>
       <div style="flex:1;min-width:0">
         <div class="card-title" style="margin:0 0 8px;font-size:16px">${_esc(b.title)}</div>
         <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
           <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1 1 280px;min-width:0">
             <button class="link-btn" ${listenEnabled?'':'disabled'} onclick="openBookListen(${b.id})" style="padding:6px 12px;border:1px solid var(--terra);color:var(--accent-ink);border-radius:6px;background:var(--terra-soft);font-weight:500;${listenStyle}">${listenLabel}</button>
-            <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--brand-ink);color:var(--brand-ink);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}">📖 Read</button>
-            <button class="link-btn" ${hasAudiobook?'':'disabled'} onclick="openBookAudiobook(${b.id})" style="padding:6px 12px;border:1px solid var(--gold);color:var(--gold);border-radius:6px;background:var(--gold-soft);font-weight:500;${hasAudiobook?'':'opacity:.4;cursor:not-allowed'}">🎧 Audiobook</button>
+            <button class="link-btn" ${hasPdf?'':'disabled'} onclick="openBookRead(${b.id})" style="padding:6px 12px;border:1px solid var(--brand-ink);color:var(--brand-ink);border-radius:6px;background:transparent;font-weight:500;${hasPdf?'':'opacity:.4;cursor:not-allowed'}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M2 4h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2H2z"/><path d="M22 4h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2H22z"/></svg>Read</button>
+            <button class="link-btn" ${hasAudiobook?'':'disabled'} onclick="openBookAudiobook(${b.id})" style="padding:6px 12px;border:1px solid var(--gold);color:var(--gold);border-radius:6px;background:var(--gold-soft);font-weight:500;${hasAudiobook?'':'opacity:.4;cursor:not-allowed'}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>Audiobook</button>
           </div>
           ${b.description ? `<div style="flex:1;min-width:200px;font-size:16px;color:var(--walnut);font-style:italic;line-height:1.5">${_esc(b.description)}</div>` : ''}
         </div>
@@ -3114,7 +3114,7 @@ function openBookListen(bookId){
   _bookListenMaxTime = done ? Infinity : resume;
   const wrap = document.getElementById('book-listen-wrap');
   const player = document.getElementById('book-listen-player');
-  document.getElementById('book-listen-title').textContent = '🎧 ' + b.title + ' — Audio Overview';
+  document.getElementById('book-listen-title').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>' + _esc(b.title) + ' — Audio Overview';
   player.src = b.audio_overview_path;
   wrap.style.display = 'block';
   player.load();
@@ -3143,7 +3143,7 @@ function openBookAudiobook(bookId){
   const resume = _loadAudioPos('audiobook', bookId);
   const wrap = document.getElementById('book-audiobook-wrap');
   const player = document.getElementById('book-audiobook-player');
-  document.getElementById('book-audiobook-title').textContent = '🎧 ' + b.title + ' — Audiobook';
+  document.getElementById('book-audiobook-title').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>' + _esc(b.title) + ' — Audiobook';
   player.src = b.audiobook_path;
   wrap.style.display = 'block';
   player.load();
@@ -3640,7 +3640,7 @@ function _journeyGate(pageId, contentId, locked, msg, ctaLabel, ctaOnclick){
     page.insertBefore(lock, page.firstChild);
   }
   if(locked){
-    lock.innerHTML = '<div style="font-size:34px;margin-bottom:12px">🔒</div>'
+    lock.innerHTML = '<div style="margin-bottom:12px"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>'
       + '<div class="card-text" style="margin-bottom:18px">' + msg + '</div>'
       + '<button class="btn-primary" style="margin:0;padding:10px 20px;width:auto" onclick="' + ctaOnclick + '">' + _esc(ctaLabel) + '</button>';
     lock.style.display = 'block';
@@ -3716,7 +3716,7 @@ function renderJourneyTile(){
       'You have completed your preparation. When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.',
       '', 'View status', "showPage('join-tln')", true);
   } else {
-    html = '<div class="card-title" style="color:var(--accent-ink)">✦ The Living Network</div>'
+    html = '<div class="card-title" style="color:var(--accent-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg>The Living Network</div>'
       + '<div class="card-text">You have been granted access to The Living Network. You may also choose to become a Personal Contact Minister yourself and walk this preparation alongside others.</div>'
       + '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'
       +   '<button class="btn-secondary" style="margin:0;padding:9px 18px;width:auto" onclick="showPage(\'pcm\')">Become a PCM</button>'
@@ -3764,7 +3764,7 @@ function buildGatewayPage(){
     const isDone = !!(currentUser && currentUser[v.key]);
     const isNext = !isDone && next && next.idx === v.idx;
     const locked = !isDone && !isNext;
-    const icon = isDone ? '✓' : (locked ? '🔒' : '▶');
+    const icon = isDone ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; color:var(--success);"><polyline points="20 6 9 17 4 12"/></svg>' : (locked ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>');
     const meta = isDone ? 'Watched' : (isNext ? 'Tap to watch' : 'Locked — finish previous video');
     const style = locked ? 'opacity:.45;pointer-events:none' : '';
     const onclick = (isDone || isNext) ? `onclick="playGateway(${v.idx})"` : '';
@@ -3778,7 +3778,7 @@ function buildGatewayPage(){
   });
   if(done === GATEWAY_VIDEOS.length){
     html += `<div class="card" style="border-color:var(--terra);background:var(--terra-soft)">
-      <div class="card-title" style="color:var(--accent-ink)">✓ Introduction Complete</div>
+      <div class="card-title" style="color:var(--accent-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Introduction Complete</div>
       <div class="card-text">All three videos watched. You may continue to the next step on the home page.</div>
     </div>`;
   }
@@ -4117,8 +4117,8 @@ function _renderLetterBar(sections){
 }
 
 function _libEmptyMsg(){
-  if(_libTab === 'video') return '<div class="empty"><span class="ico">🎬</span>No videos yet.</div>';
-  if(_libTab === 'audio') return '<div class="empty"><span class="ico">🎧</span>No audio yet.</div>';
+  if(_libTab === 'video') return '<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg></span>No videos yet.</div>';
+  if(_libTab === 'audio') return '<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></span>No audio yet.</div>';
   return '<div class="empty">No topics match.</div>';
 }
 
@@ -4214,7 +4214,7 @@ function renderLibTab(){
     // Literature searches the whole wiki (~7,800 articles).
     const seq = ++_libSearchSeq;
     if(_libSearchTimer){ clearTimeout(_libSearchTimer); }
-    content.innerHTML = '<div class="empty"><span class="ico">🔎</span>Searching all of preparingyou.com…</div>';
+    content.innerHTML = '<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Searching all of preparingyou.com…</div>';
     _libSearchTimer = setTimeout(() => runLibrarySearch(q, seq), 250);
     return;
   }
@@ -4227,7 +4227,7 @@ function renderLibTab(){
   const filteredBody = _renderLibSections(filtered, showMedia);
   content.innerHTML = filteredBody
     ? (subhead + filteredBody)
-    : ('<div class="empty"><span class="ico">📭</span>No ' + _libTab + ' found for “' + _esc(q) + '”.</div>');
+    : ('<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>No ' + _libTab + ' found for “' + _esc(q) + '”.</div>');
 }
 
 // Back-compat alias: a few callers still say renderLibrary().
@@ -4277,7 +4277,7 @@ async function runLibrarySearch(q, seq){
   } catch(e){
     if(seq === _libSearchSeq){
       document.getElementById('lib-content').innerHTML =
-        '<div class="empty"><span class="ico">⚠️</span>Couldn’t reach the library right now. Check your connection and try again.</div>';
+        '<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>Couldn’t reach the library right now. Check your connection and try again.</div>';
     }
     return;
   }
@@ -4292,7 +4292,7 @@ function _wikiTitleToEntry(title){
 function renderSearchResults(q, entries, total){
   const el = document.getElementById('lib-content');
   if(!entries.length){
-    el.innerHTML = '<div class="empty"><span class="ico">📭</span>No articles found for “' + _esc(q) + '”.</div>';
+    el.innerHTML = '<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>No articles found for “' + _esc(q) + '”.</div>';
     return;
   }
   let html = '<div class="lib-section">'
@@ -4383,7 +4383,7 @@ async function buildPcmPage(){
   // 4. Render the list
   const listEl = document.getElementById('pcm-list');
   if(!_pcmList.length){
-    listEl.innerHTML = '<div class="empty"><span class="ico">👥</span>No Personal Contact Ministers are available yet. Please check back soon.</div>';
+    listEl.innerHTML = '<div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>No Personal Contact Ministers are available yet. Please check back soon.</div>';
   } else {
     let html = '';
     if(myCountry && inRegion.length){
@@ -4413,8 +4413,8 @@ async function buildPcmPage(){
         + '</div>'
         + '</div>'
         + '<div style="text-align:right;margin-top:10px;display:flex;gap:8px;justify-content:flex-end">'
-        + '<button class="link-btn" onclick="messagePcm(\'' + chosen.id + '\')">💬 Message</button>'
-        + '<button class="link-btn" onclick="startPcmCall()">📞 Call</button>'
+        + '<button class="link-btn" onclick="messagePcm(\'' + chosen.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Message</button>'
+        + '<button class="link-btn" onclick="startPcmCall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>'
         + '<button class="link-btn" onclick="changePcm()">Change</button>'
         + '</div>';
     }
@@ -4479,7 +4479,7 @@ async function buildPcmPage(){
           + '<div style="flex:1;min-width:0">'
           +   '<div class="pcm-name">' + _esc(e.elector?.name || 'Unknown') + '</div>'
           +   (e.elector?.region ? '<div class="pcm-meta">' + _esc(e.elector.region) + '</div>' : '')
-          +   (invited ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:3px">✓ TLN invited</div>' : '')
+          +   (invited ? '<div style="font-size:11px;color:var(--success);font-style:italic;margin-top:3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>TLN invited</div>' : '')
           + '</div>'
           + (invited
               ? '<span style="font-size:11px;color:var(--walnut-mid);font-style:italic">Already invited</span>'
@@ -4573,11 +4573,11 @@ function _pcmRow(p){
     : '';
   const actions = _pcmAmIPcm
     ? '<div class="pcm-peer-actions">'
-        + '<button class="link-btn" onclick="messagePcm(\'' + p.id + '\')">💬 Message</button>'
-        + '<button class="link-btn" onclick="callPcm(\'' + p.id + '\')">📞 Call</button>'
+        + '<button class="link-btn" onclick="messagePcm(\'' + p.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Message</button>'
+        + '<button class="link-btn" onclick="callPcm(\'' + p.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>'
       + '</div>'
     : '<button class="pcm-pick' + (isChosen ? ' chosen' : '') + '" onclick="choosePcm(\'' + p.id + '\')">'
-        + (isChosen ? '✓ Chosen' : 'Choose')
+        + (isChosen ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Chosen' : 'Choose')
       + '</button>';
   return '<div class="pcm-row' + (isChosen ? ' chosen' : '') + '">'
     + '<div class="pcm-av">' + _avInner(p) + '</div>'
@@ -4597,8 +4597,8 @@ function callPcm(id){ _msgPeerId = id; startPcmCall(); }
 
 function _pcmChannelLines(p){
   const parts = [];
-  if(p.email)    parts.push('✉ ' + _esc(p.email));
-  if(p.phone)    parts.push('☎ ' + _esc(p.phone));
+  if(p.email)    parts.push('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 6 12 13 2 6"/></svg>' + _esc(p.email));
+  if(p.phone)    parts.push('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' + _esc(p.phone));
   if(p.telegram) parts.push('Tg ' + _esc(p.telegram));
   if(p.messenger)parts.push('M ' + _esc(p.messenger));
   return parts.length ? '<div class="pcm-channels">' + parts.join('   ·   ') + '</div>' : '';
