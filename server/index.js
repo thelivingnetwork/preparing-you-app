@@ -19,7 +19,8 @@ const PORT = parseInt(process.env.PORT || '10000', 10)
 //   ALLOWED_ORIGIN=https://preparingyou.app,https://preparingyou-admin.netlify.app
 // Use "*" to allow any origin. The matching request origin is echoed back so
 // both the main app and the admin app can call the server.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN || '*')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN
+    || 'https://preparingyou.app,https://preparingyou-admin.netlify.app,https://preparingyou.netlify.app')
   .split(',').map(s => s.trim()).filter(Boolean)
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -1120,7 +1121,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.26', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.27', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1130,6 +1131,8 @@ const server = http.createServer(async (req, res) => {
     // Debug-only: POST /push/test-send?userId=<uuid>
     // Sends a real push to all subscriptions for that user and returns results.
     if (req.method === 'POST' && req.url.startsWith('/push/test-send')) {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
       const uid = new URL('https://x.x' + req.url).searchParams.get('userId')
       if (!uid) return send(res, 400, { error: 'userId required' })
       const { data: subs } = await sb.from('prep_push_subscriptions')
@@ -1151,12 +1154,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/push/subscribe') {
-      const { userId, subscription } = await readJson(req)
-      if (!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
-        return send(res, 400, { error: 'userId + subscription required' })
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { subscription } = await readJson(req)
+      if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+        return send(res, 400, { error: 'subscription required' })
       }
       const { error } = await sb.from('prep_push_subscriptions').upsert({
-        user_id: userId,
+        user_id: v.uid,
         endpoint: subscription.endpoint,
         p256dh: subscription.keys.p256dh,
         auth: subscription.keys.auth,
@@ -1174,15 +1179,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/paul/chat') {
-      const body = await readJson(req)
-      const { userId, messages, lang } = body
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { messages, lang } = await readJson(req)
       if (!Array.isArray(messages) || !messages.length) return send(res, 400, { error: 'messages required' })
-      return send(res, 200, await paulChat(userId, messages, lang))
+      return send(res, 200, await paulChat(v.uid, messages, lang))
     }
 
     // ─── Voice: speech-to-text (Whisper) ──────────────────────────────────
     // Body is the raw audio blob; language hint comes via X-Paul-Lang header.
     if (req.method === 'POST' && req.url === '/paul/transcribe') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
       const buf = await readRaw(req)
       if (!buf.length) return send(res, 400, { error: 'no audio' })
       const text = await transcribeAudio(buf, req.headers['content-type'], req.headers['x-paul-lang'])
@@ -1191,6 +1199,8 @@ const server = http.createServer(async (req, res) => {
 
     // ─── Voice: text-to-speech (swappable, default ElevenLabs) ────────────
     if (req.method === 'POST' && req.url === '/paul/speak') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
       const { text, lang } = await readJson(req)
       if (!text || !text.trim()) return send(res, 400, { error: 'text required' })
       try {
@@ -1205,7 +1215,10 @@ const server = http.createServer(async (req, res) => {
 
     // ─── Voice: streaming chat (SSE, sentence-by-sentence) ────────────────
     if (req.method === 'POST' && req.url === '/paul/chat/stream') {
-      const { userId, messages, lang } = await readJson(req)
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const userId = v.uid
+      const { messages, lang } = await readJson(req)
       if (!Array.isArray(messages) || !messages.length) return send(res, 400, { error: 'messages required' })
 
       // Daily-cap guardrail: count this user's turns since local midnight.
@@ -1235,9 +1248,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/elect') {
-      const { electorId, pcmId, skipEmail } = await readJson(req)
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { pcmId, skipEmail } = await readJson(req)
       try {
-        const row = await electPcm({ electorId, pcmId, skipEmail })
+        const row = await electPcm({ electorId: v.uid, pcmId, skipEmail })
         return send(res, 200, { election: row })
       } catch (e) {
         if (e.message === 'gateway_incomplete') return send(res, 403, { error: 'gateway_incomplete' })
@@ -1246,16 +1261,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/election/respond') {
-      const { electionId, pcmId, accept, skipEmail } = await readJson(req)
-      return send(res, 200, await respondPcm({ electionId, pcmId, accept, skipEmail }))
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { electionId, accept, skipEmail } = await readJson(req)
+      return send(res, 200, await respondPcm({ electionId, pcmId: v.uid, accept, skipEmail }))
     }
 
     // Gentle reminder to the elected PCM who hasn't responded yet. Only the
     // elector's own pending election can be nudged (verified server-side), so
     // this can't be used to email arbitrary people.
     if (req.method === 'POST' && req.url === '/pcm/nudge') {
-      const { electorId } = await readJson(req)
-      if (!electorId) return send(res, 400, { error: 'electorId required' })
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const electorId = v.uid
       const { data: el } = await sb.from('prep_pcm_elections')
         .select('id, pcm_id, elector:elector_id(name), pcm:pcm_id(name, email)')
         .eq('elector_id', electorId).eq('status', 'pending').maybeSingle()
@@ -1277,8 +1295,9 @@ const server = http.createServer(async (req, res) => {
     // the pairing. Doing the withdrawal server-side (rather than only client
     // Supabase writes) lets us reliably reach the PCM by email + in-app.
     if (req.method === 'POST' && req.url === '/pcm/withdraw') {
-      const { electorId } = await readJson(req)
-      if (!electorId) return send(res, 400, { error: 'electorId required' })
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const electorId = v.uid
       // At most one active election per elector (partial unique index), so a
       // bare maybeSingle() is safe — no ordering needed.
       const { data: el } = await sb.from('prep_pcm_elections')
@@ -1325,16 +1344,29 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/call/start') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
       const { roomName, userName, isOwner } = await readJson(req)
       if (!roomName) return send(res, 400, { error: 'roomName required' })
+      // Owner (moderator) status is never taken from the request body — a caller
+      // can only receive an owner token if they are an actual townhall host.
+      const ownerOk = isOwner ? await isHost(v.uid) : false
       const room = await dailyEnsureRoom(roomName)
-      const token = await dailyMintToken(roomName, { userName, isOwner })
+      const token = await dailyMintToken(roomName, { userName, isOwner: ownerOk })
       return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token })
     }
 
     if (req.method === 'POST' && req.url === '/tln/invite') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
       const { userId, fromName, skipEmail } = await readJson(req)
       if (!userId) return send(res, 400, { error: 'userId required' })
+      // Only an admin, or the target user's own PCM, may sign someone off into TLN.
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', v.uid).maybeSingle()
+      if (!adminRow) {
+        const { data: tu } = await sb.from('prep_users').select('pcm_id').eq('id', userId).maybeSingle()
+        if (!tu || tu.pcm_id !== v.uid) return send(res, 403, { error: 'forbidden' })
+      }
       const reason = fromName
         ? `<p>${fromName} has signed off on your readiness and invites you to enter The Living Network.</p>`
         : `<p>You have been invited to enter The Living Network.</p>`
@@ -1343,8 +1375,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/welcome') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
       const { userId, skipEmail } = await readJson(req)
       if (!userId) return send(res, 400, { error: 'userId required' })
+      // A user may only trigger their own welcome; admins may trigger anyone's.
+      if (userId !== v.uid) {
+        const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', v.uid).maybeSingle()
+        if (!adminRow) return send(res, 403, { error: 'forbidden' })
+      }
       const { data: u } = await sb.from('prep_users').select('name, email').eq('id', userId).maybeSingle()
       if (!skipEmail && u?.email) {
         await sendEmail(u.email, 'Welcome to Preparing You',
@@ -1359,19 +1398,26 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/messages/send') {
-      const { senderId, recipientId, body: msgBody, attachmentUrl, attachmentPath, attachmentName, attachmentType } = await readJson(req)
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const senderId = v.uid
+      const { recipientId, body: msgBody, e2ee, attachmentUrl, attachmentPath, attachmentName, attachmentType } = await readJson(req)
+      const isE2ee = e2ee === true
       const trimmedBody = (msgBody || '').trim()
       // attachmentPath is the private-bucket storage path (new clients);
       // attachmentUrl is kept for backward-compat with older cached clients.
       const attachVal = attachmentPath || attachmentUrl || null
-      if (!senderId || !recipientId || (!trimmedBody && !attachVal)) {
-        return send(res, 400, { error: 'senderId, recipientId, and a body or attachment required' })
+      if (!recipientId || !_UUID_RE.test(recipientId) || (!trimmedBody && !attachVal)) {
+        return send(res, 400, { error: 'recipientId and a body or attachment required' })
       }
       // Insert message. The body is encrypted at rest; the plaintext preview
       // below is used only for the transient web-push (never stored).
+      // E2EE clients send ciphertext we store verbatim (the server can't and
+      // shouldn't read it). Legacy clients still get server-side encryption.
       const { error: insErr } = await sb.from('prep_messages').insert({
         sender_id: senderId, recipient_id: recipientId,
-        body: encryptBody(trimmedBody || null),
+        body: isE2ee ? (trimmedBody || null) : encryptBody(trimmedBody || null),
+        e2ee: isE2ee,
         attachment_url: attachVal,
         attachment_name: attachmentName || null,
         attachment_type: attachmentType || null
@@ -1380,12 +1426,19 @@ const server = http.createServer(async (req, res) => {
       // Look up sender name for the push notification payload
       const { data: sender } = await sb.from('prep_users').select('name').eq('id', senderId).maybeSingle()
       const senderName = sender?.name || 'Someone'
-      const previewText = trimmedBody || ('📎 ' + (attachmentName || 'Attachment'))
-      const preview = previewText.length > 60 ? previewText.slice(0, 60) + '…' : previewText
+      // For E2EE messages the server can't read the text, so the push is generic.
+      let pushText
+      if (isE2ee) {
+        pushText = `${senderName} sent you a message`
+      } else {
+        const previewText = trimmedBody || ('📎 ' + (attachmentName || 'Attachment'))
+        const preview = previewText.length > 60 ? previewText.slice(0, 60) + '…' : previewText
+        pushText = `${senderName}: ${preview}`
+      }
       // The DB trigger (prep_message_notification) creates the prep_notifications
       // row automatically on every prep_messages INSERT, so we only need to fire
       // the web push here — avoids a duplicate bell entry.
-      pushToUser(recipientId, { icon: '💬', text: `${senderName}: ${preview}`, action: { type: 'page', page: 'messages' } })
+      pushToUser(recipientId, { icon: '💬', text: pushText, action: { type: 'page', page: 'messages' } })
         .catch(e => console.warn('[push] message fanout failed', e))
       return send(res, 200, { ok: true })
     }
@@ -1408,7 +1461,10 @@ const server = http.createServer(async (req, res) => {
       for (const m of (rows || [])) {
         messages.push({
           id: m.id, sender_id: m.sender_id, recipient_id: m.recipient_id,
-          body: decryptBody(m.body), created_at: m.created_at, read_at: m.read_at,
+          // e2ee rows carry client ciphertext — pass it through untouched for the
+          // client to decrypt. Legacy rows are decrypted here as before.
+          body: m.e2ee ? m.body : decryptBody(m.body), e2ee: !!m.e2ee,
+          created_at: m.created_at, read_at: m.read_at,
           attachment_url: await signAttachment(m.attachment_url),
           attachment_name: m.attachment_name, attachment_type: m.attachment_type
         })
@@ -1449,7 +1505,7 @@ const server = http.createServer(async (req, res) => {
       if (v.error) return send(res, v.status, { error: v.error })
       const meId = v.uid
       const { data: rows, error } = await sb.from('prep_messages')
-        .select('id, sender_id, recipient_id, body, created_at, read_at, attachment_name')
+        .select('id, sender_id, recipient_id, body, e2ee, created_at, read_at, attachment_name')
         .or(`sender_id.eq.${meId},recipient_id.eq.${meId}`)
         .order('created_at', { ascending: false })
       if (error) return send(res, 500, { error: error.message })
@@ -1460,13 +1516,19 @@ const server = http.createServer(async (req, res) => {
         if (!peerId) continue
         let c = convos.get(peerId)
         if (!c) {
-          const decoded = m.body ? decryptBody(m.body) : ''
-          let preview
-          if (decoded && /daily\.co\//.test(decoded)) preview = '📞 Call invite'
-          else if (decoded && decoded.trim()) preview = decoded.trim().slice(0, 120)
-          else if (m.attachment_name) preview = '📎 ' + m.attachment_name
-          else preview = ''
-          c = { peerId, last_preview: preview, last_mine: m.sender_id === meId, last_at: m.created_at, unread: 0 }
+          let preview, lastE2ee = false
+          if (m.e2ee && m.body) {
+            // Can't read it — hand the ciphertext to the client to decrypt for
+            // the preview (it holds the only key).
+            preview = m.body; lastE2ee = true
+          } else {
+            const decoded = m.body ? decryptBody(m.body) : ''
+            if (decoded && /daily\.co\//.test(decoded)) preview = '📞 Call invite'
+            else if (decoded && decoded.trim()) preview = decoded.trim().slice(0, 120)
+            else if (m.attachment_name) preview = '📎 ' + m.attachment_name
+            else preview = ''
+          }
+          c = { peerId, last_preview: preview, last_e2ee: lastE2ee, last_mine: m.sender_id === meId, last_at: m.created_at, unread: 0 }
           convos.set(peerId, c)
         }
         if (m.recipient_id === meId && !m.read_at) c.unread++
@@ -1504,44 +1566,26 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Admin: message METADATA only (who/when, attachment name) — never the
-    // body. The admin dashboard can no longer read message text directly
-    // (RLS) and gets nothing decrypted here. Revealing a specific message
-    // goes through /admin/decrypt-message, which is audited.
+    // body. Private messages are end-to-end encrypted; the server itself can't
+    // read them, so there is no admin path to message text.
     if (req.method === 'POST' && req.url === '/admin/messages-meta') {
       const a = await requireAdmin(req)
       if (a.error) return send(res, a.status, { error: a.error })
       const { data: rows, error } = await sb.from('prep_messages')
-        .select('id, sender_id, recipient_id, created_at, read_at, attachment_name, body')
+        .select('id, sender_id, recipient_id, created_at, read_at, attachment_name, body, e2ee')
         .order('created_at', { ascending: false }).limit(200)
       if (error) return send(res, 500, { error: error.message })
       const messages = (rows || []).map(m => ({
         id: m.id, sender_id: m.sender_id, recipient_id: m.recipient_id,
         created_at: m.created_at, read_at: m.read_at,
-        has_body: m.body != null, encrypted: isEncrypted(m.body),
+        has_body: m.body != null, encrypted: m.e2ee ? true : isEncrypted(m.body), e2ee: !!m.e2ee,
         has_attachment: !!m.attachment_name, attachment_name: m.attachment_name
       }))
       return send(res, 200, { messages })
     }
 
-    // Admin break-glass: decrypt ONE message. Every reveal is written to
-    // prep_message_access_log for safeguarding accountability.
-    if (req.method === 'POST' && req.url === '/admin/decrypt-message') {
-      const a = await requireAdmin(req)
-      if (a.error) return send(res, a.status, { error: a.error })
-      const { messageId } = await readJson(req)
-      if (!messageId) return send(res, 400, { error: 'messageId required' })
-      const { data: m, error } = await sb.from('prep_messages').select('*').eq('id', messageId).maybeSingle()
-      if (error) return send(res, 500, { error: error.message })
-      if (!m) return send(res, 404, { error: 'not_found' })
-      await sb.from('prep_message_access_log').insert({
-        admin_id: a.uid, message_id: m.id, sender_id: m.sender_id, recipient_id: m.recipient_id
-      }).then(() => {}, e => console.warn('[audit] access log insert failed', e?.message))
-      return send(res, 200, {
-        id: m.id, body: decryptBody(m.body),
-        attachment_url: await signAttachment(m.attachment_url),
-        attachment_name: m.attachment_name, attachment_type: m.attachment_type
-      })
-    }
+    // (Admin break-glass message decryption was removed: private messages are
+    // now end-to-end encrypted and the server holds no key to read them.)
 
     // Admin one-time migration: encrypt any legacy plaintext message bodies.
     // Idempotent — already-encrypted rows are skipped.
@@ -1561,8 +1605,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/peers') {
-      const { userId } = await readJson(req)
-      if (!userId) return send(res, 400, { error: 'userId required' })
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const userId = v.uid
       // 1) my PCM (if I'm an elector)
       // 2) electors who have me as their PCM
       const peers = []
@@ -1816,12 +1861,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
       // Manual trigger — useful for ops/debugging the cron
       runTownhallReminders().catch(e => console.error('manual reminder', e))
       return send(res, 200, { ok: true, triggered: true })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/announcements/run') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
       // Manual / fire-and-forget trigger from the admin app right after a
       // townhall is created or rescheduled, so the "new townhall set" email
       // goes out immediately rather than waiting for the 5-min cron tick.
@@ -1878,8 +1927,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/townhall/start') {
-      const { userId, userName } = await readJson(req)
-      if (!await isHost(userId)) return send(res, 403, { error: 'host_only' })
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { userName } = await readJson(req)
+      if (!await isHost(v.uid)) return send(res, 403, { error: 'host_only' })
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
       const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
@@ -1889,8 +1940,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/townhall/end') {
-      const { userId } = await readJson(req)
-      if (!await isHost(userId)) return send(res, 403, { error: 'host_only' })
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      if (!await isHost(v.uid)) return send(res, 403, { error: 'host_only' })
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
       await sb.from('prep_townhalls').update({ ended_at: new Date().toISOString() }).eq('id', th.id)
@@ -1898,10 +1950,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/townhall/join') {
-      const { userId, userName } = await readJson(req)
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { userName } = await readJson(req)
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
-      const owner = await isHost(userId)
+      const owner = await isHost(v.uid)
       const isLive = !!th.live_at && !th.ended_at
       // Non-hosts may only join after a moderator has started the call.
       if (!isLive && !owner) return send(res, 403, { error: 'not_started', message: 'The townhall has not started yet. Please wait for a moderator to begin.' })

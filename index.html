@@ -853,7 +853,7 @@
       <div class="gl-item">
         <div class="gl-ic">🔒</div>
         <div><h2>Your messages are private</h2>
-        <p><b>Private messages are encrypted</b> — we do not read them, and your information is never sold or shared.</p></div>
+        <p><b>Private messages are end-to-end encrypted</b> — sealed on your device with a key only you hold, unlocked by your password. We cannot read them, and your information is never sold or shared.</p></div>
       </div>
       <div class="gl-item">
         <div class="gl-ic">✦</div>
@@ -879,6 +879,18 @@
 const _SB_URL  = 'https://qvcfgcwecykilbddgqzv.supabase.co';
 const _SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2Y2ZnY3dlY3lraWxiZGRncXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5NTQ2MzQsImV4cCI6MjA5MzUzMDYzNH0.cn-xvirE9JOG-m9vNFITVRiDLAZQQzE9yzoKEYUGUZg';
 const _SERVER_URL = 'https://preparing-you-server.onrender.com';
+
+// Build headers for an authenticated server call. The backend now derives the
+// caller's identity from this Supabase access token (never from the request
+// body), so every privileged endpoint must be called with these headers.
+async function _authHeaders(extra){
+  const h = Object.assign({ 'Content-Type':'application/json' }, extra||{});
+  try {
+    const { data:{ session } } = await _sb.auth.getSession();
+    if(session?.access_token) h['Authorization'] = 'Bearer ' + session.access_token;
+  } catch(_){}
+  return h;
+}
 
 // Web Push — VAPID public key. Safe to expose; private key lives on the server.
 const _VAPID_PUBLIC = 'BPWUdWr9Sf8hk1ydMdpRLIeH_ce8lNWyfMydf1bBfh0bJoP78o2JRG2GH28D33m4fuLXpBzdy8Vq9KKU14MaIvY';
@@ -911,6 +923,164 @@ function sendEmail(toName, toEmail, subject, message){
 const _sb = (window.supabase && _SB_URL.startsWith('http'))
   ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
+
+// ═════════════════════════ END-TO-END ENCRYPTION ═════════════════════════
+// Password-locked E2EE for private messages. Each member has an ECDH P-256
+// identity keypair generated on-device. The PUBLIC key is published; the
+// PRIVATE key is wrapped with a key derived from the LOGIN PASSWORD (PBKDF2)
+// and only that unreadable blob is stored server-side — so the server can
+// never read messages, yet a member restores history on any device just by
+// logging in (no extra passphrase). Messages are sealed with a per-pair
+// AES-256-GCM key derived via ECDH + HKDF. All primitives are native Web
+// Crypto. The private key is cached as a NON-EXTRACTABLE CryptoKey in
+// IndexedDB; the raw JWK is held in memory for the session only (never
+// persisted), so an attacker with the device storage still can't export it.
+const E2EE = (() => {
+  if(!(window.crypto && crypto.subtle)) {
+    // Insecure context / ancient browser — degrade to no-E2EE (server-side).
+    return { unavailable:true, ready:()=>false, forget:()=>{}, async loadCached(){return false;},
+             async setupOrUnlock(){return 'error';}, async rewrap(){return false;},
+             async encrypt(){throw new Error('e2ee unavailable');}, async decrypt(){throw new Error('e2ee unavailable');} };
+  }
+  const ALG_EC = { name:'ECDH', namedCurve:'P-256' };
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const unb64 = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+
+  // ── IndexedDB cache for the non-extractable private CryptoKey ──
+  const DB='pp_e2ee', STORE='keys';
+  function _idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(DB,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(STORE);
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+  async function _idbGet(k){ const db=await _idb(); return new Promise((res,rej)=>{ const t=db.transaction(STORE,'readonly').objectStore(STORE).get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); }
+  async function _idbPut(k,v){ const db=await _idb(); return new Promise((res,rej)=>{ const t=db.transaction(STORE,'readwrite'); t.objectStore(STORE).put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+  async function _idbDel(k){ const db=await _idb(); return new Promise((res,rej)=>{ const t=db.transaction(STORE,'readwrite'); t.objectStore(STORE).delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+  // ── session state (memory) ──
+  let _priv = null;       // ECDH private CryptoKey (non-extractable)
+  let _privJwk = null;    // raw JWK — memory only, for in-session re-wrap; never persisted
+  let _myId = null;
+  const _peerPub = new Map();   // peerId -> public CryptoKey
+  const _shared = new Map();    // peerId -> AES-GCM CryptoKey
+
+  async function _wrapKeyFromPassword(password, salt, iters){
+    const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations:iters, hash:'SHA-256' },
+      base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+  }
+  async function _getPeerPublic(peerId){
+    if(_peerPub.has(peerId)) return _peerPub.get(peerId);
+    const { data } = await _sb.from('prep_public_keys').select('public_key').eq('user_id', peerId).maybeSingle();
+    if(!data || !data.public_key){ _peerPub.set(peerId, null); return null; }
+    const key = await crypto.subtle.importKey('jwk', JSON.parse(data.public_key), ALG_EC, false, []);
+    _peerPub.set(peerId, key); return key;
+  }
+  async function _sharedKey(peerId){
+    if(_shared.has(peerId)) return _shared.get(peerId);
+    const pub = await _getPeerPublic(peerId);
+    if(!pub || !_priv) return null;
+    const bits = await crypto.subtle.deriveBits({ name:'ECDH', public: pub }, _priv, 256);
+    const ikm = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    const info = enc.encode('pp-msg-v1:' + [_myId, peerId].sort().join(':')); // symmetric both sides
+    const key = await crypto.subtle.deriveKey({ name:'HKDF', hash:'SHA-256', salt:new Uint8Array(0), info },
+      ikm, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+    _shared.set(peerId, key); return key;
+  }
+  async function _storeBackup(userId, privJwk, password){
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iters = 310000;
+    const wrapKey = await _wrapKeyFromPassword(password, salt, iters);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, wrapKey, enc.encode(JSON.stringify(privJwk)));
+    await _sb.from('prep_key_backups').upsert({ user_id:userId, wrapped_private_key:b64(ct),
+      kdf_salt:b64(salt), kdf_iterations:iters, wrap_iv:b64(iv), updated_at:new Date().toISOString() }, { onConflict:'user_id' });
+  }
+  async function _adopt(userId, privJwk){
+    _privJwk = privJwk;
+    _priv = await crypto.subtle.importKey('jwk', privJwk, ALG_EC, false, ['deriveBits','deriveKey']);
+    _shared.clear();
+    try { await _idbPut('priv:'+userId, _priv); } catch(_){}  // non-extractable; safe to persist
+  }
+
+  return {
+    unavailable:false,
+    ready(){ return !!_priv; },
+    forget(){ _priv=null; _privJwk=null; _myId=null; _peerPub.clear(); _shared.clear(); },
+    async clearDevice(userId){ this.forget(); try { await _idbDel('priv:'+userId); } catch(_){} },
+
+    // Restore the cached private key without a password (fails after iOS eviction).
+    async loadCached(userId){
+      _myId = userId;
+      try { const k = await _idbGet('priv:'+userId); if(k){ _priv = k; return true; } } catch(_){}
+      return false;
+    },
+
+    // First-time setup OR unlock-from-backup using the login password.
+    // Returns 'created' | 'unlocked' | 'error' (wrong password / failure).
+    async setupOrUnlock(userId, password){
+      _myId = userId;
+      try {
+        const { data: backup } = await _sb.from('prep_key_backups').select('*').eq('user_id', userId).maybeSingle();
+        if(backup){
+          const wrapKey = await _wrapKeyFromPassword(password, unb64(backup.kdf_salt), backup.kdf_iterations||310000);
+          let jwkBuf;
+          try { jwkBuf = await crypto.subtle.decrypt({ name:'AES-GCM', iv:unb64(backup.wrap_iv) }, wrapKey, unb64(backup.wrapped_private_key)); }
+          catch(e){ return 'error'; } // wrong password → GCM auth fails
+          await _adopt(userId, JSON.parse(dec.decode(jwkBuf)));
+          return 'unlocked';
+        }
+        // Brand-new identity keypair.
+        const pair = await crypto.subtle.generateKey(ALG_EC, true, ['deriveBits','deriveKey']);
+        const pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+        const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+        await _sb.from('prep_public_keys').upsert({ user_id:userId, public_key:JSON.stringify(pubJwk), alg:'ECDH-P256', updated_at:new Date().toISOString() }, { onConflict:'user_id' });
+        await _storeBackup(userId, privJwk, password);
+        await _adopt(userId, privJwk);
+        return 'created';
+      } catch(e){ console.warn('[e2ee] setupOrUnlock failed', e); return 'error'; }
+    },
+
+    // Re-wrap the private key under a NEW password (in-session change, no history loss).
+    async rewrap(userId, newPassword){
+      if(!_privJwk) return false;           // post-reload we lack the raw JWK; caller falls back
+      try { await _storeBackup(userId, _privJwk, newPassword); return true; } catch(_){ return false; }
+    },
+
+    // Forcibly start a FRESH identity under `password`, overwriting any existing
+    // backup + public key. Used after a forgot-password reset, where the new
+    // password can no longer unlock the old backup. Old E2EE history becomes
+    // unreadable (the member accepted this), but messaging keeps working.
+    async resetIdentity(userId, password){
+      _myId = userId;
+      try {
+        const pair = await crypto.subtle.generateKey(ALG_EC, true, ['deriveBits','deriveKey']);
+        const pubJwk  = await crypto.subtle.exportKey('jwk', pair.publicKey);
+        const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+        await _sb.from('prep_public_keys').upsert({ user_id:userId, public_key:JSON.stringify(pubJwk), alg:'ECDH-P256', updated_at:new Date().toISOString() }, { onConflict:'user_id' });
+        await _storeBackup(userId, privJwk, password);
+        await _adopt(userId, privJwk);
+        return true;
+      } catch(e){ console.warn('[e2ee] resetIdentity failed', e); return false; }
+    },
+
+    // Encrypt plaintext for a peer → base64(iv || AES-GCM ciphertext).
+    async encrypt(peerId, plaintext){
+      const key = await _sharedKey(peerId);
+      if(!key) throw new Error('no_shared_key');
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(plaintext));
+      const packed = new Uint8Array(12 + ct.byteLength); packed.set(iv,0); packed.set(new Uint8Array(ct),12);
+      return b64(packed);
+    },
+    // Decrypt base64(iv || ciphertext) from a peer → plaintext.
+    async decrypt(peerId, packedB64){
+      const key = await _sharedKey(peerId);
+      if(!key) throw new Error('no_shared_key');
+      const packed = unb64(packedB64);
+      const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv:packed.slice(0,12) }, key, packed.slice(12));
+      return dec.decode(pt);
+    }
+  };
+})();
 
 let currentUser = null;
 
@@ -953,7 +1123,13 @@ async function doResetPassword(){
   // Clean URL and proceed
   history.replaceState({}, '', window.location.pathname);
   const { data: { session } } = await _sb.auth.getSession();
-  if(session?.user){ await _loadProfile(session.user); enterApp(); }
+  if(session?.user){
+    await _loadProfile(session.user);
+    // The new password can no longer unlock the old key backup, so this starts
+    // a fresh encryption identity under it (old E2EE history becomes unreadable).
+    await _initE2EEWithPassword(session.user.id, pw);
+    enterApp();
+  }
   else showAuthTab('signin');
 }
 
@@ -966,6 +1142,7 @@ async function doSignIn(){
   const { data, error } = await _sb.auth.signInWithPassword({ email, password: pw });
   if(error || !data?.user){ err.textContent='Invalid email or password.'; err.classList.add('show'); return; }
   await _loadProfile(data.user);
+  await _initE2EEWithPassword(data.user.id, pw);
   enterApp();
 }
 
@@ -987,14 +1164,15 @@ async function doJoin(){
   });
   if(error){ err.textContent = error.message; err.classList.add('show'); return; }
   await _loadProfile(data.user);
+  await _initE2EEWithPassword(data.user.id, pw);
   // Welcome email (client-side via EmailJS; server still inserts welcome notif)
   sendEmail(name, email, 'Welcome to Preparing You',
     'Peace to you, '+name+'.\n\nYou have begun the work of preparation. Three short videos and five short books wait inside, along with Paul — an AI guide drawn from those books — and a community of Personal Contact Ministers ready to walk this with you.\n\nBegin where you are: https://preparingyou.app');
   // Server still drops a notification + records the welcome event
-  fetch(_SERVER_URL + '/welcome', {
-    method:'POST', headers:{'Content-Type':'application/json'},
+  _authHeaders().then(h => fetch(_SERVER_URL + '/welcome', {
+    method:'POST', headers: h,
     body: JSON.stringify({ userId: data.user.id, skipEmail: true })
-  }).catch(()=>{});
+  })).catch(()=>{});
   enterApp();
 }
 
@@ -1020,6 +1198,69 @@ async function _loadProfile(authUser){
       currentUser.timezone = tz;
       _sb.from('prep_users').update({ timezone: tz }).eq('id', authUser.id).then(()=>{}, ()=>{});
     }
+  }
+}
+
+// ═══════════════════ E2EE KEY LIFECYCLE (UI glue) ═══════════════════
+// Set up (or unlock) the member's encryption identity using their login
+// password. If the old backup can't be opened (password was reset), start a
+// fresh identity under the current password — old history is lost, which the
+// member accepted when choosing password-locked E2EE.
+async function _initE2EEWithPassword(userId, password){
+  if(!E2EE || E2EE.unavailable || !userId || !password) return;
+  try {
+    const res = await E2EE.setupOrUnlock(userId, password);
+    if(res === 'error') await E2EE.resetIdentity(userId, password);
+  } catch(e){ console.warn('[e2ee] init failed', e); }
+}
+
+// Lazy unlock prompt — shown when the member opens Messenger but their key
+// isn't loaded on this device (e.g. iOS evicted it). Non-blocking: the inbox
+// still renders; encrypted messages read as locked until they unlock.
+function _maybePromptE2EEUnlock(){
+  if(!E2EE || E2EE.unavailable) return;   // no crypto here → legacy messaging
+  if(E2EE.ready()) return;                 // already unlocked
+  if(!currentUser || !currentUser.id) return;
+  _openE2EEUnlock();
+}
+function _openE2EEUnlock(){
+  let el = document.getElementById('e2ee-unlock');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'e2ee-unlock';
+    el.style.cssText = 'display:none;position:fixed;inset:0;z-index:10000;background:rgba(20,16,12,.55);align-items:center;justify-content:center;padding:24px';
+    el.innerHTML =
+      '<div style="background:var(--cream);border-radius:18px;max-width:360px;width:100%;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
+      + '<h2 style="font-family:\'Cormorant Garamond\',serif;color:var(--walnut);margin:0 0 8px;font-size:24px">Unlock your messages</h2>'
+      + '<p style="font-family:\'Spectral\',serif;font-size:14px;color:var(--walnut-mid);margin:0 0 14px">Your private messages are end-to-end encrypted. Enter your password to unlock them on this device.</p>'
+      + '<input id="e2ee-unlock-pw" class="form-input" type="password" placeholder="Your password" style="margin-bottom:10px" onkeydown="if(event.key===\'Enter\')doE2EEUnlock()">'
+      + '<div id="e2ee-unlock-err" class="auth-error">That password didn\u2019t unlock your messages.</div>'
+      + '<button class="btn-primary" style="width:100%" onclick="doE2EEUnlock()">Unlock</button>'
+      + '<div style="text-align:center;margin-top:10px"><a onclick="closeE2EEUnlock()" style="font-size:12px;color:var(--walnut-mid);font-style:italic;cursor:pointer;text-decoration:underline">Not now</a></div>'
+      + '</div>';
+    document.body.appendChild(el);
+  }
+  const err = document.getElementById('e2ee-unlock-err'); if(err) err.classList.remove('show');
+  const pw = document.getElementById('e2ee-unlock-pw'); if(pw) pw.value = '';
+  el.style.display = 'flex';
+  if(pw) setTimeout(() => pw.focus(), 50);
+}
+function closeE2EEUnlock(){
+  const el = document.getElementById('e2ee-unlock'); if(el) el.style.display = 'none';
+}
+async function doE2EEUnlock(){
+  const pwEl = document.getElementById('e2ee-unlock-pw');
+  const err  = document.getElementById('e2ee-unlock-err');
+  const pw   = pwEl ? pwEl.value : '';
+  if(err) err.classList.remove('show');
+  if(!pw){ if(err){ err.textContent='Please enter your password.'; err.classList.add('show'); } return; }
+  const res = await E2EE.setupOrUnlock(currentUser.id, pw);
+  if(res === 'unlocked' || res === 'created'){
+    closeE2EEUnlock();
+    _msgSig = ''; _inboxSig = null;           // force a fresh, decrypted render
+    if(_msgView === 'thread') loadMessages(); else refreshInbox();
+  } else {
+    if(err){ err.textContent='That password didn\u2019t unlock your messages.'; err.classList.add('show'); }
   }
 }
 
@@ -1235,7 +1476,7 @@ async function startTownhall(){
   if(!_sb || !currentUser) return;
   try {
     const r = await fetch(_SERVER_URL + '/townhall/start', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ userId: currentUser.id, userName: currentUser.name || 'Host' })
     });
     const j = await r.json();
@@ -1251,7 +1492,7 @@ async function endTownhall(){
   if(!confirm('End the townhall for everyone?')) return;
   try {
     const r = await fetch(_SERVER_URL + '/townhall/end', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ userId: currentUser.id })
     });
     if(!r.ok){ const j = await r.json(); throw new Error(j.error || 'end failed'); }
@@ -1265,7 +1506,7 @@ async function joinTownhall(){
   if(!_sb || !currentUser) return;
   try {
     const r = await fetch(_SERVER_URL + '/townhall/join', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ userId: currentUser.id, userName: currentUser.name || 'Guest' })
     });
     const j = await r.json();
@@ -1306,13 +1547,17 @@ async function buildMessagesPage(){
   let peers = [];
   try {
     const r = await fetch(_SERVER_URL + '/peers', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ userId: currentUser.id })
     });
     const j = await r.json();
     if(r.ok) peers = j.peers || [];
   } catch(e){ console.warn('peers fetch failed', e); }
   _msgPeers = peers;
+
+  // If our encryption key isn't loaded on this device (e.g. iOS evicted it),
+  // offer to unlock with the password before reading the thread / inbox.
+  _maybePromptE2EEUnlock();
 
   // Deep-link straight into a thread (PCM "Message" button / New-message pick).
   if(_msgOpenPeer){
@@ -1352,6 +1597,15 @@ async function refreshInbox(){
     const j = await r.json().catch(() => ({}));
     if(r.ok) convos = j.conversations || [];
   } catch(e){ return; } // offline / transient — keep prior render
+  // Decrypt previews for client-encrypted conversations (server can't read them).
+  for(const c of convos){
+    if(c && c.last_e2ee && c.last_preview){
+      if(E2EE && !E2EE.unavailable && E2EE.ready()){
+        try { c.last_preview = await E2EE.decrypt(c.peerId, c.last_preview); }
+        catch(e){ c.last_preview = '\uD83D\uDD12 Encrypted message'; }
+      } else { c.last_preview = '\uD83D\uDD12 Encrypted message'; }
+    }
+  }
   _msgConvos = convos;
   renderInbox();
   refreshMessageBadge();
@@ -1670,6 +1924,15 @@ async function loadMessages(){
     const j = await r.json().catch(() => ({}));
     if(r.ok) msgs = j.messages || [];
   } catch(e){ /* offline / transient — keep prior render */ return; }
+  // Decrypt client-encrypted (e2ee) bodies in place before rendering. Every
+  // message in this thread is with the same peer (_msgPeerId), so the shared
+  // key is identical for messages I sent and ones I received.
+  for(const m of msgs){
+    if(m && m.e2ee && m.body){
+      try { m.body = await E2EE.decrypt(_msgPeerId, m.body); }
+      catch(e){ m.body = '\uD83D\uDD12 Encrypted — unlock your messages on this device to read this.'; }
+    }
+  }
   const list = document.getElementById('msg-list');
 
   // Skip the rebuild when nothing changed. The 5s poll would otherwise reflow
@@ -1701,7 +1964,9 @@ async function loadMessages(){
       const decor = expired ? 'line-through' : 'underline';
       const op = expired ? 'opacity:.55;' : '';
       if(/daily\.co\//.test(url)){
-        const room = (url.split('/').pop() || '').split('?')[0];
+        // Daily room names are restricted to [A-Za-z0-9_-]; strip anything else
+        // so an attacker-controlled message body can't break out of the onclick.
+        const room = (url.split('/').pop() || '').split('?')[0].replace(/[^A-Za-z0-9_-]/g, '');
         return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
       }
       return `<a href="${url}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
@@ -1757,11 +2022,19 @@ async function sendMessage(){
   }
   input.value = '';
   clearAttachment();
+  // End-to-end encrypt the text body to the peer's published key when ours is
+  // unlocked. If anything is missing we fall back to legacy server-side
+  // encryption so a message is never lost.
+  let _bodyOut = text, _e2ee = false;
+  if(text && E2EE && !E2EE.unavailable && E2EE.ready()){
+    try { _bodyOut = await E2EE.encrypt(_msgPeerId, text); _e2ee = true; }
+    catch(e){ _bodyOut = text; _e2ee = false; }
+  }
   const r = await fetch(_SERVER_URL + '/messages/send', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await _authHeaders(),
     body: JSON.stringify({
-      senderId: currentUser.id, recipientId: _msgPeerId, body: text,
+      senderId: currentUser.id, recipientId: _msgPeerId, body: _bodyOut, e2ee: _e2ee,
       attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
     })
   });
@@ -1957,7 +2230,7 @@ async function joinDailyLink(roomName){
   if(!roomName) return;
   try {
     const r = await fetch(_SERVER_URL + '/call/start', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ roomName, userName: currentUser?.name || 'Guest', isOwner: false })
     });
     const j = await r.json();
@@ -1998,7 +2271,7 @@ if ('serviceWorker' in navigator) {
           });
           await fetch(_SERVER_URL + '/push/subscribe', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await _authHeaders(),
             body: JSON.stringify({ userId: currentUser.id, subscription: sub.toJSON() })
           });
         } catch(e) { console.warn('[push] re-subscribe after SW update failed', e); }
@@ -2035,7 +2308,7 @@ async function _subscribeToPush() {
   }
   await fetch(_SERVER_URL + '/push/subscribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await _authHeaders(),
     body: JSON.stringify({ userId: currentUser.id, subscription: sub.toJSON() })
   });
   return sub;
@@ -2833,7 +3106,7 @@ async function sendPaul(){
   try {
     const r = await fetch(_SERVER_URL + '/paul/chat', {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers: await _authHeaders(),
       body: JSON.stringify({ userId: currentUser?.id || null, messages: _paulHistory, lang: _paulLang() })
     });
     const j = await r.json();
@@ -3044,7 +3317,7 @@ function _paulListenOnce(){
 async function _paulTranscribe(blob){
   const r = await fetch(_SERVER_URL + '/paul/transcribe', {
     method:'POST',
-    headers: { 'Content-Type': blob.type || 'application/octet-stream', 'X-Paul-Lang': _paulLang() },
+    headers: await _authHeaders({ 'Content-Type': blob.type || 'application/octet-stream', 'X-Paul-Lang': _paulLang() }),
     body: blob
   });
   const j = await r.json().catch(() => ({}));
@@ -3056,7 +3329,7 @@ async function _paulTranscribe(blob){
 async function _paulStreamChat(onSentence){
   const r = await fetch(_SERVER_URL + '/paul/chat/stream', {
     method:'POST',
-    headers: { 'Content-Type':'application/json' },
+    headers: await _authHeaders(),
     body: JSON.stringify({ userId: currentUser?.id || null, messages: _paulHistory, lang: _paulLang() })
   });
   if(!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || ('HTTP ' + r.status)); }
@@ -3101,8 +3374,8 @@ async function _paulDrainSpeak(){
   _paulSpeaking = true;
   // Returns a promise of the sentence's audio bytes, or null on any failure
   // (503 tts_unconfigured / transient error) — the text is already on screen.
-  const fetchOne = (text) => fetch(_SERVER_URL + '/paul/speak', {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ text, lang: _paulLang() })
+  const fetchOne = async (text) => fetch(_SERVER_URL + '/paul/speak', {
+      method:'POST', headers: await _authHeaders(), body: JSON.stringify({ text, lang: _paulLang() })
     }).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null);
 
   let pending = null; // in-flight fetch for the next sentence
@@ -4068,7 +4341,7 @@ async function signoffToTln(electorId, electorName){
   const electorEmail = el?.elector?.email;
   try {
     const r = await fetch(_SERVER_URL + '/tln/invite', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ userId: electorId, fromName: currentUser?.name || null, skipEmail: true })
     });
     const j = await r.json();
@@ -4102,7 +4375,7 @@ async function startPcmCall(){
   const roomName = await _pairRoomName(currentUser.id, peerId);
   try {
     const r = await fetch(_SERVER_URL + '/call/start', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ roomName, userName: currentUser.name || 'User', isOwner: false })
     });
     const j = await r.json();
@@ -4116,7 +4389,7 @@ async function startPcmCall(){
     // every other message (rather than a direct plaintext insert).
     await fetch(_SERVER_URL + '/messages/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await _authHeaders(),
       body: JSON.stringify({
         senderId: currentUser.id,
         recipientId: peerId,
@@ -4181,7 +4454,8 @@ function _avInner(u){
   return _initials(u ? u.name : '');
 }
 function _esc(s){
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');
 }
 
 // Elect (replaces direct pick): creates pending election, emails the PCM.
@@ -4198,7 +4472,7 @@ async function choosePcm(pcmId){
   }
   try {
     const r = await fetch(_SERVER_URL + '/elect', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ electorId: currentUser.id, pcmId, skipEmail: true })
     });
     const j = await r.json();
@@ -4240,7 +4514,7 @@ async function nudgePcm(){
   if(btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
   try {
     const r = await fetch(_SERVER_URL + '/pcm/nudge', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ electorId: currentUser.id })
     });
     const j = await r.json().catch(()=>({}));
@@ -4263,7 +4537,7 @@ async function changePcm(){
   try{
     const r = await fetch(_SERVER_URL + '/pcm/withdraw', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await _authHeaders(),
       body: JSON.stringify({ electorId: currentUser.id })
     });
     done = r.ok;
@@ -4289,7 +4563,7 @@ async function pcmRespondElection(electionId, accept){
   const electorName = el?.elector?.name;
   try {
     const r = await fetch(_SERVER_URL + '/election/respond', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ electionId, pcmId: currentUser.id, accept, skipEmail: true })
     });
     const j = await r.json();
@@ -4424,6 +4698,9 @@ window.addEventListener('load', async ()=>{
   const { data } = await _sb.auth.getSession();
   if(data?.session?.user){
     await _loadProfile(data.session.user);
+    // Restore the cached private key (no password on a session resume). If the
+    // device was evicted this returns false and Messenger prompts to unlock.
+    try { if(E2EE && !E2EE.unavailable) await E2EE.loadCached(data.session.user.id); } catch(_){}
     enterApp();
   }
 });
