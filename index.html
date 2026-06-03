@@ -1015,7 +1015,15 @@ const _SERVER_URL = 'https://preparing-you-server.onrender.com';
 async function _authHeaders(extra){
   const h = Object.assign({ 'Content-Type':'application/json' }, extra||{});
   try {
-    const { data:{ session } } = await _sb.auth.getSession();
+    let { data:{ session } } = await _sb.auth.getSession();
+    // Proactively refresh when the access token is missing or about to expire.
+    // Safari/PWA tabs that have been backgrounded pause the auto-refresh timer,
+    // so getSession() can hand back a stale token the server rejects as
+    // invalid_token. Refreshing (via the longer-lived refresh token) avoids that.
+    const _exp = session?.expires_at ? session.expires_at * 1000 : 0;
+    if(!session?.access_token || (_exp && _exp < Date.now() + 60000)){
+      try { const { data: _rd } = await _sb.auth.refreshSession(); if(_rd?.session) session = _rd.session; } catch(_){}
+    }
     if(session?.access_token) h['Authorization'] = 'Bearer ' + session.access_token;
   } catch(_){}
   return h;
