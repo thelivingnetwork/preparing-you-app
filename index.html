@@ -125,6 +125,7 @@
   .pw-match.ok{color:#2d7a4f}
   .pw-match.bad{color:#9c4a23}
   .field-hint{font-size:11.5px;color:var(--walnut-soft);font-style:italic;margin:5px 2px 0}
+  select.form-input,select.prof-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236f5641' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;cursor:pointer}
   .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
   .btn-primary:hover{background:var(--terra-deep)}
   .auth-error{display:none;background:rgba(159,57,28,.08);border:1px solid rgba(159,57,28,.3);color:#9c4a23;padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic}
@@ -392,7 +393,7 @@
         <div class="row2">
           <div>
             <label class="form-label">Country</label>
-            <input class="form-input" id="j-country" type="text" placeholder="e.g. Australia">
+            <select class="form-input" id="j-country"></select>
           </div>
           <div>
             <label class="form-label">State / Province</label>
@@ -461,7 +462,7 @@
         <label class="prof-label">Name</label>
         <input id="prof-name" class="prof-input" type="text" autocomplete="name">
         <label class="prof-label">Country</label>
-        <input id="prof-country" class="prof-input" type="text" autocomplete="off">
+        <select id="prof-country" class="prof-input"></select>
         <label class="prof-label">State / Province</label>
         <input id="prof-state" class="prof-input" type="text" autocomplete="off">
         <label class="prof-label">Email</label>
@@ -610,7 +611,7 @@
           A PCM walks alongside applicants as they prepare to enter The Living Network. Share whichever contact channels you're comfortable with — at minimum, your email.
         </div>
         <label class="form-label" style="color:var(--walnut-mid)">Country (where applicants will see you)</label>
-        <input class="form-input" id="pcm-country" type="text" placeholder="e.g. Australia" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <select class="form-input" id="pcm-country" style="background:var(--surface);color:var(--walnut);border-color:var(--line)"></select>
         <label class="form-label" style="color:var(--walnut-mid)">State / Province (optional)</label>
         <input class="form-input" id="pcm-state" type="text" placeholder="e.g. Victoria" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Email *</label>
@@ -1215,6 +1216,33 @@ function _joinPwCheck(){
   if(a === b){ m.textContent='✓ Passwords match'; m.className='pw-match ok'; }
   else { m.textContent='Passwords don’t match yet.'; m.className='pw-match bad'; }
 }
+
+// Canonical country list — a fixed dropdown removes "USA" vs "United States"
+// mismatches so country-based PCM matching is reliable. Stored as a '|'-joined
+// string to avoid per-name quoting issues (apostrophes/accents).
+const _COUNTRIES = ("Afghanistan|Albania|Algeria|Andorra|Angola|Antigua and Barbuda|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cabo Verde|Cambodia|Cameroon|Canada|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo (Brazzaville)|Congo (Kinshasa)|Costa Rica|Côte d'Ivoire|Croatia|Cuba|Cyprus|Czechia|Denmark|Djibouti|Dominica|Dominican Republic|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Eswatini|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guinea-Bissau|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|North Macedonia|Norway|Oman|Pakistan|Palau|Palestine|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent and the Grenadines|Samoa|San Marino|Sao Tome and Principe|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Timor-Leste|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe").split('|');
+
+// Fill a <select> with the country options, selecting `selected` if present.
+// If an existing value isn't in the list (legacy free-text), it's added so the
+// member's data is preserved rather than silently blanked on next save.
+function _fillCountrySelect(sel, selected){
+  if(!sel) return;
+  selected = (selected || '').trim();
+  let html = '<option value="">Select country…</option>';
+  let found = false;
+  for(const c of _COUNTRIES){
+    const isSel = selected && c.toLowerCase() === selected.toLowerCase();
+    if(isSel) found = true;
+    html += '<option' + (isSel ? ' selected' : '') + '>' + c + '</option>';
+  }
+  if(selected && !found){ html += '<option selected>' + _esc(selected) + '</option>'; }
+  sel.innerHTML = html;
+}
+
+// Populate the Join form's country dropdown as soon as the DOM is ready.
+function _initJoinCountry(){ try { _fillCountrySelect(document.getElementById('j-country'), ''); } catch(e){} }
+if(document.readyState !== 'loading') _initJoinCountry();
+else document.addEventListener('DOMContentLoaded', _initJoinCountry);
 
 async function doJoin(){
   const name   = document.getElementById('j-name').value.trim();
@@ -2685,7 +2713,7 @@ function openProfile(){
   document.getElementById('profile-name-display').textContent = currentUser.name || '—';
   document.getElementById('profile-email-display').textContent = currentUser.email || '';
   document.getElementById('prof-name').value = currentUser.name || '';
-  document.getElementById('prof-country').value = _regionCountry(currentUser.region || '');
+  _fillCountrySelect(document.getElementById('prof-country'), _regionCountry(currentUser.region || ''));
   document.getElementById('prof-state').value = _regionState(currentUser.region || '');
   document.getElementById('prof-email').value = currentUser.email || '';
   const msg = document.getElementById('profile-msg'); msg.style.display = 'none';
@@ -4677,7 +4705,7 @@ async function pcmRespondElection(electionId, accept){
 function openPcmVolunteer(){
   // Pre-fill from existing record (if any) or from currentUser defaults
   const m = document.getElementById('pcm-modal');
-  document.getElementById('pcm-country').value = _regionCountry(currentUser.region || '');
+  _fillCountrySelect(document.getElementById('pcm-country'), _regionCountry(currentUser.region || ''));
   document.getElementById('pcm-state').value = _regionState(currentUser.region || '');
   document.getElementById('pcm-email').value  = currentUser.email || '';
   document.getElementById('pcm-phone').value = '';
@@ -4687,7 +4715,7 @@ function openPcmVolunteer(){
   if(_sb && _pcmAmIPcm){
     _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle().then(({data})=>{
       if(data){
-        document.getElementById('pcm-country').value = _regionCountry(data.region || '');
+        _fillCountrySelect(document.getElementById('pcm-country'), _regionCountry(data.region || ''));
         document.getElementById('pcm-state').value = _regionState(data.region || '');
         document.getElementById('pcm-email').value = data.email || '';
         document.getElementById('pcm-phone').value = data.phone || '';
