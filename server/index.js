@@ -926,11 +926,14 @@ async function dailyEnsureRoom(roomName, opts = {}) {
   return await cr.json()
 }
 
-async function dailyMintToken(roomName, { userName, isOwner }) {
+async function dailyMintToken(roomName, { userName, isOwner, startRecording }) {
   const r = await fetch('https://api.daily.co/v1/meeting-tokens', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ properties: { room_name: roomName, user_name: userName || 'Guest', is_owner: !!isOwner, exp: Math.floor(Date.now()/1000) + 3*3600 } })
+    // start_cloud_recording makes recording begin when this token-holder joins —
+    // the documented, reliable way to "always record" without a moderator
+    // clicking record. Requires the room's enable_recording:'cloud' (set below).
+    body: JSON.stringify({ properties: { room_name: roomName, user_name: userName || 'Guest', is_owner: !!isOwner, ...(startRecording ? { start_cloud_recording: true } : {}), exp: Math.floor(Date.now()/1000) + 3*3600 } })
   })
   if (!r.ok) throw new Error(`daily token mint failed: ${r.status} ${await r.text()}`)
   return (await r.json()).token
@@ -1121,7 +1124,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.27', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.28', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1934,7 +1937,7 @@ const server = http.createServer(async (req, res) => {
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
       const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
-      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: true })
+      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: true, startRecording: true })
       await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
       return send(res, 200, { url: `${room.url}?t=${token}`, isOwner: true })
     }
@@ -1960,7 +1963,9 @@ const server = http.createServer(async (req, res) => {
       // Non-hosts may only join after a moderator has started the call.
       if (!isLive && !owner) return send(res, 403, { error: 'not_started', message: 'The townhall has not started yet. Please wait for a moderator to begin.' })
       const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
-      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: owner })
+      // Carry start_cloud_recording so the first person in (host or not) kicks off
+      // the recording — keeps "Replay last townhall" working for auto-opened calls.
+      const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: owner, startRecording: true })
       // If a host joins the join endpoint while not yet live, treat that as starting it.
       if (!isLive && owner) {
         await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
@@ -2235,6 +2240,75 @@ async function runTownhallRecurrence() {
   }
 }
 
+// ─── Townhall auto-start / auto-close ───────────────────────────────────
+// A townhall opens by itself at its scheduled time and closes itself 90 minutes
+// later, so no host has to log in and press Start. The first person to join
+// triggers cloud recording (see start_cloud_recording on the join token), so
+// the replay is captured even when no moderator is present.
+const TOWNHALL_AUTOCLOSE_MS = 90 * 60 * 1000
+
+async function runTownhallAutostart() {
+  try {
+    const now = Date.now()
+    const nowIso = new Date(now).toISOString()
+    // Open townhalls whose start time has arrived (within the last 90 min, so we
+    // never resurrect an old one that was scheduled but never held) and that
+    // aren't already live or ended.
+    const { data: ths, error } = await sb.from('prep_townhalls')
+      .select('id, daily_room, title, topic, scheduled_at')
+      .lte('scheduled_at', nowIso)
+      .gte('scheduled_at', new Date(now - TOWNHALL_AUTOCLOSE_MS).toISOString())
+      .is('live_at', null)
+      .is('ended_at', null)
+    if (error) { console.warn('[townhall-autostart] query failed', error); return }
+    if (!ths || !ths.length) return
+
+    for (const th of ths) {
+      const roomName = th.daily_room || 'preparing-you-townhall'
+      // Ensure the room exists with cloud recording enabled, then mark it live.
+      await dailyEnsureRoom(roomName, { properties: { enable_recording: 'cloud' } })
+      await sb.from('prep_townhalls').update({ live_at: nowIso, ended_at: null }).eq('id', th.id)
+
+      // Announce it's live — bell + web push (fires once: live_at is now set).
+      const title = th.title || 'Weekly Townhall'
+      const text = `🎙 ${title} is live — tap to join` + (th.topic ? ` — ${th.topic}` : '')
+      const { data: users } = await sb.from('prep_users').select('id')
+      const list = users || []
+      const rows = list.map(u => ({ user_id: u.id, icon: '🎙', text, action: { type: 'page', page: 'home' } }))
+      for (let i = 0; i < rows.length; i += 100) {
+        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
+      }
+      for (const u of list) {
+        pushToUser(u.id, { icon: '🎙', text, action: { type: 'page', page: 'home' } }).catch(() => {})
+      }
+      console.log(`[townhall-autostart] opened townhall ${th.id} (${roomName}) and notified ${list.length} members`)
+    }
+  } catch (e) {
+    console.error('[townhall-autostart]', e)
+  }
+}
+
+async function runTownhallAutoclose() {
+  try {
+    const cutoff = new Date(Date.now() - TOWNHALL_AUTOCLOSE_MS).toISOString()
+    // Close any townhall that went live 90+ minutes ago and hasn't been ended —
+    // covers both auto-opened calls and ones a host started but forgot to end.
+    const { data: ths, error } = await sb.from('prep_townhalls')
+      .select('id')
+      .not('live_at', 'is', null)
+      .is('ended_at', null)
+      .lte('live_at', cutoff)
+    if (error) { console.warn('[townhall-autoclose] query failed', error); return }
+    if (!ths || !ths.length) return
+    for (const th of ths) {
+      await sb.from('prep_townhalls').update({ ended_at: new Date().toISOString() }).eq('id', th.id)
+      console.log(`[townhall-autoclose] closed townhall ${th.id} (90m after it went live)`)
+    }
+  } catch (e) {
+    console.error('[townhall-autoclose]', e)
+  }
+}
+
 // Run on boot, then on a schedule.
 setTimeout(runTownhallReminders, 5000)
 setInterval(runTownhallReminders, 5 * 60 * 1000)
@@ -2242,3 +2316,7 @@ setTimeout(runTownhallAnnouncements, 8000)
 setInterval(runTownhallAnnouncements, 5 * 60 * 1000)
 setTimeout(runTownhallRecurrence, 12000)
 setInterval(runTownhallRecurrence, 60 * 60 * 1000)
+setTimeout(runTownhallAutostart, 9000)
+setInterval(runTownhallAutostart, 60 * 1000)          // every minute → opens on time
+setTimeout(runTownhallAutoclose, 15000)
+setInterval(runTownhallAutoclose, 5 * 60 * 1000)
