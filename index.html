@@ -600,7 +600,7 @@
     <!-- Pending outbound election (elector waiting) -->
     <div class="card" id="pcm-pending" style="display:none;border-color:var(--gold);background:var(--gold-soft)">
       <div class="card-title" style="color:var(--gold)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Awaiting Acceptance</div>
-      <div class="card-text">You have elected <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
+      <div class="card-text">You have chosen <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="link-btn" id="pcm-nudge-btn" onclick="nudgePcm()">Nudge</button>
         <button class="link-btn" onclick="changePcm()">Withdraw election</button>
@@ -4688,7 +4688,12 @@ async function buildPcmPage(){
       .eq('status', 'pending').maybeSingle();
     if(out){
       pendingCard.style.display = 'block';
-      pendingCard.querySelector('[data-pending-name]').textContent = out.pcm?.name || '—';
+      // The embedded pcm:pcm_id join reads prep_users, which RLS hides for other
+      // members, so out.pcm?.name comes back null. Resolve the name from the
+      // already-loaded active-PCM directory (_pcmList) instead.
+      const _pend = _pcmList.find(p => p.id === out.pcm_id);
+      pendingCard.querySelector('[data-pending-name]').textContent =
+        (_pend && _pend.name) || out.pcm?.name || '—';
     } else {
       pendingCard.style.display = 'none';
     }
