@@ -164,24 +164,26 @@
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
   .tile-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
   .tile-meta{font-size:13px;color:var(--walnut-mid);margin-top:6px;font-weight:500}
-  /* Local Almanac home card */
-  .alm-date{font-size:13px;font-weight:600;color:var(--brand-ink);margin:0 0 12px}
+  /* Local Almanac home card — kept compact so the whole thing is glanceable
+     above the bottom nav without scrolling. */
+  #almanac-card{padding:13px 15px}
+  .alm-date{font-size:12px;font-weight:600;color:var(--brand-ink);margin:0 0 9px}
   .alm-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .alm-temp{display:flex;align-items:center;gap:12px;min-width:0}
-  .alm-t{font-size:34px;font-weight:600;line-height:1;color:var(--brand-ink)}
-  .alm-cond{font-size:13px;color:var(--walnut-mid);margin-top:3px}
+  .alm-temp{display:flex;align-items:center;gap:10px;min-width:0}
+  .alm-t{font-size:27px;font-weight:600;line-height:1;color:var(--brand-ink)}
+  .alm-cond{font-size:12px;color:var(--walnut-mid);margin-top:2px}
   .alm-loc{text-align:right;min-width:0}
-  .alm-city{font-size:15px;font-weight:600;color:var(--accent-ink);overflow-wrap:anywhere}
+  .alm-city{font-size:14px;font-weight:600;color:var(--accent-ink);overflow-wrap:anywhere}
   .alm-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--walnut-soft);margin-top:2px}
-  .alm-div{height:1px;background:var(--line);margin:14px 0}
+  .alm-div{height:1px;background:var(--line);margin:9px 0}
   .alm-sky{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px;text-align:center}
-  .alm-k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-soft);margin-bottom:5px}
-  .alm-v{font-size:14px;font-weight:600;color:var(--walnut);margin-top:4px}
-  .alm-sub{font-size:11px;color:var(--walnut-mid);margin-top:1px}
+  .alm-k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-soft);margin-bottom:3px}
+  .alm-v{font-size:13px;font-weight:600;color:var(--walnut);margin-top:3px}
+  .alm-sub{font-size:10px;color:var(--walnut-mid);margin-top:1px}
   .alm-col{display:flex;flex-direction:column;align-items:center}
   .alm-fc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;margin-top:2px}
-  .alm-d{font-size:11px;font-weight:600;color:var(--walnut-mid);margin-bottom:5px}
-  .alm-hl{font-size:12px;margin-top:4px;color:var(--walnut)}
+  .alm-d{font-size:11px;font-weight:600;color:var(--walnut-mid);margin-bottom:3px}
+  .alm-hl{font-size:12px;margin-top:2px;color:var(--walnut)}
   .alm-hl b{color:var(--walnut)}
   .alm-hl span{color:var(--walnut-soft)}
 
@@ -3846,21 +3848,21 @@ async function renderAlmanac(){
     let fc = '';
     for(let i=1;i<=3 && i<d.time.length;i++){
       const fi = _almCodeInfo(d.weather_code[i]);
-      fc += '<div class="alm-col"><div class="alm-d">'+fmtDay(d.time[i])+'</div>'+_almSvg(_ALM_ICONS[fi.i],26)
+      fc += '<div class="alm-col"><div class="alm-d">'+fmtDay(d.time[i])+'</div>'+_almSvg(_ALM_ICONS[fi.i],22)
           + '<div class="alm-hl"><b>'+Math.round(d.temperature_2m_max[i])+'°</b> <span>'+Math.round(d.temperature_2m_min[i])+'°</span></div></div>';
     }
     card.innerHTML =
         '<div class="alm-date">'+_esc(localDate)+'</div>'
       + '<div class="alm-head">'
-      +   '<div class="alm-temp">'+_almSvg(_ALM_ICONS[ci.i],44)
+      +   '<div class="alm-temp">'+_almSvg(_ALM_ICONS[ci.i],36)
       +     '<div><div class="alm-t">'+Math.round(cur.temperature_2m)+deg+'</div><div class="alm-cond">'+_esc(ci.l)+'</div></div></div>'
       +   '<div class="alm-loc"><div class="alm-city">'+_esc(r.name)+'</div><div class="alm-lbl">'+_esc(r.country||country||'')+'</div></div>'
       + '</div>'
       + '<div class="alm-div"></div>'
       + '<div class="alm-sky">'
-      +   '<div class="alm-col"><div class="alm-k">Sunrise</div>'+_almSvg(_ALM_ICONS.sunrise,24)+'<div class="alm-v">'+fmtTime(d.sunrise[0])+'</div></div>'
-      +   '<div class="alm-col"><div class="alm-k">Sunset</div>'+_almSvg(_ALM_ICONS.sunset,24)+'<div class="alm-v">'+fmtTime(d.sunset[0])+'</div></div>'
-      +   '<div class="alm-col"><div class="alm-k">Moon</div>'+_almMoonSVG(moon.phase,26)+'<div class="alm-v" style="font-size:12px">'+_esc(moon.name)+'</div><div class="alm-sub">'+moon.illum+'% lit</div></div>'
+      +   '<div class="alm-col"><div class="alm-k">Sunrise</div>'+_almSvg(_ALM_ICONS.sunrise,22)+'<div class="alm-v">'+fmtTime(d.sunrise[0])+'</div></div>'
+      +   '<div class="alm-col"><div class="alm-k">Sunset</div>'+_almSvg(_ALM_ICONS.sunset,22)+'<div class="alm-v">'+fmtTime(d.sunset[0])+'</div></div>'
+      +   '<div class="alm-col"><div class="alm-k">Moon</div>'+_almMoonSVG(moon.phase,22)+'<div class="alm-v" style="font-size:12px">'+_esc(moon.name)+'</div><div class="alm-sub">'+moon.illum+'% lit</div></div>'
       + '</div>'
       + '<div class="alm-div"></div>'
       + '<div class="alm-fc">'+fc+'</div>';
