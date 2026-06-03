@@ -203,6 +203,12 @@
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:.02em;
     background:linear-gradient(180deg,var(--terra),var(--teal));box-shadow:0 4px 14px rgba(79,33,112,.32)}
   .gl-btn:disabled{opacity:.6;cursor:default}
+  #pcm-agree-gate{position:fixed;inset:0;z-index:201;display:none;align-items:center;justify-content:center;
+    overflow-y:auto;padding:24px 18px calc(24px + env(safe-area-inset-bottom));
+    background:radial-gradient(125% 75% at 50% 0%,rgba(122,58,166,.16),transparent 55%),var(--parch)}
+  .gl-quote{text-align:center;font-style:italic;color:var(--walnut-mid);font-size:12px;line-height:1.5;margin:2px 6px 16px}
+  .gl-quote::before,.gl-quote::after{content:'';display:inline-block;width:22px;height:1px;background:var(--gold);vertical-align:middle;margin:0 9px}
+  .gl-cancel{width:100%;background:none;border:none;color:var(--walnut-soft);font-size:13px;padding:12px 0 2px;cursor:pointer;font-family:inherit}
 
   /* ── Messages: a fixed chat layout. The thread fills the space between the
      header and the bottom nav; only #msg-list scrolls (no page-level scroll),
@@ -900,6 +906,53 @@
     <p class="gl-agree">Tapping <b>Accept &amp; Enter</b> means you agree to these guidelines.</p>
     <p class="gl-err" id="gl-err">Couldn’t save — please try again.</p>
     <button class="gl-btn" id="gl-accept-btn" onclick="acceptGuidelines()">Accept &amp; Enter</button>
+  </div>
+</div>
+
+<div id="pcm-agree-gate">
+  <div class="gl-card">
+    <div class="gl-seal">✦</div>
+    <h1>Becoming a Contact Minister</h1>
+    <p class="gl-sub">You have walked the preparation and been welcomed by a minister.<br>Now you may walk it beside others.</p>
+    <p class="gl-quote">The Contact Minister is not a position of power, but of service.</p>
+
+    <div class="gl-list">
+      <div class="gl-item">
+        <div class="gl-ic">♥</div>
+        <div><h2>Service, not authority</h2>
+        <p>A Personal Contact Minister holds <b>no office or power over anyone</b>. You do not rule, command, or judge — you simply serve, walking beside those who come as an equal in the family.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">✦</div>
+        <div><h2>Faith, hope, and charity</h2>
+        <p>You give freely and expect nothing in return. The work is unpaid and uncoerced — offered in <b>charity</b>, kept by faith and hope.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">☐</div>
+        <div><h2>Greet and welcome</h2>
+        <p>You greet those who arrive, help them feel at home, and confirm they come of their own free will — never pressing, never gatekeeping out of pride.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">✓</div>
+        <div><h2>Help them choose their own</h2>
+        <p>When someone is ready, you <b>help them elect their own Contact Minister</b> freely. No one is bound to you; every member chooses for themselves.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">🔒</div>
+        <div><h2>Connect and protect</h2>
+        <p>You keep members' contact details in confidence — <b>connecting people while protecting what is entrusted to you</b>. Their information is never sold, shared, or used for any purpose but service.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic">⛺</div>
+        <div><h2>Walk as a team</h2>
+        <p>You serve alongside other ministers, sharing the work and holding one another accountable in charity and good faith.</p></div>
+      </div>
+    </div>
+
+    <p class="gl-agree">Tapping <b>Agree &amp; Volunteer</b> means you accept this covenant of service and wish to be listed as a Personal Contact Minister.</p>
+    <p class="gl-err" id="pcm-agree-err">Couldn’t save — please try again.</p>
+    <button class="gl-btn" id="pcm-agree-btn" onclick="acceptPcmGuidelines()">Agree &amp; Volunteer</button>
+    <button class="gl-cancel" onclick="closePcmAgree()">Not yet</button>
   </div>
 </div>
 
@@ -4703,6 +4756,14 @@ async function pcmRespondElection(electionId, accept){
 }
 
 function openPcmVolunteer(){
+  // PCM covenant gate: a first-time volunteer must accept the covenant of
+  // service before the contact form opens. Existing PCMs (editing their
+  // details) and anyone who already accepted pass straight through.
+  if(!_pcmAmIPcm && currentUser && !currentUser.pcm_guidelines_accepted_at){
+    const g = document.getElementById('pcm-agree-err'); if(g) g.style.display='none';
+    document.getElementById('pcm-agree-gate').style.display = 'flex';
+    return;
+  }
   // Pre-fill from existing record (if any) or from currentUser defaults
   const m = document.getElementById('pcm-modal');
   _fillCountrySelect(document.getElementById('pcm-country'), _regionCountry(currentUser.region || ''));
@@ -4732,6 +4793,34 @@ function openPcmVolunteer(){
 
 function closePcmVolunteer(){
   document.getElementById('pcm-modal').style.display = 'none';
+}
+
+// Stamp the one-time PCM covenant acceptance, then open the volunteer form.
+// If the write fails we still proceed (the local flag lets them continue this
+// session); the gate simply reappears next time so the record can be re-tried.
+async function acceptPcmGuidelines(){
+  const btn = document.getElementById('pcm-agree-btn');
+  const err = document.getElementById('pcm-agree-err');
+  if(err) err.style.display = 'none';
+  if(btn){ btn.disabled = true; }
+  const now = new Date().toISOString();
+  let saved = false;
+  try {
+    if(_sb && currentUser){
+      const { error } = await _sb.from('prep_users')
+        .update({ pcm_guidelines_accepted_at: now }).eq('id', currentUser.id);
+      if(!error) saved = true;
+    }
+  } catch(e){ saved = false; }
+  if(btn){ btn.disabled = false; }
+  if(!saved && _sb){ if(err) err.style.display = 'block'; return; }
+  currentUser.pcm_guidelines_accepted_at = now;
+  document.getElementById('pcm-agree-gate').style.display = 'none';
+  openPcmVolunteer();
+}
+
+function closePcmAgree(){
+  document.getElementById('pcm-agree-gate').style.display = 'none';
 }
 
 async function savePcmVolunteer(){
