@@ -1587,7 +1587,7 @@ async function refreshTownhallCard(){
   } else {
     document.getElementById('townhall-title-text').textContent = (st.title || 'Weekly Townhall');
     document.getElementById('townhall-when').textContent = localTime;
-    document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + ' — opens automatically at the scheduled time';
+    document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + ' — click to open at the scheduled time';
     if(banner) banner.style.display = 'none';
   }
 
