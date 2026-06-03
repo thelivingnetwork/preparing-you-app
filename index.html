@@ -3827,18 +3827,48 @@ function _almCity(){
   if(tz.indexOf('/') >= 0) return tz.slice(tz.lastIndexOf('/')+1).replace(/_/g,' ');
   return _regionState((currentUser && currentUser.region) || '');
 }
+// Resolve the member's location for the weather card. We try the device's real
+// GPS position first (one-time browser permission) so the forecast is for the
+// exact spot they're standing — not just their timezone's representative city.
+// If GPS is denied or unavailable we fall back to geocoding the timezone city.
+function _almGPS(){
+  return new Promise(function(resolve){
+    if(!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      function(p){ resolve({lat:p.coords.latitude, lon:p.coords.longitude}); },
+      function(){ resolve(null); },
+      { enableHighAccuracy:false, timeout:8000, maximumAge:1800000 }
+    );
+  });
+}
+async function _almReverse(lat, lon){
+  try{
+    const j = await (await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+lat+'&longitude='+lon+'&localityLanguage=en')).json();
+    return { name: j.locality || j.city || j.principalSubdivision || '', country: j.countryName || '' };
+  }catch(e){ return { name:'', country:'' }; }
+}
+async function _almPlace(){
+  const gps = await _almGPS();
+  if(gps){
+    const rc = await _almReverse(gps.lat, gps.lon);
+    return { latitude: gps.lat, longitude: gps.lon, name: rc.name || _almCity() || '', country: rc.country, timezone: 'auto' };
+  }
+  const city = _almCity();
+  if(!city) return null;
+  const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1')).json();
+  if(!g.results || !g.results.length) return null;
+  const r = g.results[0];
+  return { latitude: r.latitude, longitude: r.longitude, name: r.name, country: r.country||'', timezone: r.timezone||'auto' };
+}
 async function renderAlmanac(){
   const card = document.getElementById('almanac-card');
   if(!card || !currentUser || _almLoaded || _almFetching) return;
-  const city = _almCity();
-  if(!city) return; // no location info — leave the card hidden
   const country = _regionCountry(currentUser.region || '');
   const useF = /united states|u\.?s\.?a?\.?$|^us$|america/i.test(country.trim());
   _almFetching = true;
   try {
-    const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1')).json();
-    if(!g.results || !g.results.length) throw 0;
-    const r = g.results[0];
+    const r = await _almPlace();
+    if(!r) throw 0;
     const url = 'https://api.open-meteo.com/v1/forecast?latitude='+r.latitude+'&longitude='+r.longitude
       + '&current=temperature_2m,weather_code'
       + '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
@@ -3849,7 +3879,7 @@ async function renderAlmanac(){
     if(!cur || !d) throw 0;
     const ci = _almCodeInfo(cur.weather_code);
     const moon = _almMoonInfo(new Date());
-    const tz = r.timezone || currentUser.timezone || undefined;
+    const tz = w.timezone || (r.timezone && r.timezone !== 'auto' ? r.timezone : null) || currentUser.timezone || undefined;
     const localDate = new Date().toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long', timeZone: tz});
     const deg = useF ? '°F' : '°C';
     const fmtTime = iso => new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
