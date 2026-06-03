@@ -681,6 +681,19 @@
     </div>
   </div>
 
+  <!-- Introduction videos (in-app popup, re-watchable from the Vault) -->
+  <div id="intro-video-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closeIntroVideo()">
+    <div class="modal-box" style="max-width:680px">
+      <div class="modal-head">
+        <span class="modal-title" id="intro-video-title">Introduction</span>
+        <button class="modal-close" onclick="closeIntroVideo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body" style="padding:12px">
+        <video id="intro-video-player" controls controlsList="nodownload" disablepictureinpicture playsinline preload="metadata" style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      </div>
+    </div>
+  </div>
+
   <div class="page" id="page-library">
     <div id="library-content">
     <div class="card">
@@ -3750,9 +3763,10 @@ function renderJourneyTile(){
       done + '/3 videos watched',
       done > 0 ? 'Continue watching' : 'Watch the videos', "showPage('video')");
   } else if(stage === 2){
-    const videoBtn = '<button style="margin:0;padding:9px 16px;width:auto;background:transparent;border:1px solid var(--accent-ink);color:var(--accent-ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="openPcmVideo()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Video</button>';
+    const videoBtn = '<button style="margin:0;padding:9px 16px;width:auto;background:transparent;border:1px solid var(--accent-ink);color:var(--accent-ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px" onclick="openPcmVideo()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>Choosing a PCM</button>';
     html = _journeyCard('Choose a Personal Contact Minister',
-      'You have finished the introduction videos. Now choose a Personal Contact Minister &mdash; someone who will walk this preparation alongside you.',
+      'You have finished the introduction videos. Now choose a Personal Contact Minister &mdash; someone who will walk this preparation alongside you.'
+      + '<div style="margin-top:9px"><a onclick="showPage(\'video\')" style="font-size:13px;color:var(--accent-ink);text-decoration:underline;cursor:pointer">Re-watch intro videos</a></div>',
       '', 'Choose your PCM', "showPage('pcm')", true, videoBtn);
   } else if(stage === 3){
     html = _journeyCard('Listen to the Five Books',
@@ -4057,6 +4071,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// Re-watchable introduction videos, surfaced permanently in the Vault → Video
+// tab. Same three gateway clips; by the time they appear here the member has
+// already completed them, so free seeking is fine (no anti-skip ceiling).
+function openIntroVideo(idx){
+  const v = GATEWAY_VIDEOS.find(x => x.idx === idx); if(!v) return;
+  const modal = document.getElementById('intro-video-modal');
+  const player = document.getElementById('intro-video-player');
+  if(!modal || !player) return;
+  const t = document.getElementById('intro-video-title');
+  if(t) t.textContent = v.title;
+  player.src = v.src;
+  modal.style.display = 'flex';
+  player.load();
+  player.play().catch(()=>{});
+}
+function closeIntroVideo(){
+  const player = document.getElementById('intro-video-player');
+  if(player){ try{ player.pause(); }catch(_){} player.removeAttribute('src'); try{ player.load(); }catch(_){} }
+  const modal = document.getElementById('intro-video-modal');
+  if(modal) modal.style.display = 'none';
+}
+
 function stopGatewayPlayer(){
   const player = document.getElementById('gateway-player');
   if(player){
@@ -4324,8 +4360,24 @@ function _libEmptyMsg(){
 // uploads as an embedded playlist (channel UC… -> uploads playlist UU…). Plays
 // through every video and auto-includes new uploads; no API key needed.
 const _LIB_YT_UPLOADS = 'UU4sm3fMaH46-oNQm0cLTfWw';  // His Holy Church uploads
-function _libVideoFeature(){
+// Permanent home for the three introduction videos in the Vault's Video tab,
+// so they remain re-watchable long after the onboarding tile has moved on.
+function _introVideosCard(){
+  const rows = GATEWAY_VIDEOS.map(v =>
+    '<div onclick="openIntroVideo(' + v.idx + ')" style="display:flex;align-items:center;gap:12px;padding:10px 2px;cursor:pointer;border-top:1px solid var(--line)">'
+    + '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-ink);flex:none"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>'
+    + '<div style="flex:1"><div style="font-weight:600">' + _esc(v.title) + '</div>'
+    +   '<div style="font-size:12px;color:var(--walnut-mid);font-style:italic">' + _esc(v.subtitle) + '</div></div>'
+    + '</div>'
+  ).join('');
   return '<div class="card">'
+    + '<div class="card-title">Introduction Videos</div>'
+    + '<div class="card-text" style="margin-bottom:4px">The three videos that begin your preparation — re-watch any of them here, anytime.</div>'
+    + rows
+    + '</div>';
+}
+function _libVideoFeature(){
+  return _introVideosCard() + '<div class="card">'
     + '<div class="card-title">His Holy Church — video channel</div>'
     + '<div class="card-text" style="margin-bottom:12px">The full teaching channel. Press play to watch through every video; new uploads appear automatically.</div>'
     + '<div class="lib-yt-wrap">'
