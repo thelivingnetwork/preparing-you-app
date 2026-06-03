@@ -1160,7 +1160,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.29', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.30', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1340,7 +1340,7 @@ const server = http.createServer(async (req, res) => {
       // At most one active election per elector (partial unique index), so a
       // bare maybeSingle() is safe — no ordering needed.
       const { data: el } = await sb.from('prep_pcm_elections')
-        .select('id, pcm_id, status, elector:elector_id(name), pcm:pcm_id(name, email)')
+        .select('id, pcm_id, status, elector:elector_id(name, email), pcm:pcm_id(name, email)')
         .eq('elector_id', electorId).in('status', ['pending', 'accepted'])
         .maybeSingle()
       // Always clear the pairing/elections, even if there's nothing to email.
@@ -1350,17 +1350,28 @@ const server = http.createServer(async (req, res) => {
       await sb.from('prep_users').update({ pcm_id: null }).eq('id', electorId)
       if (!el) return send(res, 200, { ok: true, emailed: false })
       const electorName = el.elector?.name || 'Someone'
+      const pcmName = el.pcm?.name || 'their Personal Contact Minister'
       let emailed = false
+      // 1) Gently let the PCM know their member has moved on.
       if (el.pcm?.email) {
         const r = await sendEmailJS(el.pcm.name, el.pcm.email,
-          'An update on a Personal Contact Minister election',
+          'An update on your Personal Contact Minister pairing',
           `Dear ${el.pcm.name || 'friend'},\n\n`
-          + `${electorName} has withdrawn their election of you as their Personal Contact Minister.\n\n`
+          + `${electorName} has withdrawn their choice of you as their Personal Contact Minister.\n\n`
           + `This is simply part of the journey — many souls take time to find the companion who is right for them, and a withdrawal is no reflection on you. You remain ready to walk alongside whoever the Lord brings next.\n\n`
           + `Grace and peace to you.\n\nhttps://preparingyou.app`)
         emailed = !!r.ok
       }
-      await notify(el.pcm_id, '🕊️', `${electorName} has withdrawn their PCM election.`, { type:'page', page:'pcm' })
+      // 2) Confirm the withdrawal to the member who made the change.
+      if (el.elector?.email) {
+        await sendEmailJS(el.elector.name, el.elector.email,
+          'You have changed your Personal Contact Minister',
+          `Dear ${el.elector?.name || 'friend'},\n\n`
+          + `This note confirms that you have withdrawn your choice of ${pcmName} as your Personal Contact Minister.\n\n`
+          + `Whenever you're ready, you can choose another minister from the list inside the app — there's no hurry, and no wrong choice. We'll let you know as soon as your next choice responds.\n\n`
+          + `Grace and peace to you.\n\nhttps://preparingyou.app`)
+      }
+      await notify(el.pcm_id, '🕊️', `${electorName} has withdrawn their PCM choice.`, { type:'page', page:'pcm' })
       return send(res, 200, { ok: true, emailed })
     }
 
