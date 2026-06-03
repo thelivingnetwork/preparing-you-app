@@ -115,6 +115,16 @@
      input gets focus, and that zoom sticks (pushing the fixed nav off-frame). */
   .form-input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
   .form-input:focus{border-color:var(--terra)}
+  .row2{display:flex;gap:10px}
+  .row2>div{flex:1;min-width:0}
+  .pw-wrap{position:relative}
+  .pw-wrap .form-input{padding-right:46px}
+  .pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--walnut-soft);padding:8px;line-height:0;border-radius:6px}
+  .pw-eye:hover{color:var(--brand-ink)}
+  .pw-match{font-size:12px;margin:6px 2px 0;min-height:15px;font-style:italic}
+  .pw-match.ok{color:#2d7a4f}
+  .pw-match.bad{color:#9c4a23}
+  .field-hint{font-size:11.5px;color:var(--walnut-soft);font-style:italic;margin:5px 2px 0}
   .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
   .btn-primary:hover{background:var(--terra-deep)}
   .auth-error{display:none;background:rgba(159,57,28,.08);border:1px solid rgba(159,57,28,.3);color:#9c4a23;padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic}
@@ -379,10 +389,28 @@
         <input class="form-input" id="j-name" type="text" placeholder="Your full name">
         <label class="form-label">Email address</label>
         <input class="form-input" id="j-email" type="email" placeholder="your@email.com">
-        <label class="form-label">Country / Region</label>
-        <input class="form-input" id="j-region" type="text" placeholder="e.g. Australia, Texas, England">
+        <div class="row2">
+          <div>
+            <label class="form-label">Country</label>
+            <input class="form-input" id="j-country" type="text" placeholder="e.g. Australia">
+          </div>
+          <div>
+            <label class="form-label">State / Province</label>
+            <input class="form-input" id="j-state" type="text" placeholder="e.g. Victoria">
+          </div>
+        </div>
+        <p class="field-hint">Helps us connect you with a PCM near you — and shows where each PCM is based.</p>
         <label class="form-label">Choose a password</label>
-        <input class="form-input" id="j-pw" type="password" placeholder="At least 8 characters">
+        <div class="pw-wrap">
+          <input class="form-input" id="j-pw" type="password" placeholder="At least 8 characters" oninput="_joinPwCheck()">
+          <button class="pw-eye" type="button" aria-label="Show password" onclick="_togglePwReveal('j-pw',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <label class="form-label">Confirm password</label>
+        <div class="pw-wrap">
+          <input class="form-input" id="j-pw2" type="password" placeholder="Re-enter your password" oninput="_joinPwCheck()">
+          <button class="pw-eye" type="button" aria-label="Show password" onclick="_togglePwReveal('j-pw2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <div class="pw-match" id="j-pw-match"></div>
         <button class="btn-primary" onclick="doJoin()">Begin</button>
       </div>
     </div>
@@ -432,8 +460,10 @@
         </div>
         <label class="prof-label">Name</label>
         <input id="prof-name" class="prof-input" type="text" autocomplete="name">
-        <label class="prof-label">Region</label>
-        <input id="prof-region" class="prof-input" type="text" autocomplete="off">
+        <label class="prof-label">Country</label>
+        <input id="prof-country" class="prof-input" type="text" autocomplete="off">
+        <label class="prof-label">State / Province</label>
+        <input id="prof-state" class="prof-input" type="text" autocomplete="off">
         <label class="prof-label">Email</label>
         <input id="prof-email" class="prof-input" type="email" disabled style="opacity:.6;cursor:not-allowed">
         <div style="font-size:11px;color:var(--walnut-mid);margin:-6px 2px 16px">Email is your sign-in and can't be changed here.</div>
@@ -579,8 +609,10 @@
         <div class="card-text" style="font-size:13px;margin-bottom:12px">
           A PCM walks alongside applicants as they prepare to enter The Living Network. Share whichever contact channels you're comfortable with — at minimum, your email.
         </div>
-        <label class="form-label" style="color:var(--walnut-mid)">Region (where applicants will see you)</label>
-        <input class="form-input" id="pcm-region" type="text" placeholder="e.g. Australia, Texas, England" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Country (where applicants will see you)</label>
+        <input class="form-input" id="pcm-country" type="text" placeholder="e.g. Australia" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">State / Province (optional)</label>
+        <input class="form-input" id="pcm-state" type="text" placeholder="e.g. Victoria" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Email *</label>
         <input class="form-input" id="pcm-email" type="email" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
         <label class="form-label" style="color:var(--walnut-mid)">Phone (optional)</label>
@@ -1143,15 +1175,63 @@ async function doSignIn(){
   enterApp();
 }
 
+// ── Region helpers ─────────────────────────────────────────────────────
+// We keep ONE combined "State, Country" string in `region` (backward-compatible
+// with matching, display and the server). These compose it from / split it back
+// into the two form fields.
+function _composeRegion(country, state){
+  country = (country||'').trim(); state = (state||'').trim();
+  if(country && state) return state + ', ' + country;
+  return country || state;
+}
+function _regionCountry(region){
+  region = (region||'').trim(); if(!region) return '';
+  const i = region.lastIndexOf(',');
+  return (i >= 0 ? region.slice(i+1) : region).trim();
+}
+function _regionState(region){
+  region = (region||'').trim();
+  const i = region.lastIndexOf(',');
+  return i >= 0 ? region.slice(0, i).trim() : '';
+}
+
+// ── Password reveal + confirm-match (Join form) ────────────────────────
+const _PW_EYE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const _PW_EYE_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a13.2 13.2 0 0 1-2.2 3M6.6 6.6A13.3 13.3 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 3.5-.7M3 3l18 18"/></svg>';
+function _togglePwReveal(id, btn){
+  const inp = document.getElementById(id); if(!inp) return;
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.innerHTML = show ? _PW_EYE_OFF : _PW_EYE;
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+}
+function _joinPwCheck(){
+  const a = (document.getElementById('j-pw')||{}).value || '';
+  const b = (document.getElementById('j-pw2')||{}).value || '';
+  const m = document.getElementById('j-pw-match'); if(!m) return;
+  if(!a && !b){ m.textContent=''; m.className='pw-match'; return; }
+  if(a.length < 8){ m.textContent='Password must be at least 8 characters.'; m.className='pw-match bad'; return; }
+  if(!b){ m.textContent=''; m.className='pw-match'; return; }
+  if(a === b){ m.textContent='✓ Passwords match'; m.className='pw-match ok'; }
+  else { m.textContent='Passwords don’t match yet.'; m.className='pw-match bad'; }
+}
+
 async function doJoin(){
   const name   = document.getElementById('j-name').value.trim();
   const email  = document.getElementById('j-email').value.trim().toLowerCase();
-  const region = document.getElementById('j-region').value.trim();
-  const pw     = document.getElementById('j-pw').value;
-  const err    = document.getElementById('join-error');
+  const country = document.getElementById('j-country').value.trim();
+  const state   = document.getElementById('j-state').value.trim();
+  const region  = _composeRegion(country, state);
+  const pw      = document.getElementById('j-pw').value;
+  const pw2     = document.getElementById('j-pw2').value;
+  const err     = document.getElementById('join-error');
   err.classList.remove('show');
-  if(!name || !email || !region || !pw || pw.length < 8){
+  if(!name || !email || !country || !pw || pw.length < 8){
     err.textContent='Please fill every field. Password must be at least 8 characters.';
+    err.classList.add('show'); return;
+  }
+  if(pw !== pw2){
+    err.textContent='Passwords don’t match. Please re-enter them.';
     err.classList.add('show'); return;
   }
   if(!_sb){ err.textContent='Supabase is not configured yet.'; err.classList.add('show'); return; }
@@ -2605,7 +2685,8 @@ function openProfile(){
   document.getElementById('profile-name-display').textContent = currentUser.name || '—';
   document.getElementById('profile-email-display').textContent = currentUser.email || '';
   document.getElementById('prof-name').value = currentUser.name || '';
-  document.getElementById('prof-region').value = currentUser.region || '';
+  document.getElementById('prof-country').value = _regionCountry(currentUser.region || '');
+  document.getElementById('prof-state').value = _regionState(currentUser.region || '');
   document.getElementById('prof-email').value = currentUser.email || '';
   const msg = document.getElementById('profile-msg'); msg.style.display = 'none';
   document.getElementById('profile-overlay').style.display = 'block';
@@ -2614,11 +2695,13 @@ function closeProfile(){ document.getElementById('profile-overlay').style.displa
 
 async function saveProfile(){
   const name   = document.getElementById('prof-name').value.trim();
-  const region = document.getElementById('prof-region').value.trim();
+  const country = document.getElementById('prof-country').value.trim();
+  const state   = document.getElementById('prof-state').value.trim();
+  const region  = _composeRegion(country, state);
   const msg    = document.getElementById('profile-msg');
   const btn    = document.getElementById('profile-save-btn');
   const show = (text, ok) => { msg.textContent = text; msg.style.color = ok ? 'var(--success)' : 'var(--terra)'; msg.style.display = 'block'; };
-  if(!name || !region){ show('Name and region can’t be empty.', false); return; }
+  if(!name || !country){ show('Name and country can’t be empty.', false); return; }
   if(!_sb || !currentUser){ show('Not signed in.', false); return; }
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Saving…';
   try {
@@ -4212,9 +4295,9 @@ async function buildPcmPage(){
     const matched = new Set((matchedRows || []).map(r => r.pcm_id));
     _pcmList.forEach(p => { p._matched = matched.has(p.id); });
   }
-  const myRegion = (currentUser.region || '').toLowerCase().trim();
-  const inRegion = _pcmList.filter(p => (p.region || '').toLowerCase().trim() === myRegion);
-  const outOfRegion = _pcmList.filter(p => (p.region || '').toLowerCase().trim() !== myRegion);
+  const myCountry = _regionCountry(currentUser.region || '').toLowerCase();
+  const inRegion = _pcmList.filter(p => myCountry && _regionCountry(p.region || '').toLowerCase() === myCountry);
+  const outOfRegion = _pcmList.filter(p => !(myCountry && _regionCountry(p.region || '').toLowerCase() === myCountry));
 
   // 4. Render the list
   const listEl = document.getElementById('pcm-list');
@@ -4222,12 +4305,12 @@ async function buildPcmPage(){
     listEl.innerHTML = '<div class="empty"><span class="ico">👥</span>No Personal Contact Ministers are available yet. Please check back soon.</div>';
   } else {
     let html = '';
-    if(myRegion && inRegion.length){
-      html += '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin:6px 4px 4px">In your region (' + _esc(currentUser.region) + ')</div>';
+    if(myCountry && inRegion.length){
+      html += '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin:6px 4px 4px">In your country (' + _esc(_regionCountry(currentUser.region)) + ')</div>';
       html += inRegion.map(p => _pcmRow(p)).join('');
     }
     if(outOfRegion.length){
-      html += '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin:14px 4px 4px">' + (myRegion ? 'Other regions' : 'All available') + '</div>';
+      html += '<div style="font-size:11px;color:var(--walnut-mid);font-style:italic;margin:14px 4px 4px">' + (myCountry ? 'Other countries' : 'All available') + '</div>';
       html += outOfRegion.map(p => _pcmRow(p)).join('');
     }
     listEl.innerHTML = html;
@@ -4594,7 +4677,8 @@ async function pcmRespondElection(electionId, accept){
 function openPcmVolunteer(){
   // Pre-fill from existing record (if any) or from currentUser defaults
   const m = document.getElementById('pcm-modal');
-  document.getElementById('pcm-region').value = currentUser.region || '';
+  document.getElementById('pcm-country').value = _regionCountry(currentUser.region || '');
+  document.getElementById('pcm-state').value = _regionState(currentUser.region || '');
   document.getElementById('pcm-email').value  = currentUser.email || '';
   document.getElementById('pcm-phone').value = '';
   document.getElementById('pcm-telegram').value = '';
@@ -4603,7 +4687,8 @@ function openPcmVolunteer(){
   if(_sb && _pcmAmIPcm){
     _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle().then(({data})=>{
       if(data){
-        document.getElementById('pcm-region').value = data.region || '';
+        document.getElementById('pcm-country').value = _regionCountry(data.region || '');
+        document.getElementById('pcm-state').value = _regionState(data.region || '');
         document.getElementById('pcm-email').value = data.email || '';
         document.getElementById('pcm-phone').value = data.phone || '';
         document.getElementById('pcm-telegram').value = data.telegram || '';
@@ -4628,7 +4713,7 @@ async function savePcmVolunteer(){
     alert('Becoming a Personal Contact Minister is available once you have been granted access to The Living Network.');
     return;
   }
-  const region    = document.getElementById('pcm-region').value.trim();
+  const region    = _composeRegion(document.getElementById('pcm-country').value.trim(), document.getElementById('pcm-state').value.trim());
   const email     = document.getElementById('pcm-email').value.trim().toLowerCase();
   const phone     = document.getElementById('pcm-phone').value.trim();
   const telegram  = document.getElementById('pcm-telegram').value.trim();
