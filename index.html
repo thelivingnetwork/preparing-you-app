@@ -1228,7 +1228,7 @@ const _COUNTRIES = ("Afghanistan|Albania|Algeria|Andorra|Angola|Antigua and Barb
 function _fillCountrySelect(sel, selected){
   if(!sel) return;
   selected = (selected || '').trim();
-  let html = '<option value="">Select country…</option>';
+  let html = '<option value="">Select</option>';
   let found = false;
   for(const c of _COUNTRIES){
     const isSel = selected && c.toLowerCase() === selected.toLowerCase();
