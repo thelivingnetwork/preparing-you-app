@@ -18,9 +18,6 @@
     try { if (localStorage.getItem('pp_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
   </script>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -80,7 +77,7 @@
   html[data-theme="dark"] .auth-error{color:#e98a6a}
   html{background:var(--parch)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:'Spectral',Georgia,serif;font-size:17px;line-height:1.55}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.55}
   /* Horizontal clip + overscroll containment live on the scroll ROOT only.
      Putting overflow-x:hidden on BOTH html and body turns the flex/100dvh body
      into a second scroll container, which froze vertical scrolling on some
@@ -89,7 +86,7 @@
   html{overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain}
   .ptr-spinning{animation:ptrspin .7s linear infinite}
   @keyframes ptrspin{to{transform:rotate(360deg)}}
-  h1,h2,h3{font-family:'Spectral',Georgia,serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
+  h1,h2,h3{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
   body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
     /* Faint paper grain — subtle radial pattern that mimics parchment.
        background-attachment:fixed was removed: it creates a fixed positioning
@@ -104,21 +101,21 @@
   /* ── Landing ────────────────────────────────────────────────── */
   .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px}
   .landing-ark{width:140px;height:auto;margin-bottom:20px;filter:drop-shadow(0 1px 2px rgba(58,40,24,.15))}
-  .landing-title{font-family:'Spectral',serif;font-size:38px;font-weight:600;color:var(--brand-ink);margin:0 0 4px;text-align:center;letter-spacing:.02em}
+  .landing-title{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:38px;font-weight:600;color:var(--brand-ink);margin:0 0 4px;text-align:center;letter-spacing:.02em}
   .landing-sub{font-size:14px;color:var(--walnut-mid);font-style:italic;margin:0 0 18px;text-align:center;letter-spacing:.04em}
   .landing-quote{max-width:480px;color:var(--walnut-mid);font-size:14px;font-style:italic;text-align:center;margin:0 0 32px;padding:0 20px;line-height:1.6}
   .landing-quote::before, .landing-quote::after{content:'';display:inline-block;width:30px;height:1px;background:var(--gold);vertical-align:middle;margin:0 12px}
 
   .auth-box{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
   .auth-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line)}
-  .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:'Spectral',serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
+  .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
   .auth-tab.active{color:var(--brand-ink);border-bottom-color:var(--terra)}
   .form-label{display:block;font-size:13px;color:var(--walnut-mid);margin:12px 0 4px;letter-spacing:.02em}
   /* font-size must be >=16px: iOS Safari auto-zooms the page when a smaller
      input gets focus, and that zoom sticks (pushing the fixed nav off-frame). */
   .form-input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
   .form-input:focus{border-color:var(--terra)}
-  .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:'Spectral',serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
+  .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
   .btn-primary:hover{background:var(--terra-deep)}
   .auth-error{display:none;background:rgba(159,57,28,.08);border:1px solid rgba(159,57,28,.3);color:#9c4a23;padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic}
   .auth-error.show{display:block}
@@ -147,18 +144,18 @@
   .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
   /* The journey tile is the user's active priority — give it a thick orange border so it reads as the next thing to do. */
   #journey-tile{border:3px solid var(--warn);background:var(--warn-soft);box-shadow:0 2px 12px rgba(224,123,26,.18)}
-  .card-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.04em;color:var(--brand-ink);margin:0 0 10px;text-transform:uppercase;font-weight:600}
+  .card-title{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;letter-spacing:.04em;color:var(--brand-ink);margin:0 0 10px;text-transform:uppercase;font-weight:600}
   .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
 
   .tile-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:14px}
   .tile{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
   .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
   .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
-  .tile-name{font-family:'Spectral',serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
+  .tile-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
   .tile-meta{font-size:13px;color:var(--walnut-mid);margin-top:6px;font-weight:500}
 
   .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:4px 0 calc(6px + env(safe-area-inset-bottom));z-index:50}
-  .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:'Spectral',serif;font-size:11px;letter-spacing:.02em;padding:3px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500}
+  .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.02em;padding:3px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500}
   .nav-btn span,.nav-btn{white-space:nowrap}
   .nav-btn.active{color:var(--cream)}
   .nav-btn.active::before{content:'';position:absolute;top:0;width:34px;height:2px;background:var(--terra);border-radius:0 0 2px 2px;margin-top:-5px}
@@ -179,20 +176,20 @@
   .gl-seal{width:44px;height:44px;border-radius:50%;margin:0 auto 11px;color:#fff;font-size:21px;line-height:1;
     display:flex;align-items:center;justify-content:center;
     background:radial-gradient(circle at 50% 38%,var(--gold) 0%,#7c5a1f 100%);box-shadow:0 2px 10px rgba(55,23,81,.25)}
-  .gl-card h1{font-family:'Spectral',serif;font-weight:600;font-size:22px;text-align:center;color:var(--brand-ink);margin:0}
-  .gl-sub{font-family:'Spectral',serif;font-style:italic;text-align:center;color:var(--walnut-mid);
+  .gl-card h1{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:22px;text-align:center;color:var(--brand-ink);margin:0}
+  .gl-sub{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-style:italic;text-align:center;color:var(--walnut-mid);
     font-size:13px;line-height:1.4;margin:6px 2px 16px}
   .gl-list{display:flex;flex-direction:column;gap:12px}
   .gl-item{display:flex;gap:11px;align-items:flex-start}
   .gl-ic{flex-shrink:0;width:25px;height:25px;border-radius:7px;margin-top:1px;font-size:13px;
     display:flex;align-items:center;justify-content:center;background:var(--gold-soft);color:var(--gold)}
-  .gl-item h2{font-family:'Spectral',serif;font-weight:600;font-size:14px;color:var(--walnut);line-height:1.25;margin:0 0 1px}
+  .gl-item h2{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:14px;color:var(--walnut);line-height:1.25;margin:0 0 1px}
   .gl-item p{font-size:12.3px;line-height:1.4;color:var(--walnut-mid);margin:0}
   .gl-item p b{color:var(--brand-ink);font-weight:600}
   .gl-agree{text-align:center;font-size:11px;font-style:italic;color:var(--walnut-soft);margin:18px 4px 12px;line-height:1.4}
   .gl-err{display:none;text-align:center;font-size:12px;color:var(--badge);margin:0 4px 10px}
   .gl-btn{width:100%;border:none;border-radius:12px;cursor:pointer;color:#fff;padding:14px;
-    font-family:'Spectral',serif;font-weight:600;font-size:16px;letter-spacing:.02em;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:.02em;
     background:linear-gradient(180deg,var(--terra),var(--teal));box-shadow:0 4px 14px rgba(79,33,112,.32)}
   .gl-btn:disabled{opacity:.6;cursor:default}
 
@@ -221,10 +218,10 @@
   #page-messages #msg-convo-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -4px}
   .convo-row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .convo-row:active{background:var(--gold-soft)}
-  .convo-av{width:50px;height:50px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:15px}
+  .convo-av{width:50px;height:50px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px}
   .convo-main{flex:1;min-width:0}
   .convo-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-  .convo-name{font-family:'Spectral',serif;font-size:15px;color:var(--walnut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .convo-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;color:var(--walnut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .convo-time{font-size:11px;color:var(--walnut-soft);flex-shrink:0}
   .convo-sub{display:flex;align-items:center;gap:8px;margin-top:1px}
   .convo-prev{flex:1;min-width:0;font-size:13px;color:var(--walnut-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -242,18 +239,18 @@
      be taller than its row or bleed into the row below, and its rounded right
      corners line up with the row's, so no square red can peek past the corner. */
   .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
-  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0}
+  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0}
   .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--surface);touch-action:pan-y;border-radius:10px;border-bottom:none}
   .convo-swipe > .convo-row:active{background:var(--gold-soft)}
   .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
   .picker-row:active{background:var(--gold-soft)}
 
   /* ── Paul (header AI button) ──────────────────────────────── */
-  .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:'Spectral',serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
+  .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
   .hdr-paul:hover{background:#b8862f}
-  .hdr-profile{flex-shrink:0;width:56px;height:56px;border-radius:50%;overflow:hidden;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:'Spectral',serif;font-size:18px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .hdr-profile{flex-shrink:0;width:56px;height:56px;border-radius:50%;overflow:hidden;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
   .hdr-profile:hover{filter:brightness(1.06)}
-  .prof-label{display:block;font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
+  .prof-label{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
   .prof-input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--walnut);font-size:14px;font-family:inherit;margin-bottom:16px}
   .prof-input:focus{outline:none;border-color:var(--teal)}
   .hdr-paul svg,.hdr-paul .hdr-paul-av{width:40px;height:40px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
@@ -277,24 +274,24 @@
   .modal-overlay{position:fixed;inset:0;background:rgba(10,3,24,.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow-y:auto}
   .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;color:var(--walnut);box-shadow:0 10px 40px rgba(0,0,0,.3)}
   .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
-  .modal-title{font-family:'Spectral',serif;font-size:14px;letter-spacing:.06em;color:var(--brand-ink);text-transform:uppercase}
+  .modal-title{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;letter-spacing:.06em;color:var(--brand-ink);text-transform:uppercase}
   .modal-close{background:none;border:none;font-size:18px;color:var(--walnut-mid);cursor:pointer;padding:4px 8px;line-height:1}
   .modal-body{padding:18px}
 
-  .btn-secondary{width:100%;background:var(--surface);color:var(--brand-ink);border:1px solid var(--brand-ink);border-radius:12px;padding:11px;font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
+  .btn-secondary{width:100%;background:var(--surface);color:var(--brand-ink);border:1px solid var(--brand-ink);border-radius:12px;padding:11px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
   .btn-secondary:hover{background:#f5f0fa}
-  .link-btn{background:none;border:none;color:var(--brand-ink);font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
+  .link-btn{background:none;border:none;color:var(--brand-ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
   .link-btn:hover{color:var(--gold);text-decoration:underline}
 
   /* ── PCM list rows ───────────────────────────────────────────── */
   .pcm-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
   .pcm-row.chosen{border-color:var(--success);background:rgba(45,122,79,.04)}
-  .pcm-av{width:42px;height:42px;border-radius:50%;overflow:hidden;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-size:13px;flex-shrink:0}
+  .pcm-av{width:42px;height:42px;border-radius:50%;overflow:hidden;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;flex-shrink:0}
   .pcm-info{flex:1;min-width:0}
-  .pcm-name{font-family:'Spectral',serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
+  .pcm-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
   .pcm-meta{font-size:12px;color:var(--walnut-mid)}
   .pcm-channels{font-size:10px;color:var(--walnut-mid);margin-top:4px;letter-spacing:.04em}
-  .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:'Spectral',serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
+  .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
   .pcm-pick:hover{background:var(--teal-soft)}
   .pcm-pick.chosen{background:#2d7a4f}
   .pcm-status{display:inline-block;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:10px;vertical-align:middle;font-weight:600}
@@ -307,25 +304,25 @@
   .lib-search:focus{border-color:var(--gold)}
   /* Segmented control: Literature · Video · Audio. Swaps the list in place. */
   .lib-tabs{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
-  .lib-tab{flex:1;min-width:0;background:none;border:none;cursor:pointer;color:var(--walnut-mid);font-family:'Spectral',serif;font-size:12px;letter-spacing:.02em;padding:9px 4px;border-radius:9px;text-transform:uppercase;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;transition:background .15s ease,color .15s ease}
+  .lib-tab{flex:1;min-width:0;background:none;border:none;cursor:pointer;color:var(--walnut-mid);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;letter-spacing:.02em;padding:9px 4px;border-radius:9px;text-transform:uppercase;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;transition:background .15s ease,color .15s ease}
   .lib-tab svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
   .lib-tab.active{background:linear-gradient(180deg,var(--terra),var(--teal));color:#fff;box-shadow:0 2px 8px rgba(79,33,112,.25)}
   @media (max-width:360px){ .lib-tab{font-size:11px;letter-spacing:0} .lib-tab svg{display:none} }
   .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
-  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--brand-ink);font-family:'Spectral',serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
+  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--brand-ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
   .lib-letter:hover{background:rgba(61,31,122,.08)}
   .lib-letter.disabled{opacity:.25;cursor:default}
   .lib-letter.disabled:hover{background:none}
   .lib-section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
-  .lib-section-hdr{font-family:'Spectral',serif;font-size:18px;color:var(--brand-ink);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .lib-section-hdr{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--brand-ink);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .lib-topic{padding:8px 0;border-bottom:1px solid #f7f1de}
   .lib-topic:last-child{border-bottom:none}
-  .lib-topic-title{display:block;font-family:'Spectral',serif;font-size:16px;color:var(--brand-ink);text-decoration:none;font-weight:500}
+  .lib-topic-title{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;color:var(--brand-ink);text-decoration:none;font-weight:500}
   .lib-topic-title:hover{color:var(--gold);text-decoration:underline}
   .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
-  .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:'Spectral',serif}
+  .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
   .lib-media a:hover{background:var(--gold);color:#fff}
-  .lib-subhead{font-family:'Spectral',serif;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--walnut-mid);margin:6px 2px 10px;font-weight:600}
+  .lib-subhead{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--walnut-mid);margin:6px 2px 10px;font-weight:600}
   .lib-spotify{display:block;width:100%;border:0;border-radius:12px}
   /* Responsive 16:9 wrapper for the channel video player. */
   .lib-yt-wrap{position:relative;width:100%;padding-bottom:56.25%;border-radius:12px;overflow:hidden;background:#000}
@@ -417,7 +414,7 @@
   <div id="profile-overlay" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.55)" onclick="if(event.target===this) closeProfile()">
     <div style="position:absolute;top:0;right:0;width:min(100%,420px);max-height:100vh;background:var(--surface);display:flex;flex-direction:column;border-left:1px solid var(--line)">
       <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
-        <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600">My Profile</div>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600">My Profile</div>
         <button onclick="closeProfile()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:0 6px;line-height:1">×</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding:20px 18px">
@@ -428,7 +425,7 @@
           </button>
           <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="onAvatarSelected(this)">
           <div style="min-width:0">
-            <div id="profile-name-display" style="font-family:'Spectral',serif;font-size:18px;color:var(--walnut);font-weight:600"></div>
+            <div id="profile-name-display" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--walnut);font-weight:600"></div>
             <div id="profile-email-display" style="font-size:12px;color:var(--walnut-mid);overflow:hidden;text-overflow:ellipsis"></div>
             <button type="button" id="avatar-remove-btn" onclick="removeAvatar()" style="display:none;margin-top:4px;background:none;border:none;color:var(--terra);font-size:11px;cursor:pointer;padding:0">Remove photo</button>
           </div>
@@ -450,7 +447,7 @@
   <!-- Profile photo framing editor -->
   <div id="cropper-overlay" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(20,48,52,.75);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this) closeCropper()">
     <div style="background:var(--surface);border-radius:16px;padding:18px;width:min(100%,360px);box-shadow:0 12px 44px rgba(0,0,0,.45)">
-      <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600;color:var(--brand-ink);text-align:center">Position your photo</div>
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;color:var(--brand-ink);text-align:center">Position your photo</div>
       <div style="font-size:12px;color:var(--walnut-mid);text-align:center;margin:2px 0 14px">Drag to move · pinch or slide to zoom</div>
       <div id="crop-stage" style="position:relative;width:280px;height:280px;max-width:100%;margin:0 auto;border-radius:50%;overflow:hidden;background:#111;touch-action:none;cursor:grab;box-shadow:0 0 0 3px var(--teal)">
         <canvas id="crop-canvas" width="280" height="280" style="display:block;width:280px;height:280px"></canvas>
@@ -489,11 +486,11 @@
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
       <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
-        <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()">▶ Start Townhall</button>
-        <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()">⏹ End Townhall</button>
+        <button id="townhall-start-btn" style="background:var(--success,#2d7a4f);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();startTownhall()">▶ Start Townhall</button>
+        <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()">⏹ End Townhall</button>
       </div>
       <div id="townhall-replay" style="margin-top:10px;display:none;text-align:right">
-        <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:'Spectral',serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()">▶ Replay last townhall</button>
+        <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()">▶ Replay last townhall</button>
       </div>
     </div>
     <!-- Always-available resource tiles (journey navigation lives in the
@@ -563,7 +560,7 @@
     <!-- List of available PCMs -->
     <div id="pcm-list-section">
       <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 4px 8px">
-        <div style="font-family:'Spectral',serif;font-size:11px;letter-spacing:.10em;color:var(--brand-ink);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.10em;color:var(--brand-ink);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
         <button class="link-btn" onclick="openPcmVolunteer()" id="pcm-volunteer-btn">+ Volunteer as PCM</button>
       </div>
       <div id="pcm-list"></div>
@@ -663,7 +660,7 @@
   .emoji-btn.active{background:var(--terra-soft);border-color:var(--terra)}
   .emoji-panel{display:none;border:1px solid var(--line);border-radius:12px;background:var(--surface);max-height:208px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:4px 8px 8px;margin:0;flex-shrink:0}
   .emoji-panel.open{display:block}
-  .emoji-cat{font-family:'Spectral',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:8px 4px 3px;opacity:.85}
+  .emoji-cat{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:8px 4px 3px;opacity:.85}
   .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
   .emoji-grid button{font-size:23px;line-height:1;background:none;border:none;border-radius:8px;padding:6px 0;cursor:pointer;width:100%;margin:0;-webkit-tap-highlight-color:transparent}
   .emoji-grid button:active{background:var(--terra-soft)}
@@ -676,7 +673,7 @@
     <!-- Conversation list (Messenger-style inbox) -->
     <div id="msg-inbox" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 12px">
-        <div style="font-family:'Spectral',serif;font-size:20px;font-weight:600;color:var(--brand-ink)">Messages</div>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:600;color:var(--brand-ink)">Messages</div>
         <button onclick="openNewMessagePicker()" title="New message" aria-label="New message" style="margin:0;padding:0;width:40px;height:40px;flex-shrink:0;border:none;border-radius:50%;background:linear-gradient(180deg,var(--terra),var(--teal));color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(55,23,81,.22)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
       </div>
       <div id="msg-convo-list"></div>
@@ -689,7 +686,7 @@
         <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--teal);color:var(--cream)">
           <button class="link-btn" onclick="showMsgList()" aria-label="Back to messages" title="Back" style="color:var(--cream);background:none;border:none;font-size:36px;line-height:1;padding:0 8px 0 0;margin:0;width:auto;cursor:pointer">‹</button>
           <div class="pcm-av" id="msg-peer-av" style="background:var(--surface);color:var(--brand-ink)">?</div>
-          <div style="flex:1"><div style="font-family:'Spectral',serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
+          <div style="flex:1"><div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
           <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px" onclick="startPcmCall()">📞 Call</button>
         </div>
         <div id="msg-list" style="padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
@@ -700,7 +697,7 @@
           <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
           <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 11px;width:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);cursor:pointer;flex-shrink:0;line-height:0;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('msg-file').click()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
           <button type="button" id="msg-emoji-btn" class="emoji-btn" title="Emoji" aria-label="Emoji" onclick="toggleEmoji('msg-emoji','msg-input',this)">😊</button>
-          <textarea id="msg-input" rows="1" data-maxh="140" placeholder="Write a message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck();_onMsgTyping()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <textarea id="msg-input" rows="1" data-maxh="140" placeholder="Write a message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck();_onMsgTyping()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
       </div>
@@ -714,7 +711,7 @@
   <div id="msg-newpicker" style="display:none;position:fixed;inset:0;z-index:210;background:rgba(55,23,81,.28);backdrop-filter:blur(2px);flex-direction:column;justify-content:flex-end" onclick="if(event.target===this)closeNewMessagePicker()">
     <div style="background:var(--surface);border-radius:18px 18px 0 0;max-height:72vh;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(55,23,81,.3)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);flex-shrink:0">
-        <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600;color:var(--brand-ink)">New message</div>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;color:var(--brand-ink)">New message</div>
         <button class="link-btn" onclick="closeNewMessagePicker()" style="padding:4px 8px;width:auto">Close</button>
       </div>
       <div id="msg-newpicker-list" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 12px calc(16px + env(safe-area-inset-bottom))"></div>
@@ -729,7 +726,7 @@
     </div>
     <div id="join-tln-cta" style="display:none">
       <div class="card" style="border-color:var(--terra);background:var(--terra-soft);text-align:center">
-        <div style="font-family:'Spectral',serif;font-size:18px;color:var(--brand-ink);margin-bottom:6px">You have been invited.</div>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--brand-ink);margin-bottom:6px">You have been invited.</div>
         <div style="font-size:13px;color:var(--walnut-mid);margin-bottom:14px" id="join-tln-when">—</div>
         <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Open The Living Network →</button>
       </div>
@@ -739,7 +736,7 @@
   </div>
 
   <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
-  <div id="live-banner" onclick="joinTownhall()" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:linear-gradient(90deg,var(--terra),var(--terra-deep));color:#fff;padding:10px 16px;text-align:center;font-family:'Spectral',serif;font-size:14px;font-weight:500;letter-spacing:.04em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)">
+  <div id="live-banner" onclick="joinTownhall()" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:linear-gradient(90deg,var(--terra),var(--terra-deep));color:#fff;padding:10px 16px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:.04em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)">
     <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:8px;animation:livepulse 1.4s infinite"></span>
     🎙 Townhall is live — tap to join
   </div>
@@ -755,7 +752,7 @@
             <img src="/paul.jpg?v=1" alt="" width="44" height="44">
           </span>
           <div>
-            <div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Paul, <span style="color:var(--gold)">AI Apostle</span></div>
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:600">Paul, <span style="color:var(--gold)">AI Apostle</span></div>
             <div style="font-size:13px;font-style:italic;opacity:.9">Here to walk with you</div>
           </div>
         </div>
@@ -780,7 +777,7 @@
       </div>
       <div id="paul-messages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px"></div>
       <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;flex-shrink:0">
-        <div id="paul-status" style="display:none;align-items:center;gap:8px;font-family:'Spectral',serif;font-size:13px;color:var(--teal-deep)">
+        <div id="paul-status" style="display:none;align-items:center;gap:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:var(--teal-deep)">
           <span id="paul-status-dot" style="width:9px;height:9px;border-radius:50%;background:var(--terra);flex-shrink:0"></span>
           <span id="paul-status-text"></span>
         </div>
@@ -788,7 +785,7 @@
         <div style="display:flex;gap:8px">
           <button id="paul-mic" onclick="togglePaulConversation()" title="Talk with Paul" aria-label="Talk with Paul" style="padding:10px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;line-height:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
           <button type="button" id="paul-emoji-btn" class="emoji-btn" title="Emoji" aria-label="Emoji" style="padding:10px 11px" onclick="toggleEmoji('paul-emoji','paul-input',this)">😊</button>
-          <textarea id="paul-input" rows="1" data-maxh="120" placeholder="Ask Paul…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:'Spectral',serif;font-size:18px;resize:none;max-height:120px;overflow-y:hidden" oninput="_autoGrow(this)" onfocus="_closeEmoji('paul-emoji','paul-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+          <textarea id="paul-input" rows="1" data-maxh="120" placeholder="Ask Paul…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;resize:none;max-height:120px;overflow-y:hidden" oninput="_autoGrow(this)" onfocus="_closeEmoji('paul-emoji','paul-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
           <button id="paul-send" onclick="sendPaul()" title="Send" aria-label="Send" style="padding:10px 14px;background:var(--terra);color:#fff;border:none;border-radius:8px;cursor:pointer;line-height:0;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
         </div>
       </div>
@@ -1231,8 +1228,8 @@ function _openE2EEUnlock(){
     el.style.cssText = 'display:none;position:fixed;inset:0;z-index:10000;background:rgba(20,16,12,.55);align-items:center;justify-content:center;padding:24px';
     el.innerHTML =
       '<div style="background:var(--cream);border-radius:18px;max-width:360px;width:100%;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.3)">'
-      + '<h2 style="font-family:\'Cormorant Garamond\',serif;color:var(--walnut);margin:0 0 8px;font-size:24px">Unlock your messages</h2>'
-      + '<p style="font-family:\'Spectral\',serif;font-size:14px;color:var(--walnut-mid);margin:0 0 14px">Your private messages are end-to-end encrypted. Enter your password to unlock them on this device.</p>'
+      + '<h2 style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;color:var(--walnut);margin:0 0 8px;font-size:24px">Unlock your messages</h2>'
+      + '<p style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;font-size:14px;color:var(--walnut-mid);margin:0 0 14px">Your private messages are end-to-end encrypted. Enter your password to unlock them on this device.</p>'
       + '<input id="e2ee-unlock-pw" class="form-input" type="password" placeholder="Your password" style="margin-bottom:10px" onkeydown="if(event.key===\'Enter\')doE2EEUnlock()">'
       + '<div id="e2ee-unlock-err" class="auth-error">That password didn\u2019t unlock your messages.</div>'
       + '<button class="btn-primary" style="width:100%" onclick="doE2EEUnlock()">Unlock</button>'
@@ -1975,7 +1972,7 @@ async function loadMessages(){
     const att = _renderAttachment(m, mine);
     const hasBody = !!(m.body && m.body.trim());
     const inner = (hasBody ? linked : '') + (hasBody && att ? '<div style="height:8px"></div>' : '') + att;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${inner}</div>`;
+    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${inner}</div>`;
   }).join('');
 
   // Read receipt: if my message is the newest in the thread, show its delivery
@@ -3073,7 +3070,7 @@ function _renderPaulMessage(role, text){
   const wrap = document.getElementById('paul-messages');
   const isUser = role === 'user';
   const div = document.createElement('div');
-  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-family:'Spectral',serif;font-size:18px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
+  div.style.cssText = `align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 14px;border-radius:16px;background:${isUser?'var(--teal)':'var(--terra-soft)'};color:${isUser?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;border:1px solid ${isUser?'var(--teal-deep)':'var(--terra-soft)'}`;
   div.textContent = text;
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
@@ -3083,7 +3080,7 @@ function _renderPaulMessage(role, text){
 function _renderPaulThinking(){
   const wrap = document.getElementById('paul-messages');
   const div = document.createElement('div');
-  div.style.cssText = `align-self:flex-start;max-width:85%;padding:12px 16px;border-radius:16px;background:var(--terra-soft);color:var(--walnut);font-family:'Spectral',serif;border:1px solid var(--terra-soft)`;
+  div.style.cssText = `align-self:flex-start;max-width:85%;padding:12px 16px;border-radius:16px;background:var(--terra-soft);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border:1px solid var(--terra-soft)`;
   // Three wave-animated dots. Setting textContent later (with the answer) clears these.
   div.innerHTML = '<span class="paul-thinking"><span class="paul-dot"></span><span class="paul-dot"></span><span class="paul-dot"></span></span>';
   wrap.appendChild(div);
