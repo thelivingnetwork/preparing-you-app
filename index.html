@@ -760,7 +760,7 @@
           <button class="link-btn" onclick="showMsgList()" aria-label="Back to messages" title="Back" style="color:var(--cream);background:none;border:none;font-size:36px;line-height:1;padding:0 8px 0 0;margin:0;width:auto;cursor:pointer">‹</button>
           <div class="pcm-av" id="msg-peer-av" style="background:var(--surface);color:var(--brand-ink)">?</div>
           <div style="flex:1"><div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
-          <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;width:auto" onclick="startPcmCall()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+          <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;width:auto" id="msg-call-btn" onclick="startPcmCall()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
         </div>
         <div id="msg-list" style="padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
         <div id="msg-typing" style="display:none;padding:2px 16px 6px;font-size:12px;font-style:italic;color:var(--walnut-mid)"></div>
@@ -773,6 +773,7 @@
           <textarea id="msg-input" rows="1" data-maxh="140" placeholder="Message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck();_onMsgTyping()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
           <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
         </div>
+        <div id="msg-readonly-note" style="display:none;padding:14px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);text-align:center;font-size:13px;font-style:italic;color:var(--walnut-mid)">This is a one-way message — you can't reply.</div>
       </div>
     </div>
 
@@ -1967,6 +1968,15 @@ async function renderActivePeer(){
   document.getElementById('msg-peer-role').textContent = peer
     ? ((peer.role || '') + (peer.region ? ' · ' + peer.region : ''))
     : '';
+  // One-way system sender (e.g. "Preparing You"): read-only thread — no reply
+  // box, no call button, a small "can't reply" note instead.
+  const sys = !!(peer && peer.is_system);
+  const _compose = document.getElementById('msg-compose');
+  if(_compose) _compose.style.display = sys ? 'none' : 'flex';
+  const _note = document.getElementById('msg-readonly-note');
+  if(_note) _note.style.display = sys ? 'block' : 'none';
+  const _call = document.getElementById('msg-call-btn');
+  if(_call) _call.style.display = sys ? 'none' : 'inline-flex';
   await loadMessages();
 }
 

@@ -70,6 +70,42 @@ function decryptBody(stored) {
   } catch (e) { return '[unable to decrypt]' }
 }
 
+// ── System sender ("Preparing You") ───────────────────────────────────
+// A dedicated, non-human account used for one-way admin -> member messages.
+// Provisioned on first use via the Admin API (no manual setup), then cached
+// for the life of the process. The account never logs in.
+const _SYSTEM_EMAIL = 'no-reply@preparingyou.app'
+const _SYSTEM_NAME = 'Preparing You'
+let _systemSenderId = null
+async function ensureSystemUser() {
+  if (_systemSenderId) return _systemSenderId
+  // Already provisioned?
+  const { data: existing } = await sb.from('prep_users')
+    .select('id').eq('is_system', true).limit(1).maybeSingle()
+  if (existing && existing.id) { _systemSenderId = existing.id; return _systemSenderId }
+  // Create the auth account; the on_auth_user_created trigger mirrors it into
+  // prep_users (flagged is_system via the metadata). A random password is fine.
+  let uid = null
+  const { data: created, error: cErr } = await sb.auth.admin.createUser({
+    email: _SYSTEM_EMAIL,
+    email_confirm: true,
+    password: crypto.randomBytes(24).toString('hex'),
+    user_metadata: { name: _SYSTEM_NAME, system: true }
+  })
+  if (created && created.user) uid = created.user.id
+  if (!uid) {
+    // Likely already exists in auth -> recover the id from prep_users by email.
+    const { data: byEmail } = await sb.from('prep_users')
+      .select('id').eq('email', _SYSTEM_EMAIL).maybeSingle()
+    if (byEmail && byEmail.id) uid = byEmail.id
+  }
+  if (!uid) throw new Error('ensureSystemUser: ' + ((cErr && cErr.message) || 'could not provision'))
+  // Make sure the profile row is named + flagged correctly.
+  await sb.from('prep_users').update({ name: _SYSTEM_NAME, is_system: true }).eq('id', uid)
+  _systemSenderId = uid
+  return _systemSenderId
+}
+
 // Resolve & verify a Supabase access token from the Authorization header.
 async function verifyToken(req) {
   const authH = req.headers['authorization'] || ''
@@ -1124,7 +1160,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.28', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.29', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1549,7 +1585,7 @@ const server = http.createServer(async (req, res) => {
       })
       if (list.length) {
         const ids = list.map(c => c.peerId)
-        const { data: us } = await sb.from('prep_users').select('id, name, region, avatar_url').in('id', ids)
+        const { data: us } = await sb.from('prep_users').select('id, name, region, avatar_url, is_system').in('id', ids)
         const uMap = new Map((us || []).map(u => [u.id, u]))
         const { data: me } = await sb.from('prep_users').select('pcm_id').eq('id', meId).maybeSingle()
         const myPcmId = me?.pcm_id || null
@@ -1560,7 +1596,9 @@ const server = http.createServer(async (req, res) => {
           c.name = u.name || 'Member'
           c.region = u.region || ''
           c.avatar_url = u.avatar_url || null
-          c.role = c.peerId === myPcmId ? 'Your Personal Contact Minister'
+          c.is_system = !!u.is_system
+          c.role = c.is_system ? ''
+                 : c.peerId === myPcmId ? 'Your Personal Contact Minister'
                  : electorOf.has(c.peerId) ? 'You are their PCM'
                  : 'Personal Contact Minister'
         }
@@ -1833,15 +1871,14 @@ const server = http.createServer(async (req, res) => {
       const text = (body.text || '').trim()
       if (!text) return send(res, 400, { error: 'text_required' })
       const icon = (body.icon || '📢').trim() || '📢'
-      const action = { type: 'page', page: 'home' }
 
       // Optional recipient filter. When userIds is a non-empty array the message
       // goes only to those users (validated against prep_users); otherwise it
-      // goes to everyone, preserving the original broadcast behaviour.
+      // goes to everyone. The system account itself is always excluded.
       const wantIds = Array.isArray(body.userIds)
         ? [...new Set(body.userIds.filter(id => typeof id === 'string'))]
         : null
-      let q = sb.from('prep_users').select('id')
+      let q = sb.from('prep_users').select('id').eq('is_system', false)
       if (wantIds) {
         if (!wantIds.length) return send(res, 400, { error: 'no_recipients' })
         q = q.in('id', wantIds)
@@ -1850,14 +1887,22 @@ const server = http.createServer(async (req, res) => {
       const list = users || []
       if (!list.length) return send(res, 400, { error: 'no_recipients' })
 
-      // 1) Bell notifications — bulk insert in chunks.
-      const rows = list.map(u => ({ user_id: u.id, icon, text, action }))
-      for (let i = 0; i < rows.length; i += 100) {
-        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
+      // Deliver as a one-way message from the "Preparing You" system account so
+      // it lands in each member's Messages inbox (read-only — the member app
+      // hides the reply box for this sender). The prep_messages INSERT trigger
+      // creates the bell notification automatically, so we don't add one here.
+      const systemId = await ensureSystemUser()
+      const encBody = encryptBody(text)
+      const msgRows = list.map(u => ({ sender_id: systemId, recipient_id: u.id, body: encBody, e2ee: false }))
+      for (let i = 0; i < msgRows.length; i += 100) {
+        await sb.from('prep_messages').insert(msgRows.slice(i, i + 100))
       }
-      // 2) Web-push fanout (best-effort, don't block on individual failures).
-      await Promise.allSettled(list.map(u => pushToUser(u.id, { icon, text, action })))
-      // 3) History row.
+      // Web-push fanout (best-effort) — opens the Messages page on tap.
+      const preview = text.length > 60 ? text.slice(0, 60) + '…' : text
+      await Promise.allSettled(list.map(u => pushToUser(u.id, {
+        icon: '💬', text: _SYSTEM_NAME + ': ' + preview, action: { type: 'page', page: 'messages' }
+      })))
+      // History row (keeps the admin's "Recent broadcasts" log).
       await sb.from('prep_broadcasts').insert({ sender_id: callerId, icon, text, recipient_count: list.length })
 
       return send(res, 200, { ok: true, recipients: list.length })
