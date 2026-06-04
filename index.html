@@ -1554,7 +1554,9 @@ async function acceptGuidelines(){
 // the link when Web Share isn't available (e.g. some desktop browsers).
 async function shareApp(){
   const url = 'https://preparingyou.app';
-  const data = { title: 'Preparing You', text: 'I\u2019d like to share Preparing You with you \u2014 a quiet place to begin your preparation.', url };
+  // Distinct URL key so iOS/Android don't reuse a stale cached link preview.
+  const shareUrl = 'https://preparingyou.app/?s=tln';
+  const data = { title: 'Preparing You', text: 'I\u2019d like to share Preparing You with you \u2014 a quiet place to begin your preparation.', url: shareUrl };
   if(navigator.share){
     try { await navigator.share(data); } catch(_){ /* user cancelled — ignore */ }
     return;
