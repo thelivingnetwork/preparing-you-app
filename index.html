@@ -2274,6 +2274,22 @@ async function loadMessages(){
 // Short tap on a bubble toggles its day/time line; a long-press (or right-click)
 // opens an emoji picker. Reactions persist server-side (one per user per message).
 const _REACT_EMOJIS = ['❤️', '😆', '😮', '😢', '😠', '👍'];
+let _hapticEl = null;
+function _haptic(){
+  if(navigator.vibrate){ try { navigator.vibrate(10); } catch(_){} }
+  try {
+    if(!_hapticEl){
+      const l = document.createElement('label');
+      l.setAttribute('aria-hidden', 'true');
+      l.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+      const c = document.createElement('input');
+      c.type = 'checkbox'; c.setAttribute('switch', '');
+      l.appendChild(c); document.body.appendChild(l); _hapticEl = l;
+    }
+    _hapticEl.firstChild.checked = !_hapticEl.firstChild.checked;
+    _hapticEl.click();
+  } catch(_){}
+}
 function _fmtMsgTime(iso){
   if(!iso) return '';
   try { return new Date(iso).toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }); }
@@ -2306,7 +2322,7 @@ function _openReactionPopup(item){
   if(left < 8) left = 8;
   pop.style.top = top + 'px'; pop.style.left = left + 'px';
   pop.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    const em = b.getAttribute('data-emoji'); _closeReactionPopup(); reactToMessage(mid, em);
+    const em = b.getAttribute('data-emoji'); _haptic(); _closeReactionPopup(); reactToMessage(mid, em);
   }));
   _reactPopupEl = pop;
   setTimeout(() => document.addEventListener('pointerdown', _reactOutside, true), 0);
@@ -2336,7 +2352,7 @@ function _wireMsgInteractions(){
     _lpFired = false; _lpStartXY = { x:e.clientX, y:e.clientY };
     _lpTimer = setTimeout(() => {
       _lpFired = true; _lpTimer = null;
-      if(navigator.vibrate){ try { navigator.vibrate(12); } catch(_){} }
+      _haptic();
       _openReactionPopup(item);
     }, 450);
   });
