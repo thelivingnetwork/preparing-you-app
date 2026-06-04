@@ -2317,7 +2317,7 @@ async function reactToMessage(mid, emoji){
       method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ messageId: mid, emoji })
     });
-    if(!r.ok){ const j = await r.json().catch(() => ({})); alert('Could not add reaction: ' + (j.error || r.status) + ' [DIAG mid=' + JSON.stringify(mid) + ' emoji=' + JSON.stringify(emoji) + ']'); return; }
+    if(!r.ok){ const j = await r.json().catch(() => ({})); alert('Could not add reaction: ' + (j.error || r.status)); return; }
     _msgSig = ''; // force the next render to include the new reaction
     loadMessages();
   } catch(e){ alert('Could not add reaction: ' + e.message); }

@@ -1189,7 +1189,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.34', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.35', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1597,7 +1597,7 @@ const server = http.createServer(async (req, res) => {
       if (v.error) return send(res, v.status, { error: v.error })
       const meId = v.uid
       const { messageId, emoji } = await readJson(req)
-      if (!messageId || !_UUID_RE.test(messageId)) return send(res, 400, { error: 'valid messageId required' })
+      if (messageId == null || !/^\d+$/.test(String(messageId))) return send(res, 400, { error: 'valid messageId required' })
       const ALLOWED = ['❤️', '😆', '😮', '😢', '😠', '👍']
       if (emoji != null && !ALLOWED.includes(emoji)) return send(res, 400, { error: 'unsupported_emoji' })
       const { data: msg } = await sb.from('prep_messages')
