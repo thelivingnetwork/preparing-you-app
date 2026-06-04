@@ -126,6 +126,18 @@ async function requireAdmin(req) {
   if (!adminRow) return { error: 'not_admin', status: 403 }
   return { uid: v.uid }
 }
+// True only when the user has completed the audio overview of every Book.
+// Runs with the service role so it can read another member's progress (which
+// RLS otherwise hides), letting a PCM's sign-off be gated on real completion.
+async function booksAllComplete(userId) {
+  const { data: books } = await sb.from('prep_books').select('id')
+  const total = (books || []).length
+  if (!total) return false
+  const ids = new Set(books.map(b => b.id))
+  const { data: prog } = await sb.from('prep_book_audio_progress').select('book_id').eq('user_id', userId)
+  const done = new Set((prog || []).filter(r => ids.has(r.book_id)).map(r => r.book_id))
+  return done.size >= total
+}
 const _UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 async function signAttachment(stored) {
   if (!stored) return null
@@ -1160,7 +1172,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.30', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.31', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1406,6 +1418,32 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token })
     }
 
+    if (req.method === 'POST' && req.url === '/pcm/electors/readiness') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { data: els } = await sb.from('prep_pcm_elections')
+        .select('elector_id').eq('pcm_id', v.uid).eq('status', 'accepted')
+      const ids = [...new Set((els || []).map(e => e.elector_id))]
+      const { data: books } = await sb.from('prep_books').select('id')
+      const total = (books || []).length
+      const bookIds = new Set((books || []).map(b => b.id))
+      const readiness = {}
+      if (ids.length && total) {
+        const { data: prog } = await sb.from('prep_book_audio_progress')
+          .select('user_id, book_id').in('user_id', ids)
+        const per = new Map()
+        for (const r of (prog || [])) {
+          if (!bookIds.has(r.book_id)) continue
+          if (!per.has(r.user_id)) per.set(r.user_id, new Set())
+          per.get(r.user_id).add(r.book_id)
+        }
+        for (const id of ids) readiness[id] = (per.get(id)?.size || 0) >= total
+      } else {
+        for (const id of ids) readiness[id] = false
+      }
+      return send(res, 200, { readiness, total })
+    }
+
     if (req.method === 'POST' && req.url === '/tln/invite') {
       const v = await verifyToken(req)
       if (v.error) return send(res, v.status, { error: v.error })
@@ -1416,6 +1454,8 @@ const server = http.createServer(async (req, res) => {
       if (!adminRow) {
         const { data: tu } = await sb.from('prep_users').select('pcm_id').eq('id', userId).maybeSingle()
         if (!tu || tu.pcm_id !== v.uid) return send(res, 403, { error: 'forbidden' })
+        // A PCM may only sign a member off once they've finished all Five Books.
+        if (!(await booksAllComplete(userId))) return send(res, 200, { ok: false, reason: 'books_incomplete' })
       }
       const reason = fromName
         ? `<p>${fromName} has signed off on your readiness and invites you to enter The Living Network.</p>`

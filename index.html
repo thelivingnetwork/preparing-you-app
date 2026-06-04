@@ -4742,9 +4742,20 @@ async function buildPcmPage(){
       .eq('pcm_id', currentUser.id).eq('status', 'accepted').order('responded_at', { ascending:false });
     _acceptedElectors = accepted || [];
     if((accepted || []).length){
+      // A PCM can't read electors' book progress directly (RLS), so the server
+      // tells us which electors have finished all Books — the sign-off button
+      // only appears for those who have.
+      let _ready = {};
+      try {
+        const _rr = await fetch(_SERVER_URL + '/pcm/electors/readiness', {
+          method:'POST', headers: await _authHeaders(), body: '{}'
+        });
+        if(_rr.ok){ const _jj = await _rr.json(); _ready = _jj.readiness || {}; }
+      } catch(_){}
       electorsCard.style.display = 'block';
       electorsCard.querySelector('[data-electors-list]').innerHTML = accepted.map(e => {
         const invited = !!e.elector?.tln_invited_at;
+        const ready = !!_ready[e.elector_id];
         return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 0;border-bottom:1px solid var(--line)">'
           + '<div class="pcm-av">' + _avInner(e.elector) + '</div>'
           + '<div style="flex:1;min-width:0">'
@@ -4754,7 +4765,9 @@ async function buildPcmPage(){
           + '</div>'
           + (invited
               ? '<span style="font-size:11px;color:var(--walnut-mid);font-style:italic">Already invited</span>'
-              : '<button class="pcm-pick" style="background:var(--teal);color:#fff;flex:1 1 100%;white-space:normal" onclick="signoffToTln(\'' + e.elector_id + '\', \'' + _esc(e.elector?.name || '') + '\')">Sign off &amp; invite to TLN</button>')
+              : ready
+                ? '<button class="pcm-pick" style="background:var(--teal);color:#fff;flex:1 1 100%;white-space:normal" onclick="signoffToTln(\'' + e.elector_id + '\', \'' + _esc(e.elector?.name || '') + '\')">Sign off &amp; invite to TLN</button>'
+                : '<span style="flex:1 1 100%;font-size:12px;color:var(--walnut-mid);font-style:italic">Still listening to the Five Books \u2014 you can sign them off once they\u2019ve finished.</span>')
           + '</div>';
       }).join('');
     } else {
@@ -4778,7 +4791,13 @@ async function signoffToTln(electorId, electorName){
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || 'invite failed');
-    if(!j.ok){ alert('Could not send: ' + (j.reason || 'unknown')); return; }
+    if(!j.ok){
+      alert(j.reason === 'books_incomplete'
+        ? (electorName || 'This member') + ' hasn\u2019t finished the Five Books yet. You can sign them off once they have.'
+        : 'Could not send: ' + (j.reason || 'unknown'));
+      buildPcmPage();
+      return;
+    }
     if(electorEmail){
       const handoff = 'https://livingnetwork.netlify.app/?'
         + 'from=preparingyou'
