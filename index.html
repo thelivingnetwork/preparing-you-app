@@ -883,6 +883,7 @@
     <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
     <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM<span id="nav-pcm-badge" class="nav-badge" style="display:none"></span></button>
     <button class="nav-btn" onclick="showPage('messages')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" class="nav-badge" style="display:none"></span></button>
+    <button class="nav-btn" onclick="shareApp()"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Share</button>
   </div>
 </div>
 
@@ -1536,6 +1537,23 @@ async function acceptGuidelines(){
   } catch(e){
     if(btn){ btn.disabled = false; btn.textContent = 'Accept & Enter'; }
     if(err) err.style.display = 'block';
+  }
+}
+
+// Share the app via the device's native share sheet, falling back to copying
+// the link when Web Share isn't available (e.g. some desktop browsers).
+async function shareApp(){
+  const url = 'https://preparingyou.app';
+  const data = { title: 'Preparing You', text: 'I\u2019d like to share Preparing You with you \u2014 a quiet place to begin your preparation.', url };
+  if(navigator.share){
+    try { await navigator.share(data); } catch(_){ /* user cancelled — ignore */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    alert('Link copied:\n' + url);
+  } catch(_){
+    window.prompt('Copy this link to share Preparing You:', url);
   }
 }
 
