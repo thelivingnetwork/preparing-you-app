@@ -4055,6 +4055,64 @@ function _almCodeInfo(c){
   if(c>=61&&c<=67) return {l:'Rain',i:'rain'};
   return {l:'Cloudy',i:'cloud'};
 }
+// Map wttr.in's WWO weather codes onto the WMO codes _almCodeInfo expects, so
+// the fallback renders through the exact same icon/label path as Open-Meteo.
+function _wwoToWmo(w){
+  w = +w || 0;
+  if(w===113) return 0;                       // clear / sunny
+  if(w===116) return 2;                       // partly cloudy
+  if(w===119||w===122) return 3;              // cloudy / overcast
+  if(w===143||w===248||w===260) return 45;    // mist / fog
+  if(w===200||w===386||w===389||w===392||w===395) return 95; // thunder
+  if([179,227,230,323,326,329,332,335,338,368,371,182,185,281,284,317,320,350,362,365,374,377].indexOf(w)>=0) return 73; // snow / sleet / ice
+  if([176,263,266,293,296].indexOf(w)>=0) return 51;          // drizzle / light rain
+  if([299,302,305,308,311,314,353,356,359].indexOf(w)>=0) return 63; // rain / showers
+  return 3;                                   // default: cloudy
+}
+// Turn a wttr clock string like "06:42 AM" into a Date-parseable local stamp
+// ("YYYY-MM-DDTHH:MM") so the existing fmtTime() can render sunrise/sunset.
+function _almClock(date, t){
+  if(!t) return null;
+  const m = /(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(t);
+  if(!m) return null;
+  let h = +m[1]; const ap = (m[3]||'').toUpperCase();
+  if(ap==='PM' && h<12) h += 12;
+  if(ap==='AM' && h===12) h = 0;
+  return date + 'T' + String(h).padStart(2,'0') + ':' + m[2];
+}
+// Fetch the forecast with a fallback provider. Primary: Open-Meteo (clean WMO
+// codes, 3-day outlook). If its host is unreachable we drop to wttr.in, which
+// returns current + multi-day + sunrise/sunset in one keyless, CORS-friendly
+// call, reshaped here into the Open-Meteo response so the renderer is unchanged.
+async function _almWeather(r, useF){ // ALMFALLBACK-MARKER
+  try{
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude='+r.latitude+'&longitude='+r.longitude
+      + '&current=temperature_2m,weather_code'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
+      + '&temperature_unit='+(useF?'fahrenheit':'celsius')
+      + '&timezone='+encodeURIComponent(r.timezone||'auto')+'&forecast_days=4';
+    const w = await _almFetchJSON(url, 9000);
+    if(w && w.current && w.daily) return w;
+  }catch(e){ /* primary down — fall through to the backup provider */ }
+  const j = await _almFetchJSON('https://wttr.in/'+r.latitude+','+r.longitude+'?format=j1', 9000);
+  const cc = j && j.current_condition && j.current_condition[0];
+  const wx = (j && j.weather) || [];
+  if(!cc || !wx.length) throw 0;
+  const U = useF ? 'F' : 'C';
+  const a0 = (wx[0].astronomy && wx[0].astronomy[0]) || {};
+  return {
+    current: { temperature_2m: +cc['temp_'+U], weather_code: _wwoToWmo(cc.weatherCode) },
+    daily: {
+      time: wx.map(d => d.date),
+      weather_code: wx.map(d => { const hh = d.hourly && (d.hourly[4] || d.hourly[Math.floor(d.hourly.length/2)]); return _wwoToWmo(hh && hh.weatherCode); }),
+      temperature_2m_max: wx.map(d => +d['maxtemp'+U]),
+      temperature_2m_min: wx.map(d => +d['mintemp'+U]),
+      sunrise: [ _almClock(wx[0].date, a0.sunrise) ],
+      sunset:  [ _almClock(wx[0].date, a0.sunset) ]
+    },
+    timezone: (r.timezone && r.timezone !== 'auto') ? r.timezone : undefined
+  };
+}
 function _almMoonInfo(date){
   const synodic = 29.530588853;
   const knownNew = Date.UTC(2000,0,6,18,14,0)/86400000;
@@ -4132,12 +4190,7 @@ async function renderAlmanac(){
   try {
     const r = await _almPlace();
     if(!r) throw 0;
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude='+r.latitude+'&longitude='+r.longitude
-      + '&current=temperature_2m,weather_code'
-      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
-      + '&temperature_unit='+(useF?'fahrenheit':'celsius')
-      + '&timezone='+encodeURIComponent(r.timezone||'auto')+'&forecast_days=4';
-    const w = await _almFetchJSON(url, 9000);
+    const w = await _almWeather(r, useF);
     const cur = w.current, d = w.daily;
     if(!cur || !d) throw 0;
     const ci = _almCodeInfo(cur.weather_code);
