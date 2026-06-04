@@ -1821,30 +1821,38 @@ function _findPeer(id){
 
 async function buildMessagesPage(){
   if(!_sb || !currentUser) return;
-  // Fetch everyone this member can message (server bypasses RLS). Used for the
-  // "New message" picker and as an identity fallback.
-  let peers = [];
+  // If our encryption key isn't loaded on this device (e.g. iOS evicted it),
+  // offer to unlock with the password before reading the thread / inbox.
+  _maybePromptE2EEUnlock();
+
+  // Deep-link straight into a thread (PCM "Message" button / New-message pick).
+  // A brand-new thread has no inbox row yet, so its header identity comes from
+  // the peer directory — wait for it on that path only.
+  if(_msgOpenPeer){
+    const id = _msgOpenPeer; _msgOpenPeer = null;
+    await _loadMsgPeers();
+    await openThread(id);
+    return;
+  }
+  // Normal inbox open: the peer directory is only needed for the "New message"
+  // picker, so load it in the BACKGROUND and render the inbox right away rather
+  // than blocking on a second server round-trip.
+  _loadMsgPeers();
+  await showMsgList();
+}
+
+// Fetch everyone this member can message (server bypasses RLS). Used for the
+// "New message" picker and as a thread-header identity fallback.
+async function _loadMsgPeers(){
+  if(!_sb || !currentUser) return;
   try {
     const r = await fetch(_SERVER_URL + '/peers', {
       method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ userId: currentUser.id })
     });
     const j = await r.json();
-    if(r.ok) peers = j.peers || [];
+    if(r.ok) _msgPeers = j.peers || [];
   } catch(e){ console.warn('peers fetch failed', e); }
-  _msgPeers = peers;
-
-  // If our encryption key isn't loaded on this device (e.g. iOS evicted it),
-  // offer to unlock with the password before reading the thread / inbox.
-  _maybePromptE2EEUnlock();
-
-  // Deep-link straight into a thread (PCM "Message" button / New-message pick).
-  if(_msgOpenPeer){
-    const id = _msgOpenPeer; _msgOpenPeer = null;
-    await openThread(id);
-    return;
-  }
-  await showMsgList();
 }
 
 // ── Inbox (conversation list) ──────────────────────────────────────
@@ -2063,8 +2071,16 @@ async function renderActivePeer(){
 }
 
 // ── New-message picker ─────────────────────────────────────────────
-function openNewMessagePicker(){
+async function openNewMessagePicker(){
   const listEl = document.getElementById('msg-newpicker-list');
+  document.getElementById('msg-newpicker').style.display = 'flex';
+  // Peers load in the background when Messages opens; if the user taps + before
+  // they arrive, fetch on demand (brief loading state) instead of wrongly
+  // claiming there's no one to message.
+  if(!_msgPeers.length){
+    listEl.innerHTML = '<div class="empty" style="padding:24px">Loading…</div>';
+    await _loadMsgPeers();
+  }
   if(!_msgPeers.length){
     listEl.innerHTML = '<div class="empty" style="padding:24px"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>There’s no one to message yet. Once your PCM choice is accepted, they’ll appear here.</div>';
   } else {
@@ -2076,7 +2092,6 @@ function openNewMessagePicker(){
       + '</div>'
     ).join('');
   }
-  document.getElementById('msg-newpicker').style.display = 'flex';
 }
 function closeNewMessagePicker(){
   const el = document.getElementById('msg-newpicker');
