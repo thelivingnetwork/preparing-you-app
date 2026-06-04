@@ -1600,27 +1600,28 @@ function showPage(name){
 // ═════════════════════════ JOIN TLN ═════════════════════════
 async function buildJoinTlnPage(){
   if(!_sb || !currentUser) return;
-  // Refresh from server in case the invite came in since signin
-  const { data: u } = await _sb.from('prep_users').select('tln_invited_at').eq('id', currentUser.id).maybeSingle();
-  if(u) currentUser.tln_invited_at = u.tln_invited_at;
-  // Gate: Join The Living Network unlocks only after the Five Books are done.
-  await _refreshJourneyFields();
-  await loadBookAudioProgress();
-  if(_gateJourneyPage('page-join-tln', 'join-tln-content', 4)) return;
-  const cta = document.getElementById('join-tln-cta');
-  const empty = document.getElementById('join-tln-empty');
-  const text = document.getElementById('join-tln-text');
-  if(currentUser.tln_invited_at){
-    cta.style.display = 'block';
-    empty.style.display = 'none';
-    text.textContent = 'Your invitation has been issued. Tap the button below to enter The Living Network — your name and email will be prefilled on the Join screen.';
-    const when = new Date(currentUser.tln_invited_at);
-    document.getElementById('join-tln-when').textContent = 'Invited ' + when.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
-  } else {
-    cta.style.display = 'none';
-    empty.style.display = 'flex';
-    text.textContent = 'When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.';
-  }
+  // Cache-first paint from what we already know in memory, then refresh in the
+  // background (gate fields + book progress in parallel) and re-paint.
+  const paint = () => {
+    if(_gateJourneyPage('page-join-tln', 'join-tln-content', 4)) return;
+    const cta = document.getElementById('join-tln-cta');
+    const empty = document.getElementById('join-tln-empty');
+    const text = document.getElementById('join-tln-text');
+    if(currentUser.tln_invited_at){
+      cta.style.display = 'block';
+      empty.style.display = 'none';
+      text.textContent = 'Your invitation has been issued. Tap the button below to enter The Living Network — your name and email will be prefilled on the Join screen.';
+      const when = new Date(currentUser.tln_invited_at);
+      document.getElementById('join-tln-when').textContent = 'Invited ' + when.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    } else {
+      cta.style.display = 'none';
+      empty.style.display = 'flex';
+      text.textContent = 'When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.';
+    }
+  };
+  paint();
+  await Promise.all([ _refreshJourneyFields(), loadBookAudioProgress() ]);
+  paint();
 }
 
 function openTlnHandoff(){
@@ -4329,17 +4330,20 @@ async function renderAlmanac(){
 
 async function refreshHomeTiles(){
   if(!currentUser) return;
-  // Pull the fields that gate the journey in case they changed since sign-in
-  // (e.g. a PCM signed the user off into TLN while they were away).
-  if(_sb){
-    const { data: u } = await _sb.from('prep_users')
-      .select('pcm_id, tln_invited_at, joined_tln_at, gateway_v1_at, gateway_v2_at, gateway_v3_at')
-      .eq('id', currentUser.id).maybeSingle();
-    if(u) Object.assign(currentUser, u);
-  }
-  await loadBookAudioProgress();
+  // Cache-first: paint the journey tile immediately from in-memory state so
+  // returning Home is instant, then refresh from the network in the background
+  // (the two queries run in parallel, not as a waterfall) and re-paint.
   renderJourneyTile();
   _loadAdminKpis();
+  if(!_sb) return;
+  const [uRes] = await Promise.all([
+    _sb.from('prep_users')
+      .select('pcm_id, tln_invited_at, joined_tln_at, gateway_v1_at, gateway_v2_at, gateway_v3_at')
+      .eq('id', currentUser.id).maybeSingle(),
+    loadBookAudioProgress(),
+  ]);
+  if(uRes && uRes.data) Object.assign(currentUser, uRes.data);
+  renderJourneyTile();
 }
 
 // ═════════════════════════ GATEWAY VIDEOS ═════════════════════════
@@ -4973,8 +4977,13 @@ async function buildPcmPage(){
   // Gate: can't choose a PCM until the three introduction videos are done.
   if(_gateJourneyPage('page-pcm', 'pcm-content', 2)) return;
 
-  // 2. Am I myself a PCM?
-  const { data: myPcm } = await _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle();
+  // 2. Am I myself a PCM? — fetch this and the active-PCM roster together,
+  //    since the two queries are independent (parallel, not a waterfall).
+  const [myPcmRes, rowsRes] = await Promise.all([
+    _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle(),
+    _sb.from('prep_pcms').select('id, name, email, phone, telegram, messenger, region, active').eq('active', true),
+  ]);
+  const myPcm = myPcmRes.data;
   _pcmAmIPcm = !!(myPcm && myPcm.active);
   const mineCard = document.getElementById('pcm-mine');
   const volBtn   = document.getElementById('pcm-volunteer-btn');
@@ -4998,10 +5007,8 @@ async function buildPcmPage(){
   const canBecomePcm = !!currentUser.tln_invited_at || _pcmAmIPcm;
   volBtn.style.display = canBecomePcm ? '' : 'none';
 
-  // 3. Pull all active PCMs and partition by region match
-  const { data: rows } = await _sb.from('prep_pcms')
-    .select('id, name, email, phone, telegram, messenger, region, active')
-    .eq('active', true);
+  // 3. Active-PCM roster (already fetched above in parallel) — partition by region
+  const rows = rowsRes.data;
   _pcmList = (rows || []).filter(p => p.id !== currentUser.id);  // exclude self
   // Profile photos live on prep_users — backfill avatar_url onto each PCM.
   if(_pcmList.length){
