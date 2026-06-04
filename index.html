@@ -2275,19 +2275,26 @@ async function loadMessages(){
 // opens an emoji picker. Reactions persist server-side (one per user per message).
 const _REACT_EMOJIS = ['❤️', '😆', '😮', '😢', '😠', '👍'];
 let _hapticEl = null;
-function _haptic(){
-  if(navigator.vibrate){ try { navigator.vibrate(10); } catch(_){} }
+function _ensureHaptic(){
+  if(_hapticEl) return _hapticEl;
   try {
-    if(!_hapticEl){
-      const l = document.createElement('label');
-      l.setAttribute('aria-hidden', 'true');
-      l.style.display = 'none'; // HAPTICv2-MARKER
-      const c = document.createElement('input');
-      c.type = 'checkbox'; c.setAttribute('switch', '');
-      l.appendChild(c); document.body.appendChild(l); _hapticEl = l;
-    }
-    _hapticEl.click();
+    const l = document.createElement('label');
+    l.setAttribute('aria-hidden', 'true');
+    // Must be RENDERED (in layout) for the switch toggle to fire the Taptic
+    // engine on iOS — display:none / opacity:0 suppress the haptic. Park it
+    // off-screen so it is laid out but never seen.
+    l.style.cssText = 'position:fixed;left:-9999px;top:0;width:24px;height:16px;pointer-events:none';
+    const c = document.createElement('input');
+    c.type = 'checkbox'; c.setAttribute('switch', '');
+    l.appendChild(c);
+    document.body.appendChild(l);
+    _hapticEl = l;
   } catch(_){}
+  return _hapticEl;
+}
+function _haptic(){ // HAPTICv3-MARKER
+  if(navigator.vibrate){ try { navigator.vibrate(10); } catch(_){} }
+  try { const el = _ensureHaptic(); if(el) el.click(); } catch(_){}
 }
 function _fmtMsgTime(iso){
   if(!iso) return '';
@@ -2344,6 +2351,7 @@ function _wireMsgInteractions(){
   const list = document.getElementById('msg-list');
   if(!list) return;
   _msgInteractWired = true;
+  _ensureHaptic();
   const cancelLP = () => { if(_lpTimer){ clearTimeout(_lpTimer); _lpTimer = null; } _lpStartXY = null; };
   list.addEventListener('pointerdown', e => {
     const item = e.target.closest('.msg-item');
