@@ -2267,6 +2267,15 @@ async function sendMessage(){
   });
   if(!r.ok){
     const j = await r.json().catch(() => ({}));
+    if(j.error === 'readonly_recipient'){
+      // Replied into a one-way "Preparing You" thread (stale/cached client).
+      // Don't restore the text — it can't be sent. Lock the thread read-only.
+      const _c = document.getElementById('msg-compose'); if(_c) _c.style.display = 'none';
+      const _n = document.getElementById('msg-readonly-note'); if(_n) _n.style.display = 'block';
+      const _cb = document.getElementById('msg-call-btn'); if(_cb) _cb.style.display = 'none';
+      alert('This is a one-way message from Preparing You \u2014 you can\u2019t reply to it.');
+      return;
+    }
     input.value = text; // restore so they don't lose their message
     _autoGrow(input);
     if(attach){ _pendingAttachment = attach; _renderAttachChip(); } // restore attachment too

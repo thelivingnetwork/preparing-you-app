@@ -1172,7 +1172,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.31', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.32', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1500,6 +1500,11 @@ const server = http.createServer(async (req, res) => {
       if (!recipientId || !_UUID_RE.test(recipientId) || (!trimmedBody && !attachVal)) {
         return send(res, 400, { error: 'recipientId and a body or attachment required' })
       }
+      // One-way system accounts ("Preparing You") never receive replies. The
+      // member app hides the reply box, but enforce it here too so a stale or
+      // cached client can't silently send a message that would simply vanish.
+      const { data: _rcpt } = await sb.from('prep_users').select('is_system').eq('id', recipientId).maybeSingle()
+      if (_rcpt?.is_system) return send(res, 403, { error: 'readonly_recipient' })
       // Insert message. The body is encrypted at rest; the plaintext preview
       // below is used only for the transient web-push (never stored).
       // E2EE clients send ciphertext we store verbatim (the server can't and
