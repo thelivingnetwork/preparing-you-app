@@ -2104,14 +2104,19 @@ function _scrollMsgBottom(){
 // Wire a one-time scroll listener that drops stick mode as soon as the user
 // scrolls meaningfully up from the bottom, so auto-pinning never traps them.
 let _msgScrollWired = false;
+let _lastMsgScrollTop = 0;
 function _wireMsgScroll(){
   if(_msgScrollWired) return;
   const list = document.getElementById('msg-list');
   if(!list) return;
   _msgScrollWired = true;
   list.addEventListener('scroll', () => {
-    const fromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
-    if(fromBottom > 40) _msgStick = false;
+    const top = list.scrollTop;
+    const fromBottom = list.scrollHeight - top - list.clientHeight;
+    // Require scrollTop to have actually decreased (a genuine upward drag) before
+    // letting go of the bottom — a viewport resize raises fromBottom on its own.
+    if(fromBottom > 40 && top < _lastMsgScrollTop - 2) _msgStick = false;
+    _lastMsgScrollTop = top;
   }, { passive: true });
 }
 
@@ -2132,19 +2137,33 @@ function _msgUnpin(){
   wrap.style.position = ''; wrap.style.left = ''; wrap.style.right = '';
   wrap.style.top = ''; wrap.style.bottom = ''; wrap.style.height = ''; wrap.style.zIndex = '';
 }
-function _msgFitViewport(){
+function _msgFitViewport(e){ // MSGVIEWPORT-FIX-MARKER
   const vv = window.visualViewport;
   if(!vv) return;
   const wrap = document.getElementById('msg-thread-wrap');
-  if(!wrap || wrap.style.display === 'none') return; // only pin an open thread
-  wrap.classList.add('msg-pinned');
-  wrap.style.position = 'fixed';
-  wrap.style.left = '0'; wrap.style.right = '0';
-  wrap.style.top = vv.offsetTop + 'px';
-  wrap.style.bottom = 'auto';
-  wrap.style.height = vv.height + 'px';
-  wrap.style.zIndex = '60';
-  _scrollMsgBottom();
+  if(!wrap || wrap.style.display === 'none') return; // only act on an open thread
+  // Keyboard is "open" when the visual viewport is meaningfully shorter than the
+  // layout viewport. A collapsing Safari toolbar only trims ~60-100px, so a 150px
+  // threshold isolates a real soft keyboard from incidental toolbar shifts.
+  const kbOpen = (window.innerHeight - vv.height) > 150;
+  if(kbOpen){
+    // Keyboard up: float the thread over the keys, mirroring the visual-viewport
+    // rectangle so the compose bar sits flush above the keyboard.
+    wrap.classList.add('msg-pinned');
+    wrap.style.position = 'fixed';
+    wrap.style.left = '0'; wrap.style.right = '0';
+    wrap.style.top = vv.offsetTop + 'px';
+    wrap.style.bottom = 'auto';
+    wrap.style.height = vv.height + 'px';
+    wrap.style.zIndex = '60';
+  } else {
+    // Keyboard down: give layout back to the native flex+dvh shell (no JS height
+    // mirroring) and restore the bottom-nav clearance on the compose bar.
+    _msgUnpin();
+  }
+  // Only a resize (real geometry change) re-pins to the newest message; a bare
+  // visualViewport scroll must not fight the user while they read back.
+  if((!e || e.type === 'resize') && _msgStick) _scrollMsgBottom();
 }
 function _enableMsgViewport(){
   if(!window.visualViewport) return;
