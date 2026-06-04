@@ -2255,7 +2255,7 @@ async function loadMessages(){
     const _rcCounts = {}; _rc.forEach(e => { _rcCounts[e] = (_rcCounts[e] || 0) + 1; });
     const _rcStr = Object.keys(_rcCounts).map(e => e + (_rcCounts[e] > 1 ? '<span style="font-size:11px;margin-left:1px">' + _rcCounts[e] + '</span>' : '')).join(' ');
     const _rcHtml = _rcStr ? `<div class="msg-react" style="margin-top:-7px;background:var(--cream);border:1px solid var(--terra-soft);border-radius:12px;padding:0 6px;font-size:14px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.18)">${_rcStr}</div>` : '';
-    const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none${expired?';opacity:.75':''}">${inner}</div>`;
+    const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none${expired?';opacity:.75':''}">${inner}</div>`;
     return `<div class="msg-item" data-mid="${m.id}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
   }).join('');
 
@@ -2347,7 +2347,9 @@ function _openReactionPopup(item){
   if(left < 8) left = 8;
   pop.style.top = top + 'px'; pop.style.left = left + 'px';
   pop.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    const em = b.getAttribute('data-emoji'); _haptic(); _closeReactionPopup(); reactToMessage(mid, em);
+    // No haptic here — the buzz belongs to the long-press that opens this tray
+    // (see contextmenu/pointerup -> _lpHaptic), not to picking an emoji.
+    const em = b.getAttribute('data-emoji'); _closeReactionPopup(); reactToMessage(mid, em);
   }));
   _reactPopupEl = pop;
   setTimeout(() => document.addEventListener('pointerdown', _reactOutside, true), 0);
