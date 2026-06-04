@@ -2281,12 +2281,11 @@ function _haptic(){
     if(!_hapticEl){
       const l = document.createElement('label');
       l.setAttribute('aria-hidden', 'true');
-      l.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+      l.style.display = 'none'; // HAPTICv2-MARKER
       const c = document.createElement('input');
       c.type = 'checkbox'; c.setAttribute('switch', '');
       l.appendChild(c); document.body.appendChild(l); _hapticEl = l;
     }
-    _hapticEl.firstChild.checked = !_hapticEl.firstChild.checked;
     _hapticEl.click();
   } catch(_){}
 }
