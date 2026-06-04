@@ -1497,6 +1497,40 @@ function toggleTheme(){
 }
 
 // ═════════════════════════ APP NAV ═════════════════════════
+// ── Background pollers (POLLERGUARD-MARKER) ──────────────────────────
+// 30s safety-net refreshes for the message badge, nav badges and townhall
+// card. Guarded so re-entering the app never stacks duplicate timers, and
+// paused while the tab is backgrounded so a long idle session stops doing
+// wasted network + render work. Realtime channels stay subscribed the whole
+// time, so live updates keep arriving regardless of these fallbacks.
+let _msgBadgeTimer = null;
+let _appPollersOn = false;
+function _startAppPollers(){
+  _stopAppPollers();
+  _appPollersOn = true;
+  _msgBadgeTimer     = setInterval(refreshMessageBadge, 30000);
+  _notifPollTimer    = setInterval(refreshNavBadges, 30000);
+  _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
+}
+function _stopAppPollers(){
+  _appPollersOn = false;
+  if(_msgBadgeTimer) clearInterval(_msgBadgeTimer);
+  if(_notifPollTimer) clearInterval(_notifPollTimer);
+  if(_townhallPollTimer) clearInterval(_townhallPollTimer);
+  _msgBadgeTimer = null; _notifPollTimer = null; _townhallPollTimer = null;
+}
+document.addEventListener('visibilitychange', () => {
+  const inApp = document.getElementById('screen-app');
+  if(!currentUser || !inApp || !inApp.classList.contains('active')) return;
+  if(document.visibilityState === 'hidden'){
+    _stopAppPollers();
+  } else if(!_appPollersOn){
+    // Back in the foreground: refresh once immediately, then resume polling.
+    refreshMessageBadge(); refreshNavBadges(); refreshTownhallCard();
+    _startAppPollers();
+  }
+});
+
 function enterApp(){
   if(!currentUser) return;
   // First-run gate: members must accept the community guidelines once before
@@ -1517,13 +1551,9 @@ function enterApp(){
   refreshNavBadges();
   refreshTownhallCard();
   renderAlmanac();
-  setInterval(refreshMessageBadge, 30000);
-  if(_notifPollTimer) clearInterval(_notifPollTimer);
-  _notifPollTimer = setInterval(refreshNavBadges, 30000);
+  _startAppPollers();
   _subscribeNotifRealtime();
   _subscribeMsgRealtime();
-  if(_townhallPollTimer) clearInterval(_townhallPollTimer);
-  _townhallPollTimer = setInterval(refreshTownhallCard, 30000);
   _maybeOfferPushPrompt();
   _maybeShowIosInstallHint();
   _maybeShowAndroidInstallHint();
