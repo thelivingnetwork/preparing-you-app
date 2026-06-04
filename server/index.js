@@ -1190,8 +1190,13 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/admin/kpis') {
-      const a = await requireAdmin(req)
-      if (a.error) return send(res, a.status, { error: a.error })
+      const tok = await verifyToken(req)
+      if (tok.error) return send(res, tok.status, { error: tok.error })
+      const { data: adminRow } = await sb.from('prep_admins').select('user_id').eq('user_id', tok.uid).maybeSingle()
+      if (!adminRow) {
+        const { data: pcmRow } = await sb.from('prep_pcms').select('id').eq('id', tok.uid).eq('active', true).maybeSingle()
+        if (!pcmRow) return send(res, 403, { error: 'not_authorized' })
+      }
       const now = Date.now()
       if (_kpiCache && (now - _kpiCache.t) < 60000) return send(res, 200, _kpiCache.v)
       // Members: total + joined in the last 7 days.
@@ -1237,7 +1242,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.36', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.37', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
