@@ -2347,9 +2347,9 @@ function _openReactionPopup(item){
   if(left < 8) left = 8;
   pop.style.top = top + 'px'; pop.style.left = left + 'px';
   pop.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    // No haptic here — the buzz belongs to the long-press that opens this tray
-    // (see contextmenu/pointerup -> _lpHaptic), not to picking an emoji.
-    const em = b.getAttribute('data-emoji'); _closeReactionPopup(); reactToMessage(mid, em);
+    // Buzz here: picking a reaction is a genuine tap, the one context where iOS
+    // will actually run the Taptic from a web page (a mid-hold buzz is native-only).
+    const em = b.getAttribute('data-emoji'); _haptic(); _closeReactionPopup(); reactToMessage(mid, em);
   }));
   _reactPopupEl = pop;
   setTimeout(() => document.addEventListener('pointerdown', _reactOutside, true), 0);
