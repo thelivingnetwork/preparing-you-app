@@ -3931,12 +3931,6 @@ async function _loadAdminKpis(){
     renderJourneyTile();
   } catch(_){}
 }
-function _kpiTownhall(iso){
-  if(!iso) return 'None scheduled';
-  try {
-    return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
-  } catch(_){ return 'Scheduled'; }
-}
 function _kpiStat(value, label, full){
   return '<div' + (full ? ' style="grid-column:1/-1"' : '') + '>'
     + '<div style="font-size:21px;font-weight:700;color:var(--accent-ink);line-height:1.05">' + value + '</div>'
@@ -3953,7 +3947,6 @@ function _renderKpiTile(k){
       + _kpiStat(k.gatewayPct + '%', 'Finished intro videos')
       + _kpiStat(k.booksPct + '%', 'Finished the Five Books')
       + _kpiStat(k.activePairings, 'Active PCM pairings')
-      + _kpiStat(_kpiTownhall(k.nextTownhall), 'Next town hall', true)
     + '</div>'
     + '<div style="margin-top:9px;text-align:right">'
       + '<button class="btn-primary" style="margin:0;padding:6px 12px;width:auto;font-size:12px" onclick="openTlnHandoff()">Enter The Living Network &rarr;</button>'
