@@ -126,6 +126,7 @@ async function requireAdmin(req) {
   if (!adminRow) return { error: 'not_admin', status: 403 }
   return { uid: v.uid }
 }
+let _kpiCache = null; // { t, v } — org-wide KPI snapshot, 60s TTL
 // True only when the user has completed the audio overview of every Book.
 // Runs with the service role so it can read another member's progress (which
 // RLS otherwise hides), letting a PCM's sign-off be gated on real completion.
@@ -1188,8 +1189,55 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
 
   try {
+    if (req.method === 'GET' && req.url === '/admin/kpis') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
+      const now = Date.now()
+      if (_kpiCache && (now - _kpiCache.t) < 60000) return send(res, 200, _kpiCache.v)
+      // Members: total + joined in the last 7 days.
+      const { count: members } = await sb.from('prep_users').select('id', { count: 'exact', head: true })
+      const since = new Date(now - 7 * 24 * 3600 * 1000).toISOString()
+      const { count: newMembers } = await sb.from('prep_users').select('id', { count: 'exact', head: true }).gte('created_at', since)
+      // Onboarding: finished all three gateway videos.
+      const { count: gatewayDone } = await sb.from('prep_users').select('id', { count: 'exact', head: true })
+        .not('gateway_v1_at', 'is', null).not('gateway_v2_at', 'is', null).not('gateway_v3_at', 'is', null)
+      // Onboarding: finished every Book (a progress row exists for all books).
+      const { data: books } = await sb.from('prep_books').select('id')
+      const totalBooks = (books || []).length
+      const bookIds = new Set((books || []).map(b => b.id))
+      let booksDone = 0
+      if (totalBooks) {
+        const { data: prog } = await sb.from('prep_book_audio_progress').select('user_id, book_id')
+        const per = new Map()
+        for (const r of (prog || [])) {
+          if (!bookIds.has(r.book_id)) continue
+          if (!per.has(r.user_id)) per.set(r.user_id, new Set())
+          per.get(r.user_id).add(r.book_id)
+        }
+        for (const set of per.values()) if (set.size >= totalBooks) booksDone++
+      }
+      // PCM: accepted pairings (active) + pending elections (awaiting response).
+      const { count: activePairings } = await sb.from('prep_pcm_elections').select('id', { count: 'exact', head: true }).eq('status', 'accepted')
+      const { count: pendingElections } = await sb.from('prep_pcm_elections').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      // Town hall: the next scheduled session (no RSVP concept exists).
+      const { data: nextTh } = await sb.from('prep_townhalls').select('scheduled_at')
+        .gte('scheduled_at', new Date(now).toISOString()).order('scheduled_at', { ascending: true }).limit(1).maybeSingle()
+      const pct = (n) => members ? Math.round((n / members) * 100) : 0
+      const v = {
+        members: members || 0,
+        newMembers7d: newMembers || 0,
+        gatewayPct: pct(gatewayDone || 0),
+        booksPct: pct(booksDone),
+        activePairings: activePairings || 0,
+        pendingElections: pendingElections || 0,
+        nextTownhall: (nextTh && nextTh.scheduled_at) || null
+      }
+      _kpiCache = { t: now, v }
+      return send(res, 200, v)
+    }
+
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.35', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.36', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {

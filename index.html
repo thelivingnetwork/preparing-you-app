@@ -3922,9 +3922,48 @@ function _journeyCard(title, text, meta, ctaLabel, ctaOnclick, accent, extraHtml
     + '</div>';
 }
 
+let _kpiData = null; // org-wide KPI snapshot for admins (null = not an admin / not loaded)
+async function _loadAdminKpis(){
+  try {
+    const r = await fetch(_SERVER_URL + '/admin/kpis', { headers: await _authHeaders() });
+    if(!r.ok) return; // 403 for non-admins — leave the member tile untouched
+    _kpiData = await r.json();
+    renderJourneyTile();
+  } catch(_){}
+}
+function _kpiTownhall(iso){
+  if(!iso) return 'None scheduled';
+  try {
+    return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  } catch(_){ return 'Scheduled'; }
+}
+function _kpiStat(value, label, full){
+  return '<div' + (full ? ' style="grid-column:1/-1"' : '') + '>'
+    + '<div style="font-size:21px;font-weight:700;color:var(--accent-ink);line-height:1.05">' + value + '</div>'
+    + '<div style="font-size:11px;color:var(--walnut-mid);margin-top:2px">' + label + '</div>'
+    + '</div>';
+}
+function _renderKpiTile(k){
+  const newBit = k.newMembers7d > 0 ? ' &middot; +' + k.newMembers7d + ' this week' : '';
+  return '<div class="card-title" style="color:var(--accent-ink)">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z"/></svg>'
+      + 'Network at a glance</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;margin-top:9px">'
+      + _kpiStat(k.members, 'Members' + newBit)
+      + _kpiStat(k.gatewayPct + '%', 'Finished intro videos')
+      + _kpiStat(k.booksPct + '%', 'Finished the Five Books')
+      + _kpiStat(k.activePairings, 'Active PCM pairings')
+      + _kpiStat(k.pendingElections, 'Pending PCM elections')
+      + _kpiStat(_kpiTownhall(k.nextTownhall), 'Next town hall', true)
+    + '</div>'
+    + '<div style="margin-top:12px;text-align:right">'
+      + '<button class="btn-primary" style="margin:0;padding:8px 16px;width:auto" onclick="openTlnHandoff()">Enter The Living Network &rarr;</button>'
+    + '</div>';
+}
 function renderJourneyTile(){
   const tile = document.getElementById('journey-tile');
   if(!tile || !currentUser) return;
+  if(_kpiData){ tile.innerHTML = _renderKpiTile(_kpiData); return; }
   const stage = journeyStage();
   let html = '';
   if(stage === 1){
@@ -4129,6 +4168,7 @@ async function refreshHomeTiles(){
   }
   await loadBookAudioProgress();
   renderJourneyTile();
+  _loadAdminKpis();
 }
 
 // ═════════════════════════ GATEWAY VIDEOS ═════════════════════════
