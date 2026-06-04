@@ -2255,7 +2255,7 @@ async function loadMessages(){
     const _rcCounts = {}; _rc.forEach(e => { _rcCounts[e] = (_rcCounts[e] || 0) + 1; });
     const _rcStr = Object.keys(_rcCounts).map(e => e + (_rcCounts[e] > 1 ? '<span style="font-size:11px;margin-left:1px">' + _rcCounts[e] + '</span>' : '')).join(' ');
     const _rcHtml = _rcStr ? `<div class="msg-react" style="margin-top:-7px;background:var(--cream);border:1px solid var(--terra-soft);border-radius:12px;padding:0 6px;font-size:14px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.18)">${_rcStr}</div>` : '';
-    const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none${expired?';opacity:.75':''}">${inner}</div>`;
+    const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none${expired?';opacity:.75':''}">${inner}</div>`;
     return `<div class="msg-item" data-mid="${m.id}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
   }).join('');
 
@@ -2381,9 +2381,9 @@ function _wireMsgInteractions(){
     _lpFired = false; _lpHapticDone = false; _lpStartXY = { x:e.clientX, y:e.clientY };
     _lpTimer = setTimeout(() => {
       _lpFired = true; _lpTimer = null;
-      // Android can buzz from a timer (navigator.vibrate works in the activation
-      // window); iOS cannot fire a haptic outside a real touch event, so there we
-      // defer the buzz to the trusted contextmenu/pointerup handlers below.
+      // Android can buzz straight from the timer (navigator.vibrate works in the
+      // activation window). iOS cannot fire a haptic from a timer, so there we
+      // defer the buzz to the trusted finger-lift handler (lpLift) below.
       if(navigator.vibrate){ try { navigator.vibrate(10); } catch(_){} _lpHapticDone = true; }
       _openReactionPopup(item);
     }, 450);
@@ -2391,14 +2391,25 @@ function _wireMsgInteractions(){
   list.addEventListener('pointermove', e => {
     if(_lpStartXY && (Math.abs(e.clientX - _lpStartXY.x) > 10 || Math.abs(e.clientY - _lpStartXY.y) > 10)) cancelLP();
   });
+  // The reaction tray is appended to <body>, so when the finger lifts after a
+  // long-press it is usually OVER the tray, not over #msg-list — a list-scoped
+  // listener misses that lift entirely (the bug that left the long-press silent
+  // on iOS). Listen at the window in the capture phase so we always catch it,
+  // and fire the haptic there: the lift is a trusted, user-activated event, the
+  // only context in which iOS will actually run the Taptic for a long-press.
+  const lpLift = () => { if(_lpFired){ _lpFired = false; _lpHaptic(); } };
+  window.addEventListener('pointerup', lpLift, true);
+  window.addEventListener('touchend', lpLift, true);
   list.addEventListener('pointerup', e => {
-    const fired = _lpFired; cancelLP();
-    if(fired){ _lpFired = false; _lpHaptic(); return; }
+    // A long-press already buzzed + opened the tray; don't also toggle the time.
+    if(_lpHapticDone || _lpFired){ cancelLP(); return; }
+    cancelLP();
     const item = e.target.closest('.msg-item');
     if(!item || e.target.closest('a,button')) return;
     _toggleMsgTime(item);
   });
   list.addEventListener('pointercancel', cancelLP);
+  // Desktop right-click still opens the tray (and buzzes where supported).
   list.addEventListener('contextmenu', e => {
     const item = e.target.closest('.msg-item');
     if(item){ e.preventDefault(); _lpHaptic(); _openReactionPopup(item); }
