@@ -4078,7 +4078,13 @@ function _almMoonSVG(phase, size){
     + '<path d="'+d+'" fill="#f3e3c0"/>'
     + '<circle cx="'+r+'" cy="'+r+'" r="'+(r-0.5)+'" fill="none" stroke="#cbb88e" stroke-width="1"/></svg>';
 }
-let _almLoaded = false, _almFetching = false;
+let _almLoaded = false, _almFetching = false, _almTries = 0, _almRetryTimer = null; // ALMRESILIENT-MARKER
+async function _almFetchJSON(url, ms){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms || 9000);
+  try { const r = await fetch(url, { signal: ctrl.signal }); return await r.json(); }
+  finally { clearTimeout(t); }
+}
 function _almCity(){
   const tz = (currentUser && currentUser.timezone) || '';
   if(tz.indexOf('/') >= 0) return tz.slice(tz.lastIndexOf('/')+1).replace(/_/g,' ');
@@ -4100,7 +4106,7 @@ function _almGPS(){
 }
 async function _almReverse(lat, lon){
   try{
-    const j = await (await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+lat+'&longitude='+lon+'&localityLanguage=en')).json();
+    const j = await _almFetchJSON('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+lat+'&longitude='+lon+'&localityLanguage=en', 7000);
     return { name: j.locality || j.city || j.principalSubdivision || '', country: j.countryName || '' };
   }catch(e){ return { name:'', country:'' }; }
 }
@@ -4112,7 +4118,7 @@ async function _almPlace(){
   }
   const city = _almCity();
   if(!city) return null;
-  const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1')).json();
+  const g = await _almFetchJSON('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1', 8000);
   if(!g.results || !g.results.length) return null;
   const r = g.results[0];
   return { latitude: r.latitude, longitude: r.longitude, name: r.name, country: r.country||'', timezone: r.timezone||'auto' };
@@ -4131,7 +4137,7 @@ async function renderAlmanac(){
       + '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
       + '&temperature_unit='+(useF?'fahrenheit':'celsius')
       + '&timezone='+encodeURIComponent(r.timezone||'auto')+'&forecast_days=4';
-    const w = await (await fetch(url)).json();
+    const w = await _almFetchJSON(url, 9000);
     const cur = w.current, d = w.daily;
     if(!cur || !d) throw 0;
     const ci = _almCodeInfo(cur.weather_code);
@@ -4165,7 +4171,12 @@ async function renderAlmanac(){
     card.style.display = 'block';
     _almLoaded = true;
   } catch(e){
-    /* silent — leave the card hidden if weather can't load */
+    // Transient weather/geocode outage: don't leave the card silently blank —
+    // retry a few times with backoff so it self-heals without an app reload.
+    if(_almTries < 4 && !_almRetryTimer){
+      _almTries++;
+      _almRetryTimer = setTimeout(() => { _almRetryTimer = null; renderAlmanac(); }, 15000);
+    }
   } finally {
     _almFetching = false;
   }
