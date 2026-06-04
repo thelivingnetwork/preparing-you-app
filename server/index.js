@@ -1005,7 +1005,7 @@ async function inviteToTln(userId, reasonHtml, skipEmail) {
   }
 
   await sb.from('prep_users').update({ tln_invited_at: new Date().toISOString() }).eq('id', userId)
-  await notify(userId, '✦', 'You have been invited to The Living Network. Check your email.', { type:'page', page:'join-tln' })
+  await sendSystemMessage(userId, 'You have been invited to The Living Network. Check your email for the link to create your account and enter.')
   return { ok: true }
 }
 
@@ -1066,6 +1066,23 @@ async function pushToUser(userId, { icon, text, action }) {
   if (stale.length) await sb.from('prep_push_subscriptions').delete().in('id', stale)
 }
 
+// ─── In-app companion message ───────────────────────────────────────────
+// Pairs every notification email with a short note in the member's Messages
+// inbox, sent one-way from the "Preparing You" system account. The
+// prep_messages INSERT trigger creates the bell automatically; we add a
+// best-effort web-push so a closed app still alerts.
+async function sendSystemMessage(recipientId, text) {
+  if (!recipientId || !text) return
+  try {
+    const systemId = await ensureSystemUser()
+    await sb.from('prep_messages').insert({ sender_id: systemId, recipient_id: recipientId, body: encryptBody(text), e2ee: false })
+    const preview = text.length > 60 ? text.slice(0, 60) + '…' : text
+    await pushToUser(recipientId, { icon: '💬', text: _SYSTEM_NAME + ': ' + preview, action: { type: 'page', page: 'messages' } })
+  } catch (e) {
+    console.warn('[sendSystemMessage] failed', (e && e.message) || e)
+  }
+}
+
 // ─── PCM election ───────────────────────────────────────────────────────
 async function electPcm({ electorId, pcmId, skipEmail }) {
   if (!electorId || !pcmId) throw new Error('electorId and pcmId required')
@@ -1102,8 +1119,8 @@ async function electPcm({ electorId, pcmId, skipEmail }) {
          <p>They have been emailed and will respond shortly. We will email you again once they accept or decline.</p>`,
         'Open Preparing You', 'https://preparingyou.app'))
   }
-  await notify(pcmId, '👥', `${elector?.name || 'A user'} has elected you as their PCM.`, { type:'page', page:'pcm' })
-  await notify(electorId, '⏳', `Your election to ${pcm?.name || 'a PCM'} has been sent.`, { type:'page', page:'pcm' })
+  await sendSystemMessage(pcmId, `${elector?.name || 'A user'} has chosen you as their Personal Contact Minister. Open the app to accept or decline.`)
+  await sendSystemMessage(electorId, `Your choice of ${pcm?.name || 'a Personal Contact Minister'} has been sent. They have been notified and will respond shortly.`)
   return row
 }
 
@@ -1136,8 +1153,8 @@ async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
           'Choose another', 'https://preparingyou.app'))
     }
   }
-  if (accept) await notify(el.elector_id, '✓', `${pcm?.name || 'Your PCM'} accepted your election.`, { type:'page', page:'messages' })
-  else        await notify(el.elector_id, '⚠', `${pcm?.name || 'Your PCM'} is currently unavailable. Choose another.`, { type:'page', page:'pcm' })
+  if (accept) await sendSystemMessage(el.elector_id, `${pcm?.name || 'Your PCM'} has accepted your choice and will walk alongside your preparation. You can message them anytime from here.`)
+  else        await sendSystemMessage(el.elector_id, `${pcm?.name || 'Your PCM'} is unavailable at this time. You can choose another Personal Contact Minister from the list whenever you are ready.`)
 
   // Auto-invite the PCM to TLN on their first accepted election (the
   // act of being chosen by another is the qualifying event).
@@ -1172,7 +1189,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.32', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.33', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1337,7 +1354,7 @@ const server = http.createServer(async (req, res) => {
         + `${electorName} has elected you as their Personal Contact Minister and is hoping to begin their preparation alongside you.\n\n`
         + `Whenever you have a quiet moment, please open Preparing You to accept or decline. There's no pressure at all — only a soul hoping for a companion on the road.\n\n`
         + `Grace and peace to you.\n\nhttps://preparingyou.app`)
-      await notify(el.pcm_id, '⏳', `${electorName} sent you a gentle reminder about their election.`, { type:'page', page:'pcm' })
+      await sendSystemMessage(el.pcm_id, `${electorName} sent a gentle reminder — they are hoping you will accept or decline their choice when you have a quiet moment.`)
       return send(res, 200, { ok: !!r.ok, email: r })
     }
 
@@ -1383,7 +1400,8 @@ const server = http.createServer(async (req, res) => {
           + `Whenever you're ready, you can choose another minister from the list inside the app — there's no hurry, and no wrong choice. We'll let you know as soon as your next choice responds.\n\n`
           + `Grace and peace to you.\n\nhttps://preparingyou.app`)
       }
-      await notify(el.pcm_id, '🕊️', `${electorName} has withdrawn their PCM choice.`, { type:'page', page:'pcm' })
+      await sendSystemMessage(el.pcm_id, `${electorName} has withdrawn their choice of you as their Personal Contact Minister. This is simply part of the journey — you remain ready for whoever comes next.`)
+      await sendSystemMessage(electorId, `This confirms you have withdrawn your choice of ${pcmName}. You can choose another minister from the list whenever you are ready.`)
       return send(res, 200, { ok: true, emailed })
     }
 
@@ -1483,7 +1501,7 @@ const server = http.createServer(async (req, res) => {
              <p>Begin where you are.</p>`,
             'Open Preparing You', 'https://preparingyou.app'))
       }
-      await notify(userId, '✦', 'Welcome. Begin with the introduction videos.', { type:'page', page:'video' })
+      await sendSystemMessage(userId, 'Welcome to Preparing You. When you are ready, begin with the three short introduction videos.')
       return send(res, 200, { ok: true })
     }
 
