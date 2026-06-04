@@ -5177,7 +5177,7 @@ async function changePcm(){
   if(!_sb || !currentUser) return;
   if(!confirm('Withdraw current PCM pairing and choose a different one?')) return;
   // Withdraw server-side so the PCM is notified by email + in-app. The server
-  // marks the election declined and clears pcm_id; we fall back to direct
+  // marks the election withdrawn and clears pcm_id; we fall back to direct
   // Supabase writes if the server is unreachable so the withdrawal still works.
   let done = false;
   try{
@@ -5190,7 +5190,7 @@ async function changePcm(){
   }catch(e){ done = false; }
   if(!done){
     await _sb.from('prep_pcm_elections')
-      .update({ status: 'declined', responded_at: new Date().toISOString() })
+      .update({ status: 'withdrawn', responded_at: new Date().toISOString() })
       .eq('elector_id', currentUser.id).in('status', ['pending','accepted']);
     await _sb.from('prep_users').update({ pcm_id: null }).eq('id', currentUser.id);
   }

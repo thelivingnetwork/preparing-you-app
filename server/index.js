@@ -1242,7 +1242,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.37', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.38', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1412,7 +1412,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Elector withdraws their PCM election. We look up the elector's active
-    // election(s), notify the PCM, then mark the election declined and clear
+    // election(s), notify the PCM, then mark the election withdrawn and clear
     // the pairing. Doing the withdrawal server-side (rather than only client
     // Supabase writes) lets us reliably reach the PCM by email + in-app.
     if (req.method === 'POST' && req.url === '/pcm/withdraw') {
@@ -1427,7 +1427,7 @@ const server = http.createServer(async (req, res) => {
         .maybeSingle()
       // Always clear the pairing/elections, even if there's nothing to email.
       await sb.from('prep_pcm_elections')
-        .update({ status: 'declined', responded_at: new Date().toISOString() })
+        .update({ status: 'withdrawn', responded_at: new Date().toISOString() })
         .eq('elector_id', electorId).in('status', ['pending', 'accepted'])
       await sb.from('prep_users').update({ pcm_id: null }).eq('id', electorId)
       if (!el) return send(res, 200, { ok: true, emailed: false })
