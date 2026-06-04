@@ -1189,7 +1189,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.33', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.34', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1577,7 +1577,7 @@ const server = http.createServer(async (req, res) => {
           // e2ee rows carry client ciphertext — pass it through untouched for the
           // client to decrypt. Legacy rows are decrypted here as before.
           body: m.e2ee ? m.body : decryptBody(m.body), e2ee: !!m.e2ee,
-          created_at: m.created_at, read_at: m.read_at,
+          created_at: m.created_at, read_at: m.read_at, reactions: m.reactions || {},
           attachment_url: await signAttachment(m.attachment_url),
           attachment_name: m.attachment_name, attachment_type: m.attachment_type
         })
@@ -1587,6 +1587,29 @@ const server = http.createServer(async (req, res) => {
       await sb.from('prep_messages').update({ read_at: new Date().toISOString() })
         .eq('recipient_id', meId).eq('sender_id', peerId).is('read_at', null)
       return send(res, 200, { messages })
+    }
+
+    // Add / replace / remove a tap-back reaction on one message. Stored as a
+    // { userId: emoji } map on the message row; one reaction per user. Sending
+    // the same emoji again (or null) clears the caller's reaction.
+    if (req.method === 'POST' && req.url === '/messages/react') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { messageId, emoji } = await readJson(req)
+      if (!messageId || !_UUID_RE.test(messageId)) return send(res, 400, { error: 'valid messageId required' })
+      const ALLOWED = ['❤️', '😆', '😮', '😢', '😠', '👍']
+      if (emoji != null && !ALLOWED.includes(emoji)) return send(res, 400, { error: 'unsupported_emoji' })
+      const { data: msg } = await sb.from('prep_messages')
+        .select('id, sender_id, recipient_id, reactions').eq('id', messageId).maybeSingle()
+      if (!msg) return send(res, 404, { error: 'message_not_found' })
+      if (msg.sender_id !== meId && msg.recipient_id !== meId) return send(res, 403, { error: 'not_a_participant' })
+      const reactions = (msg.reactions && typeof msg.reactions === 'object') ? msg.reactions : {}
+      if (!emoji || reactions[meId] === emoji) delete reactions[meId]
+      else reactions[meId] = emoji
+      const { error: upErr } = await sb.from('prep_messages').update({ reactions }).eq('id', messageId)
+      if (upErr) return send(res, 500, { error: upErr.message })
+      return send(res, 200, { ok: true, reactions })
     }
 
     // Hide a conversation from THIS user's inbox (non-destructive). Records a

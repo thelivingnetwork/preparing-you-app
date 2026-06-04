@@ -2197,7 +2197,7 @@ async function loadMessages(){
   // fetch), which is what made the view flicker and jump.
   // Include per-message read state so the poll re-renders when the peer reads
   // my message (the id set is unchanged, only read_at flips) — drives "Seen".
-  const sig = (msgs || []).map(m => m.id + (m.read_at ? 'r' : '')).join(',');
+  const sig = (msgs || []).map(m => m.id + (m.read_at ? 'r' : '') + '|' + (m.reactions ? Object.keys(m.reactions).sort().map(k => k.slice(0,6) + m.reactions[k]).join('') : '')).join(',');
   const peerChanged = _msgRenderedPeer !== _msgPeerId;
   if(sig === _msgSig && !peerChanged){ refreshMessageBadge(); return; }
 
@@ -2232,7 +2232,12 @@ async function loadMessages(){
     const att = _renderAttachment(m, mine);
     const hasBody = !!(m.body && m.body.trim());
     const inner = (hasBody ? linked : '') + (hasBody && att ? '<div style="height:8px"></div>' : '') + att;
-    return `<div style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word${expired?';opacity:.75':''}">${inner}</div>`;
+    const _rc = m.reactions ? Object.values(m.reactions) : [];
+    const _rcCounts = {}; _rc.forEach(e => { _rcCounts[e] = (_rcCounts[e] || 0) + 1; });
+    const _rcStr = Object.keys(_rcCounts).map(e => e + (_rcCounts[e] > 1 ? '<span style="font-size:11px;margin-left:1px">' + _rcCounts[e] + '</span>' : '')).join(' ');
+    const _rcHtml = _rcStr ? `<div class="msg-react" style="margin-top:-7px;background:var(--cream);border:1px solid var(--terra-soft);border-radius:12px;padding:0 6px;font-size:14px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.18)">${_rcStr}</div>` : '';
+    const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none${expired?';opacity:.75':''}">${inner}</div>`;
+    return `<div class="msg-item" data-mid="${m.id}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
   }).join('');
 
   // Read receipt: if my message is the newest in the thread, show its delivery
@@ -2245,6 +2250,7 @@ async function loadMessages(){
     _receipt = `<div style="align-self:flex-end;font-size:11px;font-style:italic;color:var(--walnut-mid);margin:-2px 2px 2px">${_seen ? 'Seen' : 'Delivered'}</div>`;
   }
   list.innerHTML = _bubbles + _receipt;
+  _wireMsgInteractions();
 
   if(peerChanged || nearBottom || lastMine) _scrollMsgBottom();
   else { _msgStick = false; list.scrollTop = prevTop; }
@@ -2262,6 +2268,93 @@ async function loadMessages(){
 
   // Inbound messages are marked read server-side by /messages/thread.
   refreshMessageBadge();
+}
+
+// ─────────── Messenger interactions: tap-back reactions + tap-for-time ───────────
+// Short tap on a bubble toggles its day/time line; a long-press (or right-click)
+// opens an emoji picker. Reactions persist server-side (one per user per message).
+const _REACT_EMOJIS = ['❤️', '😆', '😮', '😢', '😠', '👍'];
+function _fmtMsgTime(iso){
+  if(!iso) return '';
+  try { return new Date(iso).toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit' }); }
+  catch(_){ return ''; }
+}
+function _toggleMsgTime(item){
+  const t = item.querySelector('.msg-time'); if(!t) return;
+  const show = (t.style.display === 'none' || !t.style.display);
+  t.style.display = show ? 'block' : 'none';
+  if(show && _msgStick) _scrollMsgBottom();
+}
+let _reactPopupEl = null;
+function _reactOutside(e){ if(_reactPopupEl && !_reactPopupEl.contains(e.target)) _closeReactionPopup(); }
+function _closeReactionPopup(){
+  if(_reactPopupEl){ _reactPopupEl.remove(); _reactPopupEl = null; document.removeEventListener('pointerdown', _reactOutside, true); }
+}
+function _openReactionPopup(item){
+  _closeReactionPopup();
+  const mid = item.getAttribute('data-mid'); if(!mid) return;
+  const bub = item.querySelector('.msg-bubble'); if(!bub) return;
+  const rect = bub.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.style.cssText = 'position:fixed;z-index:80;display:flex;gap:4px;padding:6px 8px;background:var(--cream,#f5efe4);border:1px solid var(--terra-soft,#e6d8c3);border-radius:26px;box-shadow:0 6px 20px rgba(0,0,0,.28)';
+  pop.innerHTML = _REACT_EMOJIS.map(e => '<button type="button" data-emoji="' + e + '" style="background:none;border:none;font-size:27px;line-height:1;padding:2px 3px;cursor:pointer">' + e + '</button>').join('');
+  document.body.appendChild(pop);
+  let top = rect.top - pop.offsetHeight - 8;
+  if(top < 8) top = Math.min(rect.bottom + 8, window.innerHeight - pop.offsetHeight - 8);
+  let left = rect.left;
+  if(left + pop.offsetWidth > window.innerWidth - 8) left = window.innerWidth - 8 - pop.offsetWidth;
+  if(left < 8) left = 8;
+  pop.style.top = top + 'px'; pop.style.left = left + 'px';
+  pop.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const em = b.getAttribute('data-emoji'); _closeReactionPopup(); reactToMessage(mid, em);
+  }));
+  _reactPopupEl = pop;
+  setTimeout(() => document.addEventListener('pointerdown', _reactOutside, true), 0);
+}
+async function reactToMessage(mid, emoji){
+  try {
+    const r = await fetch(_SERVER_URL + '/messages/react', {
+      method:'POST', headers: await _authHeaders(),
+      body: JSON.stringify({ messageId: mid, emoji })
+    });
+    if(!r.ok){ const j = await r.json().catch(() => ({})); alert('Could not add reaction: ' + (j.error || r.status)); return; }
+    _msgSig = ''; // force the next render to include the new reaction
+    loadMessages();
+  } catch(e){ alert('Could not add reaction: ' + e.message); }
+}
+let _msgInteractWired = false;
+let _lpTimer = null, _lpStartXY = null, _lpFired = false;
+function _wireMsgInteractions(){
+  if(_msgInteractWired) return;
+  const list = document.getElementById('msg-list');
+  if(!list) return;
+  _msgInteractWired = true;
+  const cancelLP = () => { if(_lpTimer){ clearTimeout(_lpTimer); _lpTimer = null; } _lpStartXY = null; };
+  list.addEventListener('pointerdown', e => {
+    const item = e.target.closest('.msg-item');
+    if(!item || e.target.closest('a,button')) return;
+    _lpFired = false; _lpStartXY = { x:e.clientX, y:e.clientY };
+    _lpTimer = setTimeout(() => {
+      _lpFired = true; _lpTimer = null;
+      if(navigator.vibrate){ try { navigator.vibrate(12); } catch(_){} }
+      _openReactionPopup(item);
+    }, 450);
+  });
+  list.addEventListener('pointermove', e => {
+    if(_lpStartXY && (Math.abs(e.clientX - _lpStartXY.x) > 10 || Math.abs(e.clientY - _lpStartXY.y) > 10)) cancelLP();
+  });
+  list.addEventListener('pointerup', e => {
+    const fired = _lpFired; cancelLP();
+    if(fired){ _lpFired = false; return; }
+    const item = e.target.closest('.msg-item');
+    if(!item || e.target.closest('a,button')) return;
+    _toggleMsgTime(item);
+  });
+  list.addEventListener('pointercancel', cancelLP);
+  list.addEventListener('contextmenu', e => {
+    const item = e.target.closest('.msg-item');
+    if(item){ e.preventDefault(); _openReactionPopup(item); }
+  });
 }
 
 async function sendMessage(){
@@ -2712,6 +2805,14 @@ function _subscribeMsgRealtime(){
     .on('postgres_changes', {
       event: 'UPDATE', schema: 'public', table: 'prep_messages',
       filter: `sender_id=eq.${currentUser.id}`
+    }, () => {
+      if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
+    })
+    // A message I received was updated (peer reacted to their own message) —
+    // refresh the open thread so the reaction shows without waiting for the poll.
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'prep_messages',
+      filter: `recipient_id=eq.${currentUser.id}`
     }, () => {
       if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
     })
