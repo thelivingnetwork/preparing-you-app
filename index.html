@@ -4080,10 +4080,84 @@ function _almClock(date, t){
   if(ap==='AM' && h===12) h = 0;
   return date + 'T' + String(h).padStart(2,'0') + ':' + m[2];
 }
-// Fetch the forecast with a fallback provider. Primary: Open-Meteo (clean WMO
-// codes, 3-day outlook). If its host is unreachable we drop to wttr.in, which
-// returns current + multi-day + sunrise/sunset in one keyless, CORS-friendly
-// call, reshaped here into the Open-Meteo response so the renderer is unchanged.
+// Map MET Norway's symbol_code strings onto the WMO codes _almCodeInfo expects.
+function _metToWmo(code){
+  code = String(code||'').replace(/_(day|night|polartwilight)$/,'');
+  if(code.indexOf('thunder')>=0) return 95;
+  if(code.indexOf('sleet')>=0 || code.indexOf('snow')>=0) return 73;
+  if(code.indexOf('fog')>=0) return 45;
+  if(code.indexOf('heavyrain')>=0) return 65;
+  if(code.indexOf('rain')>=0) return 63;
+  if(code.indexOf('drizzle')>=0) return 51;
+  if(code==='cloudy') return 3;
+  if(code==='partlycloudy') return 2;
+  if(code==='fair') return 1;
+  if(code==='clearsky') return 0;
+  return 3;
+}
+// Current UTC offset ("+HH:MM") for an IANA zone, so MET's Sunrise API returns
+// sunrise/sunset already expressed in the location's local clock.
+function _almOffset(tz){
+  const now = new Date();
+  if(tz){ try{
+    const s = new Intl.DateTimeFormat('en-US',{timeZone:tz,timeZoneName:'longOffset'}).formatToParts(now).find(p=>p.type==='timeZoneName').value;
+    const m = /GMT([+-]\d{2}):?(\d{2})?/.exec(s);
+    if(m) return m[1]+':'+(m[2]||'00');
+  }catch(_){} }
+  const off = -now.getTimezoneOffset();
+  const sign = off>=0?'+':'-'; const a = Math.abs(off);
+  return sign+String(Math.floor(a/60)).padStart(2,'0')+':'+String(a%60).padStart(2,'0');
+}
+// MET Norway fallback: aggregate the 10-day timeseries into today + 3 forecast
+// days (daily min/max + a near-noon symbol) and reshape into the Open-Meteo
+// response. Preferred over wttr.in because it yields the full 3-day outlook the
+// card expects, where wttr's j1 feed only carries today + 2 days.
+async function _almMet(r, useF){
+  const tz = (r.timezone && r.timezone!=='auto') ? r.timezone : undefined;
+  const conv = useF ? (c=>Math.round(c*9/5+32)) : (c=>Math.round(c));
+  const dFmt = new Intl.DateTimeFormat('en-CA', Object.assign({year:'numeric',month:'2-digit',day:'2-digit'}, tz?{timeZone:tz}:{}));
+  const hFmt = new Intl.DateTimeFormat('en-US', Object.assign({hour:'numeric',hour12:false}, tz?{timeZone:tz}:{}));
+  const f = await _almFetchJSON('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat='+r.latitude+'&lon='+r.longitude, 9000);
+  const ts = f && f.properties && f.properties.timeseries;
+  if(!ts || !ts.length) throw 0;
+  const byDay = {};
+  ts.forEach(e => {
+    const date = dFmt.format(new Date(e.time));
+    const o = byDay[date] || (byDay[date] = {temps:[], sym:null, nd:1e9});
+    const tp = e.data.instant.details.air_temperature;
+    if(typeof tp==='number') o.temps.push(tp);
+    const sym = (e.data.next_6_hours&&e.data.next_6_hours.summary.symbol_code) || (e.data.next_1_hours&&e.data.next_1_hours.summary.symbol_code);
+    if(sym){ const h=+hFmt.format(new Date(e.time)); const nd=Math.abs((h%24)-12); if(nd<o.nd){o.nd=nd;o.sym=sym;} }
+  });
+  const dates = Object.keys(byDay).sort().slice(0,4);
+  if(!dates.length) throw 0;
+  const cur0 = ts[0];
+  const curSym = (cur0.data.next_1_hours&&cur0.data.next_1_hours.summary.symbol_code)||(cur0.data.next_6_hours&&cur0.data.next_6_hours.summary.symbol_code);
+  let sunrise=null, sunset=null;
+  try{
+    const sr = await _almFetchJSON('https://api.met.no/weatherapi/sunrise/3.0/sun?lat='+r.latitude+'&lon='+r.longitude+'&date='+dates[0]+'&offset='+encodeURIComponent(_almOffset(tz)), 8000);
+    const strip = t => t ? t.replace(/([+-]\d{2}:\d{2}|Z)$/,'') : null;
+    sunrise = strip(sr && sr.properties && sr.properties.sunrise && sr.properties.sunrise.time);
+    sunset  = strip(sr && sr.properties && sr.properties.sunset  && sr.properties.sunset.time);
+  }catch(_){}
+  return {
+    current: { temperature_2m: conv(cur0.data.instant.details.air_temperature), weather_code: _metToWmo(curSym) },
+    daily: {
+      time: dates,
+      weather_code: dates.map(d => _metToWmo(byDay[d].sym)),
+      temperature_2m_max: dates.map(d => conv(Math.max.apply(null, byDay[d].temps))),
+      temperature_2m_min: dates.map(d => conv(Math.min.apply(null, byDay[d].temps))),
+      sunrise: [ sunrise ],
+      sunset:  [ sunset ]
+    },
+    timezone: tz
+  };
+}
+// Fetch the forecast with a fallback chain so the card survives a provider
+// outage. Primary: Open-Meteo (clean WMO codes, 3-day outlook). If its host is
+// unreachable: MET Norway, reshaped to the same 3-day outlook. Last resort:
+// wttr.in (today + 2 days). Each tier is reshaped into the Open-Meteo response
+// so the renderer below is unchanged regardless of which provider answered.
 async function _almWeather(r, useF){ // ALMFALLBACK-MARKER
   try{
     const url = 'https://api.open-meteo.com/v1/forecast?latitude='+r.latitude+'&longitude='+r.longitude
@@ -4093,7 +4167,9 @@ async function _almWeather(r, useF){ // ALMFALLBACK-MARKER
       + '&timezone='+encodeURIComponent(r.timezone||'auto')+'&forecast_days=4';
     const w = await _almFetchJSON(url, 9000);
     if(w && w.current && w.daily) return w;
-  }catch(e){ /* primary down — fall through to the backup provider */ }
+  }catch(e){ /* primary down — try the 3-day backup, then the last resort */ }
+  try{ const m = await _almMet(r, useF); if(m && m.current && m.daily) return m; }
+  catch(e){ /* MET Norway unreachable — fall through to wttr.in */ }
   const j = await _almFetchJSON('https://wttr.in/'+r.latitude+','+r.longitude+'?format=j1', 9000);
   const cc = j && j.current_condition && j.current_condition[0];
   const wx = (j && j.weather) || [];
