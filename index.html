@@ -4165,7 +4165,10 @@ async function _almWeather(r, useF){ // ALMFALLBACK-MARKER
       + '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
       + '&temperature_unit='+(useF?'fahrenheit':'celsius')
       + '&timezone='+encodeURIComponent(r.timezone||'auto')+'&forecast_days=4';
-    const w = await _almFetchJSON(url, 9000);
+    // Short primary timeout: Open-Meteo answers in well under a second when
+    // healthy, so 4s is ample headroom while still failing over quickly to the
+    // backup providers when its host hangs during an outage.
+    const w = await _almFetchJSON(url, 4000);
     if(w && w.current && w.daily) return w;
   }catch(e){ /* primary down — try the 3-day backup, then the last resort */ }
   try{ const m = await _almMet(r, useF); if(m && m.current && m.daily) return m; }
