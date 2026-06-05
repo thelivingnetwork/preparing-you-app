@@ -5642,7 +5642,13 @@ async function stopBeingPcm(){
   buildPcmPage();
 }
 
+// Set while the member is intentionally signing out, so the global SIGNED_OUT
+// recovery handler below doesn't mistake a deliberate logout for a dropped session
+// and kick off a competing reload.
+let _signingOut = false;
+
 async function signOut(){
+  _signingOut = true;
   // Drop the push subscription so a logged-out phone stops getting alerts.
   try {
     if ('serviceWorker' in navigator) {
@@ -5679,8 +5685,31 @@ window.addEventListener('load', async ()=>{
     return;
   }
 
-  const { data } = await _sb.auth.getSession();
+  let { data } = await _sb.auth.getSession();
   if(data?.session?.user){
+    // getSession() returns whatever is in storage — including a DEAD session
+    // whose refresh token has expired or been rotated away. Trusting it strands
+    // the member in a "logged-in but every request 401s" state (the cause of the
+    // blank-messages bug, only escapable by deleting and reinstalling the app).
+    // So confirm the session is actually alive by refreshing it. We force a
+    // re-login ONLY on a genuine auth failure; a network blip must not sign the
+    // user out, so we keep the cached session and proceed (offline-friendly).
+    try {
+      const { data: _rd, error: _re } = await _sb.auth.refreshSession();
+      if(_re){
+        const _m = (_re.message || '').toLowerCase();
+        const _authDead = _re.status === 400 || _re.status === 401 ||
+          /refresh token|invalid|expired|not found|already used/.test(_m);
+        if(_authDead){
+          try { await _sb.auth.signOut().catch(()=>{}); } catch(__){}
+          currentUser = null;
+          return; // fall through to the login screen for a clean re-auth
+        }
+        // otherwise transient (e.g. offline) — keep the cached session
+      } else if(_rd?.session?.user){
+        data = _rd;
+      }
+    } catch(__){ /* network/exception — proceed with the cached session */ }
     await _loadProfile(data.session.user);
     // Restore the cached private key (no password on a session resume). If the
     // device was evicted this returns false and Messenger prompts to unlock.
@@ -5694,7 +5723,22 @@ if(window._sb){ /* placeholder — sb already created above */ }
 document.addEventListener('DOMContentLoaded', () => {
   if(!_sb) return;
   _sb.auth.onAuthStateChange((event) => {
-    if(event === 'PASSWORD_RECOVERY'){ showAuthTab('reset'); }
+    if(event === 'PASSWORD_RECOVERY'){ showAuthTab('reset'); return; }
+    // Supabase fires SIGNED_OUT when it gives up on a session it can no longer
+    // refresh (dead/rotated refresh token) — exactly the silent-stranding case
+    // behind the blank-messages bug. If the member is sitting inside the app when
+    // that happens, reload to the login screen so they can cleanly re-auth instead
+    // of being stuck in a logged-in-but-every-request-401s limbo. Skip when WE
+    // initiated the sign-out (signOut() handles its own reload).
+    if(event === 'SIGNED_OUT'){
+      if(_signingOut) return;
+      const appScreen = document.getElementById('screen-app');
+      const inApp = appScreen && appScreen.classList.contains('active');
+      if(inApp){
+        currentUser = null;
+        window.location.reload();
+      }
+    }
   });
 });
 
