@@ -1242,7 +1242,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.39', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.40', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -2069,7 +2069,8 @@ const server = http.createServer(async (req, res) => {
       const wantIds = Array.isArray(body.userIds)
         ? [...new Set(body.userIds.filter(id => typeof id === 'string'))]
         : null
-      let q = sb.from('prep_users').select('id').eq('is_system', false)
+      const alsoEmail = body.email === true
+      let q = sb.from('prep_users').select('id, name, email').eq('is_system', false)
       if (wantIds) {
         if (!wantIds.length) return send(res, 400, { error: 'no_recipients' })
         q = q.in('id', wantIds)
@@ -2096,7 +2097,26 @@ const server = http.createServer(async (req, res) => {
       // History row (keeps the admin's "Recent broadcasts" log).
       await sb.from('prep_broadcasts').insert({ sender_id: callerId, icon, text, recipient_count: list.length })
 
-      return send(res, 200, { ok: true, recipients: list.length })
+      // Optional: also deliver the broadcast as a plain email. Fire-and-forget,
+      // sequential with a small delay to respect EmailJS rate limits, so a large
+      // recipient list never holds the admin's request open or times it out.
+      if (alsoEmail) {
+        ;(async () => {
+          let sent = 0
+          for (const u of list) {
+            if (!u.email) continue
+            const greet = u.name ? `Peace to you, ${u.name}.` : 'Peace to you.'
+            const message = `${greet}\n\n${text}\n\nOpen Preparing You: https://preparingyou.app`
+            const result = await sendEmailJS(u.name || 'Friend', u.email, 'A message from Preparing You', message)
+            if (result.ok) sent++
+            else console.warn(`[broadcast] email to ${u.email} failed:`, result)
+            await new Promise(r => setTimeout(r, 200))
+          }
+          console.log(`[broadcast] emailed ${sent}/${list.length} user(s)`)
+        })().catch(e => console.error('[broadcast] email fanout', e))
+      }
+
+      return send(res, 200, { ok: true, recipients: list.length, emailQueued: alsoEmail })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
