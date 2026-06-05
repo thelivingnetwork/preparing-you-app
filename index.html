@@ -3034,7 +3034,8 @@ let _navNotifUnread = [];
 async function refreshNavBadges(){
   if(!_sb || !currentUser) return;
   const { data } = await _sb.from('prep_notifications')
-    .select('id, action').eq('user_id', currentUser.id).is('read_at', null).limit(200);
+    .select('id, action').eq('user_id', currentUser.id).is('read_at', null)
+    .in('action->>page', ['pcm','home','video','join-tln']).limit(200);
   _navNotifUnread = data || [];
   let pcm = 0, home = 0;
   for(const row of _navNotifUnread){

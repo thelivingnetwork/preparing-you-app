@@ -1021,14 +1021,29 @@ async function notify(userId, icon, text, action) {
   pushToUser(userId, { icon, text, action }).catch(e => console.warn('[push] fanout failed', e))
 }
 
+// Home-screen icon badge count for a user. MUST mirror the foreground math in
+// index.html (refreshNavBadges): unread MESSAGES + unread PCM/Home notifications.
+// Message-type notifications are deliberately excluded — unread messages are
+// counted directly from prep_messages, so counting their notification rows too
+// would double-count. (Those rows are also never marked read, so including them
+// made the badge balloon to the lifetime total of messages received.)
+const _BADGE_NOTIF_PAGES = ['pcm', 'home', 'video', 'join-tln']
+async function badgeCountForUser(userId) {
+  const [msgRes, notifRes] = await Promise.all([
+    sb.from('prep_messages').select('id', { count: 'exact', head: true })
+      .eq('recipient_id', userId).is('read_at', null),
+    sb.from('prep_notifications').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).is('read_at', null).in('action->>page', _BADGE_NOTIF_PAGES)
+  ])
+  return (msgRes.count || 0) + (notifRes.count || 0)
+}
+
 async function pushToUser(userId, { icon, text, action }) {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
   const { data: subs } = await sb.from('prep_push_subscriptions')
     .select('id, endpoint, p256dh, auth').eq('user_id', userId)
   if (!subs || !subs.length) return
-  const { count: unread } = await sb.from('prep_notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId).is('read_at', null)
+  const unread = await badgeCountForUser(userId)
   const payload = JSON.stringify({
     title: 'Preparing You',
     body: `${icon ? icon + ' ' : ''}${text}`,
@@ -1242,7 +1257,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.40', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.41', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1637,8 +1652,13 @@ const server = http.createServer(async (req, res) => {
       }
       // Mark inbound unread as read (server-side now that the client no longer
       // reads the table directly for display).
-      await sb.from('prep_messages').update({ read_at: new Date().toISOString() })
+      const _readNow = new Date().toISOString()
+      await sb.from('prep_messages').update({ read_at: _readNow })
         .eq('recipient_id', meId).eq('sender_id', peerId).is('read_at', null)
+      // Also retire the message-type notification rows so they stop accumulating
+      // as "unread" forever (they were never cleared, which ballooned the badge).
+      await sb.from('prep_notifications').update({ read_at: _readNow })
+        .eq('user_id', meId).is('read_at', null).eq('action->>page', 'messages')
       return send(res, 200, { messages })
     }
 
@@ -1682,6 +1702,8 @@ const server = http.createServer(async (req, res) => {
       if (error) return send(res, 500, { error: error.message })
       await sb.from('prep_messages').update({ read_at: nowIso })
         .eq('recipient_id', meId).eq('sender_id', peerId).is('read_at', null)
+      await sb.from('prep_notifications').update({ read_at: nowIso })
+        .eq('user_id', meId).is('read_at', null).eq('action->>page', 'messages')
       return send(res, 200, { ok: true })
     }
 
