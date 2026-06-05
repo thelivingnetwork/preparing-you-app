@@ -1900,13 +1900,15 @@ async function showMsgList(){
 
 async function refreshInbox(){
   if(!_sb || !currentUser) return;
-  const { data: { session } } = await _sb.auth.getSession();
-  if(!session?.access_token) return;
   let convos = [];
   try {
+    // Use _authHeaders() (not a raw getSession token): a backgrounded iOS PWA
+    // pauses Supabase's auto-refresh timer, so the cached token can be expired.
+    // _authHeaders refreshes it, otherwise the server 401s and the inbox renders
+    // blank with no error.
     const r = await fetch(_SERVER_URL + '/messages/inbox', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token }
+      headers: await _authHeaders()
     });
     const j = await r.json().catch(() => ({}));
     if(r.ok) convos = j.conversations || [];
@@ -2041,11 +2043,9 @@ async function hideConvo(peerId, ev){
   _msgConvos = _msgConvos.filter(c => c.peerId !== peerId);
   renderInbox();
   try {
-    const { data: { session } } = await _sb.auth.getSession();
-    if(!session?.access_token) throw new Error('You appear to be signed out.');
     const r = await fetch(_SERVER_URL + '/messages/clear', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + session.access_token },
+      headers: await _authHeaders(),
       body: JSON.stringify({ peerId })
     });
     if(!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || r.status); }
@@ -2261,13 +2261,13 @@ async function loadMessages(){
   // Message bodies are encrypted at rest; only the server (which holds the
   // key) can return plaintext, and only to the two participants. So the
   // thread is fetched from /messages/thread rather than read directly.
-  const { data: { session } } = await _sb.auth.getSession();
-  if(!session?.access_token) return;
+  // Use _authHeaders() so a stale token on a backgrounded iOS PWA is refreshed
+  // rather than silently 401'ing and leaving the thread blank.
   let msgs = [];
   try {
     const r = await fetch(_SERVER_URL + '/messages/thread', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      headers: await _authHeaders(),
       body: JSON.stringify({ peerId: _msgPeerId })
     });
     const j = await r.json().catch(() => ({}));
