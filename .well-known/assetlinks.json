@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.preparingyou.twa",
+      "sha256_cert_fingerprints": [
+        "F6:4C:4D:DA:0E:1D:BA:AB:46:D2:F0:CE:D6:DD:BD:06:F0:55:78:C1:87:11:7B:BD:2D:99:DA:09:20:44:C5:2E"
+      ]
+    }
+  }
+]
