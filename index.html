@@ -518,6 +518,33 @@
         <div id="profile-msg" style="display:none;font-size:13px;margin:0 2px 12px"></div>
         <button id="profile-save-btn" class="pcm-pick" style="width:100%;padding:12px;font-size:12px" onclick="saveProfile()">Save changes</button>
         <button class="link-btn" style="width:100%;margin-top:14px;color:var(--terra)" onclick="closeProfile();signOut()">Sign out</button>
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);text-align:center">
+          <button type="button" onclick="openDeleteAccount()" style="background:none;border:none;color:var(--walnut-mid);font-size:12px;cursor:pointer;padding:4px 8px;text-decoration:underline">Delete my account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete-account confirmation (type DELETE to enable) -->
+  <div id="del-acct-overlay" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(20,48,52,.6);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this) closeDeleteAccount()">
+    <div style="width:min(100%,400px);background:var(--surface);border-radius:14px;border:1px solid var(--line);max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(20,48,52,.35)">
+      <div style="padding:18px 18px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;color:var(--terra);display:flex;align-items:center;gap:8px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Delete account
+      </div>
+      <div style="padding:12px 18px 0;font-size:14px;color:var(--walnut);line-height:1.6">
+        <p style="margin:0 0 10px">This permanently deletes your account and <strong>cannot be undone</strong>. It removes:</p>
+        <ul style="margin:0 0 12px;padding-left:20px;color:var(--walnut-mid);font-size:13px;line-height:1.7">
+          <li>Your profile, photo and journey progress</li>
+          <li>All your messages and conversations</li>
+          <li>Your encryption keys and notifications</li>
+        </ul>
+        <p style="margin:0 0 12px;font-size:13px;color:var(--walnut-mid)">Type <strong>DELETE</strong> below to confirm.</p>
+        <input id="del-acct-input" class="prof-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="DELETE" oninput="_onDelAcctInput()" style="text-align:center;letter-spacing:.15em;font-weight:700;margin-bottom:0">
+        <div id="del-acct-msg" style="display:none;font-size:13px;margin:10px 2px 0;color:var(--terra)"></div>
+      </div>
+      <div style="padding:16px 18px;display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" onclick="closeDeleteAccount()" style="padding:10px 16px;border:1px solid var(--line);background:transparent;color:var(--walnut);border-radius:9px;font:inherit;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>
+        <button type="button" id="del-acct-confirm" disabled onclick="confirmDeleteAccount()" style="padding:10px 18px;border:none;background:var(--terra);color:#fff;border-radius:9px;font:inherit;font-size:13px;font-weight:700;cursor:not-allowed;opacity:.5">Delete forever</button>
       </div>
     </div>
   </div>
@@ -3087,6 +3114,48 @@ function openProfile(){
   document.getElementById('profile-overlay').style.display = 'block';
 }
 function closeProfile(){ document.getElementById('profile-overlay').style.display = 'none'; }
+
+// ── Delete account ────────────────────────────────────────────────────────
+// Irreversible: a confirmed POST to /account/delete removes the auth user,
+// which cascades every prep_* row server-side. The Delete button stays locked
+// until the member types DELETE exactly.
+function openDeleteAccount(){
+  closeProfile();
+  const inp = document.getElementById('del-acct-input'); if(inp) inp.value = '';
+  const msg = document.getElementById('del-acct-msg'); if(msg) msg.style.display = 'none';
+  _onDelAcctInput();
+  document.getElementById('del-acct-overlay').style.display = 'flex';
+}
+function closeDeleteAccount(){ const el = document.getElementById('del-acct-overlay'); if(el) el.style.display = 'none'; }
+function _onDelAcctInput(){
+  const inp = document.getElementById('del-acct-input');
+  const btn = document.getElementById('del-acct-confirm');
+  if(!inp || !btn) return;
+  const ok = inp.value.trim().toUpperCase() === 'DELETE';
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '.5';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+async function confirmDeleteAccount(){
+  const inp = document.getElementById('del-acct-input');
+  const btn = document.getElementById('del-acct-confirm');
+  const msg = document.getElementById('del-acct-msg');
+  if(!inp || inp.value.trim().toUpperCase() !== 'DELETE') return;
+  if(btn){ btn.disabled = true; btn.textContent = 'Deleting\u2026'; btn.style.opacity = '.6'; btn.style.cursor = 'wait'; }
+  if(msg) msg.style.display = 'none';
+  try {
+    const r = await fetch(_SERVER_URL + '/account/delete', { method:'POST', headers: await _authHeaders() });
+    if(!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j.error || ('HTTP ' + r.status)); }
+    // Account is gone — tear down the local session and return to landing.
+    try { if(_sb) await _sb.auth.signOut().catch(()=>{}); } catch(_){}
+    currentUser = null;
+    alert('Your account has been deleted. We wish you well on your journey.');
+    window.location.reload();
+  } catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = 'Delete forever'; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+    if(msg){ msg.textContent = 'Could not delete your account: ' + (e.message || 'please try again.'); msg.style.display = 'block'; }
+  }
+}
 
 async function saveProfile(){
   const name   = document.getElementById('prof-name').value.trim();

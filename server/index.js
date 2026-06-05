@@ -1242,7 +1242,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.38', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.39', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1946,6 +1946,47 @@ const server = http.createServer(async (req, res) => {
       const { userId } = await readJson(req)
       if (!userId) return send(res, 400, { error: 'userId required' })
       // Delete from auth.users — FK cascade will clean up prep_users etc.
+      const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY, 'Authorization': 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY }
+      })
+      if (!r.ok) return send(res, 500, { error: 'auth_delete_failed', status: r.status, body: await r.text() })
+      return send(res, 200, { ok: true })
+    }
+
+    if (req.method === 'POST' && req.url === '/account/delete') {
+      // Self-serve account deletion. The id ALWAYS comes from the caller's
+      // verified token (never the request body), so a member can only ever
+      // delete their own account. Deleting from auth.users cascades to
+      // prep_users and every prep_* table via FK ON DELETE CASCADE.
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const userId = v.uid
+
+      // If this person is an active PCM, let every member who chose them know
+      // to pick a new Personal Contact Minister. We read the member list while
+      // their pcm_id still points here; the delete below nulls it (SET NULL).
+      try {
+        const { data: members } = await sb.from('prep_users')
+          .select('id, name, email').eq('pcm_id', userId)
+        if (members && members.length) {
+          const { data: me } = await sb.from('prep_users').select('name').eq('id', userId).maybeSingle()
+          const pcmName = (me && me.name) || 'Your Personal Contact Minister'
+          for (const m of members) {
+            await sendSystemMessage(m.id,
+              pcmName + ', who had been walking alongside you as your Personal Contact Minister, has closed their account. When you have a quiet moment, please choose a new Personal Contact Minister so someone can continue this preparation with you.')
+            if (m.email) {
+              await sendEmail(m.email, 'Please choose a new Personal Contact Minister',
+                emailWrap('A change in your preparation',
+                  '<p>' + pcmName + ', who had been walking alongside you as your Personal Contact Minister, has closed their account.</p>' +
+                  '<p>When you have a quiet moment, please open Preparing You and choose a new Personal Contact Minister so you can continue your preparation with a companion.</p>',
+                  'Open Preparing You', 'https://preparingyou.app'))
+            }
+          }
+        }
+      } catch (e) { console.warn('[account/delete] member-notify failed', (e && e.message) || e) }
+
+      // Delete from auth.users — FK cascade cleans up prep_users and all prep_*.
       const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
         method: 'DELETE',
         headers: { 'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY, 'Authorization': 'Bearer ' + process.env.SUPABASE_SERVICE_ROLE_KEY }
