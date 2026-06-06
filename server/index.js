@@ -1038,11 +1038,14 @@ async function badgeCountForUser(userId) {
   return (msgRes.count || 0) + (notifRes.count || 0)
 }
 
+// Returns the number of push subscriptions the user had (0 = none, so the
+// caller can fall back to another channel like email). Stale endpoints are
+// still counted for this call; they're pruned after repeated failures.
 async function pushToUser(userId, { icon, text, action }) {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) return 0
   const { data: subs } = await sb.from('prep_push_subscriptions')
     .select('id, endpoint, p256dh, auth').eq('user_id', userId)
-  if (!subs || !subs.length) return
+  if (!subs || !subs.length) return 0
   const unread = await badgeCountForUser(userId)
   const payload = JSON.stringify({
     title: 'Preparing You',
@@ -1080,6 +1083,33 @@ async function pushToUser(userId, { icon, text, action }) {
     }
   }))
   if (stale.length) await sb.from('prep_push_subscriptions').delete().in('id', stale)
+  return subs.length
+}
+
+// Alert the recipient of a new person-to-person message. Web push is the
+// primary channel; if the recipient has no active push subscription (never
+// enabled notifications, or an iOS PWA whose endpoint expired), a closed app
+// would surface nothing — so fall back to a single email. The email is sent
+// only when this is the recipient's FIRST unread message, so a burst of
+// messages can't flood their inbox. The in-app bell/badge row is created by
+// the prep_message_notification trigger regardless.
+async function notifyMessageRecipient(recipientId, senderName, pushText) {
+  const subCount = await pushToUser(recipientId, {
+    icon: '💬', text: pushText, action: { type: 'page', page: 'messages' }
+  })
+  if (subCount) return // push delivered (or attempted) — no email needed
+  const { count } = await sb.from('prep_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_id', recipientId).is('read_at', null)
+  if ((count || 0) > 1) return // already had unread messages — already alerted
+  const { data: u } = await sb.from('prep_users')
+    .select('email').eq('id', recipientId).maybeSingle()
+  if (!u?.email) return
+  await sendEmail(u.email, `${senderName} sent you a message`,
+    emailWrap('New message',
+      `<p>${senderName} sent you a message in Preparing You.</p>
+       <p>Open the app to read and reply.</p>`,
+      'Open Preparing You', 'https://preparingyou.app'))
 }
 
 // ─── In-app companion message ───────────────────────────────────────────
@@ -1257,7 +1287,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.41', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.42', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1617,10 +1647,12 @@ const server = http.createServer(async (req, res) => {
         pushText = `${senderName}: ${preview}`
       }
       // The DB trigger (prep_message_notification) creates the prep_notifications
-      // row automatically on every prep_messages INSERT, so we only need to fire
-      // the web push here — avoids a duplicate bell entry.
-      pushToUser(recipientId, { icon: '💬', text: pushText, action: { type: 'page', page: 'messages' } })
-        .catch(e => console.warn('[push] message fanout failed', e))
+      // row automatically on every prep_messages INSERT (the in-app bell/badge).
+      // notifyMessageRecipient fires the web push and, if the recipient has no
+      // active push subscription, falls back to an email so a closed app still
+      // alerts. Fire-and-forget so the sender's request returns immediately.
+      notifyMessageRecipient(recipientId, senderName, pushText)
+        .catch(e => console.warn('[messages] recipient notify failed', e))
       return send(res, 200, { ok: true })
     }
 
