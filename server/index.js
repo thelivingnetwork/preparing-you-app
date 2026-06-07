@@ -1287,7 +1287,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.42', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.43', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1891,8 +1891,14 @@ const server = http.createServer(async (req, res) => {
     // Pick the most relevant townhall: prefer the one currently live, else
     // the next upcoming, else the most recent past.
     async function pickTownhall() {
+      // Only treat a townhall as the active "live" one if it went live within
+      // its run window. This way a row the auto-close cron missed (ended_at
+      // still null) can't stay pinned as live and mask the next scheduled
+      // townhall — the UI self-heals at the duration boundary regardless.
+      const liveFloor = new Date(Date.now() - TOWNHALL_AUTOCLOSE_MS).toISOString()
       const { data: live } = await sb.from('prep_townhalls').select('*')
-        .not('live_at', 'is', null).is('ended_at', null).order('live_at', { ascending: false }).limit(1).maybeSingle()
+        .not('live_at', 'is', null).is('ended_at', null).gte('live_at', liveFloor)
+        .order('live_at', { ascending: false }).limit(1).maybeSingle()
       if (live) return live
       const nowIso = new Date().toISOString()
       const { data: upcoming } = await sb.from('prep_townhalls').select('*')
@@ -2232,7 +2238,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/townhall/state') {
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
-      const isLive = !!th.live_at && !th.ended_at
+      // Time-bound so a missed auto-close doesn't show a perpetual LIVE banner:
+      // a townhall reads as live only within its run window from live_at.
+      const isLive = !!th.live_at && !th.ended_at &&
+        (Date.now() - new Date(th.live_at).getTime() < TOWNHALL_AUTOCLOSE_MS)
       return send(res, 200, {
         id: th.id, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic,
         live_at: th.live_at, ended_at: th.ended_at, isLive
@@ -2551,19 +2560,19 @@ async function runTownhallRecurrence() {
 }
 
 // ─── Townhall auto-start / auto-close ───────────────────────────────────
-// A townhall opens by itself at its scheduled time and closes itself 90 minutes
-// later, so no host has to log in and press Start. The first person to join
-// triggers cloud recording (see start_cloud_recording on the join token), so
-// the replay is captured even when no moderator is present.
-const TOWNHALL_AUTOCLOSE_MS = 90 * 60 * 1000
+// A townhall opens by itself at its scheduled time and closes itself 120
+// minutes later, so no host has to log in and press Start. The first person to
+// join triggers cloud recording (see start_cloud_recording on the join token),
+// so the replay is captured even when no moderator is present.
+const TOWNHALL_AUTOCLOSE_MS = 120 * 60 * 1000
 
 async function runTownhallAutostart() {
   try {
     const now = Date.now()
     const nowIso = new Date(now).toISOString()
-    // Open townhalls whose start time has arrived (within the last 90 min, so we
-    // never resurrect an old one that was scheduled but never held) and that
-    // aren't already live or ended.
+    // Open townhalls whose start time has arrived (within the auto-close window,
+    // so we never resurrect an old one that was scheduled but never held) and
+    // that aren't already live or ended.
     const { data: ths, error } = await sb.from('prep_townhalls')
       .select('id, daily_room, title, topic, scheduled_at')
       .lte('scheduled_at', nowIso)
@@ -2601,8 +2610,11 @@ async function runTownhallAutostart() {
 async function runTownhallAutoclose() {
   try {
     const cutoff = new Date(Date.now() - TOWNHALL_AUTOCLOSE_MS).toISOString()
-    // Close any townhall that went live 90+ minutes ago and hasn't been ended —
-    // covers both auto-opened calls and ones a host started but forgot to end.
+    // Close any townhall that went live and is past its run window and hasn't
+    // been ended — covers both auto-opened calls and ones a host started but
+    // forgot to end. The query has no lower bound on live_at, so even a townhall
+    // the cron missed earlier (server redeploy, transient error) gets swept on a
+    // later tick rather than staying "live" forever.
     const { data: ths, error } = await sb.from('prep_townhalls')
       .select('id')
       .not('live_at', 'is', null)
@@ -2610,10 +2622,15 @@ async function runTownhallAutoclose() {
       .lte('live_at', cutoff)
     if (error) { console.warn('[townhall-autoclose] query failed', error); return }
     if (!ths || !ths.length) return
+    const mins = Math.round(TOWNHALL_AUTOCLOSE_MS / 60000)
     for (const th of ths) {
       await sb.from('prep_townhalls').update({ ended_at: new Date().toISOString() }).eq('id', th.id)
-      console.log(`[townhall-autoclose] closed townhall ${th.id} (90m after it went live)`)
+      console.log(`[townhall-autoclose] closed townhall ${th.id} (${mins}m after it went live)`)
     }
+    // A townhall just ended — make sure the next occurrence is scheduled and
+    // announced now rather than waiting up to an hour for the recurrence tick.
+    // (Idempotent + lead-gated, so it's a no-op until we're near the next one.)
+    runTownhallRecurrence().catch(e => console.error('[townhall-autoclose] recur', e))
   } catch (e) {
     console.error('[townhall-autoclose]', e)
   }

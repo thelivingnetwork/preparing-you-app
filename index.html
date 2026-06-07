@@ -1695,7 +1695,7 @@ function openTlnHandoff(){
 let _townhallState = null;        // last fetched state from /townhall/state
 let _townhallIsHost = false;      // am I in prep_townhall_hosts?
 let _townhallPollTimer = null;
-const TOWNHALL_MINUTES = 90; // mirrors server TOWNHALL_AUTOCLOSE_MS (auto-close after 90 min)
+const TOWNHALL_MINUTES = 120; // mirrors server TOWNHALL_AUTOCLOSE_MS (auto-close after 120 min)
 
 async function refreshTownhallCard(){
   if(!_sb || !currentUser) return;
@@ -1738,7 +1738,7 @@ async function refreshTownhallCard(){
   }
 
   // Host-only control: End early. Townhalls auto-open on schedule and
-  // auto-close after 90 min, so there is no manual Start — a host just taps the
+  // auto-close after 120 min, so there is no manual Start — a host just taps the
   // live card to join. End lets them wrap up before the auto-close.
   const actions = document.getElementById('townhall-actions');
   const endBtn = document.getElementById('townhall-end-btn');
