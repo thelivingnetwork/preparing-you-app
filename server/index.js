@@ -1287,7 +1287,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.43', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.44', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -2237,14 +2237,43 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && req.url === '/townhall/state') {
       const th = await pickTownhall()
-      if (!th) return send(res, 404, { error: 'no townhall' })
+      const now = Date.now()
       // Time-bound so a missed auto-close doesn't show a perpetual LIVE banner:
       // a townhall reads as live only within its run window from live_at.
-      const isLive = !!th.live_at && !th.ended_at &&
-        (Date.now() - new Date(th.live_at).getTime() < TOWNHALL_AUTOCLOSE_MS)
+      const isLive = !!(th && th.live_at && !th.ended_at &&
+        (now - new Date(th.live_at).getTime() < TOWNHALL_AUTOCLOSE_MS))
+      const isUpcoming = !!(th && !th.live_at && !th.ended_at &&
+        new Date(th.scheduled_at).getTime() >= now)
+      // A live or still-upcoming materialized townhall is shown directly.
+      if (th && (isLive || isUpcoming)) {
+        return send(res, 200, {
+          id: th.id, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic,
+          live_at: th.live_at, ended_at: th.ended_at, isLive
+        })
+      }
+      // Otherwise pickTownhall only found a past/ended townhall (or nothing).
+      // Rather than show a stale past time, compute the next occurrence from the
+      // recurring rule and return it as a preview, so the card always shows when
+      // the next townhall is — even before the row is materialized (~4 days out).
+      const { data: rule } = await sb.from('prep_townhall_schedule').select('*').eq('id', 1).maybeSingle()
+      if (rule && rule.enabled) {
+        const nextMs = nextOccurrence(rule, now)
+        if (nextMs) {
+          return send(res, 200, {
+            id: null, preview: true,
+            scheduled_at: new Date(nextMs).toISOString(),
+            title: rule.title || 'Weekly Townhall',
+            topic: rule.topic || 'Open discussion',
+            live_at: null, ended_at: null, isLive: false
+          })
+        }
+      }
+      // No rule and no upcoming row — fall back to the past one (the replay
+      // button is fetched separately), or 404 if there's truly nothing.
+      if (!th) return send(res, 404, { error: 'no townhall' })
       return send(res, 200, {
         id: th.id, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic,
-        live_at: th.live_at, ended_at: th.ended_at, isLive
+        live_at: th.live_at, ended_at: th.ended_at, isLive: false
       })
     }
 
