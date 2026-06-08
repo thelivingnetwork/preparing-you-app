@@ -1129,6 +1129,36 @@ async function sendSystemMessage(recipientId, text) {
   }
 }
 
+// ─── Townhall inbox broadcast ────────────────────────────────────────────
+// Deliver a one-way "Preparing You" message to every member's inbox (the same
+// mechanism as an admin broadcast). Townhall alerts use this so each lands as
+// an openable message: the unread-MESSAGE badge then clears when the member
+// opens it, instead of a home-page bell they can't act on from Messages.
+// Optionally fires a web push too (used for the time-sensitive "live" alert).
+// Emails are sent separately by the callers.
+async function townhallInboxBroadcast(text, { push = false, pushAction } = {}) {
+  try {
+    const { data: users } = await sb.from('prep_users').select('id').eq('is_system', false)
+    const list = users || []
+    if (!list.length) return
+    const systemId = await ensureSystemUser()
+    const encBody = encryptBody(text)
+    const rows = list.map(u => ({ sender_id: systemId, recipient_id: u.id, body: encBody, e2ee: false }))
+    for (let i = 0; i < rows.length; i += 100) {
+      await sb.from('prep_messages').insert(rows.slice(i, i + 100))
+    }
+    if (push) {
+      const preview = text.length > 60 ? text.slice(0, 60) + '…' : text
+      await Promise.allSettled(list.map(u => pushToUser(u.id, {
+        icon: '🎙', text: _SYSTEM_NAME + ': ' + preview,
+        action: pushAction || { type: 'page', page: 'messages' }
+      })))
+    }
+  } catch (e) {
+    console.warn('[townhallInboxBroadcast] failed', (e && e.message) || e)
+  }
+}
+
 // ─── PCM election ───────────────────────────────────────────────────────
 async function electPcm({ electorId, pcmId, skipEmail }) {
   if (!electorId || !pcmId) throw new Error('electorId and pcmId required')
@@ -1287,7 +1317,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.44', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.45', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -2437,14 +2467,9 @@ async function runTownhallReminders() {
       const { data: users } = await sb.from('prep_users').select('id, name, email, timezone')
       const list = users || []
 
-      // 1) Bell notifications — bulk insert
-      const rows = list.map(u => ({
-        user_id: u.id, icon: '🎙', text,
-        action: { type: 'page', page: 'home' }
-      }))
-      for (let i = 0; i < rows.length; i += 100) {
-        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
-      }
+      // 1) Inbox message from "Preparing You" — lands in Messages so the
+      //    unread-message badge clears when the member opens it.
+      await townhallInboxBroadcast(text)
 
       // 2) Emails via EmailJS REST — sequential with small delay
       const subject = `${title} starts in ${minsAway} minutes`
@@ -2499,14 +2524,9 @@ async function runTownhallAnnouncements() {
       const { data: users } = await sb.from('prep_users').select('id, name, email, timezone')
       const list = users || []
 
-      // 1) Bell notifications — bulk insert
-      const rows = list.map(u => ({
-        user_id: u.id, icon: '🎙', text,
-        action: { type: 'page', page: 'home' }
-      }))
-      for (let i = 0; i < rows.length; i += 100) {
-        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
-      }
+      // 1) Inbox message from "Preparing You" — lands in Messages so the
+      //    unread-message badge clears when the member opens it.
+      await townhallInboxBroadcast(text)
 
       // 2) Emails via EmailJS — each in the member's local time
       const subject = `New townhall set: ${title}`
@@ -2617,19 +2637,13 @@ async function runTownhallAutostart() {
       await dailyEnsureRoom(roomName, { properties: { enable_recording: 'cloud' } })
       await sb.from('prep_townhalls').update({ live_at: nowIso, ended_at: null }).eq('id', th.id)
 
-      // Announce it's live — bell + web push (fires once: live_at is now set).
+      // Announce it's live — inbox message + web push (fires once: live_at is
+      // now set). The push opens Home to join; the message lets the unread-
+      // message badge clear when the member opens it.
       const title = th.title || 'Weekly Townhall'
-      const text = `🎙 ${title} is live — tap to join` + (th.topic ? ` — ${th.topic}` : '')
-      const { data: users } = await sb.from('prep_users').select('id')
-      const list = users || []
-      const rows = list.map(u => ({ user_id: u.id, icon: '🎙', text, action: { type: 'page', page: 'home' } }))
-      for (let i = 0; i < rows.length; i += 100) {
-        await sb.from('prep_notifications').insert(rows.slice(i, i + 100))
-      }
-      for (const u of list) {
-        pushToUser(u.id, { icon: '🎙', text, action: { type: 'page', page: 'home' } }).catch(() => {})
-      }
-      console.log(`[townhall-autostart] opened townhall ${th.id} (${roomName}) and notified ${list.length} members`)
+      const text = `🎙 ${title} is live now — join from the home screen` + (th.topic ? ` — ${th.topic}` : '')
+      await townhallInboxBroadcast(text, { push: true, pushAction: { type: 'page', page: 'home' } })
+      console.log(`[townhall-autostart] opened townhall ${th.id} (${roomName}) and messaged members`)
     }
   } catch (e) {
     console.error('[townhall-autostart]', e)
