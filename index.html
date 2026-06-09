@@ -5264,7 +5264,7 @@ async function buildPcmPage(){
               : ready
                 ? '<button class="pcm-pick" style="background:var(--teal);color:#fff;flex:1 1 100%;white-space:normal" onclick="signoffToTln(\'' + e.elector_id + '\', \'' + _esc(e.elector?.name || '') + '\')">Sign off &amp; invite to TLN</button>'
                 : '<span style="flex:1 1 100%;font-size:12px;color:var(--walnut-mid);font-style:italic">Still listening to the Five Books \u2014 you can sign them off once they\u2019ve finished.</span>')
-          + '<button onclick="revokeElector(\'' + e.elector_id + '\')" style="flex:0 0 auto;margin-left:auto;font-size:12px;padding:6px 12px;background:transparent;border:1px solid var(--line);color:var(--walnut-mid);border-radius:8px;cursor:pointer;font-family:inherit">Revoke</button>'
+          + (invited ? '' : '<button onclick="revokeElector(\'' + e.elector_id + '\')" style="flex:0 0 auto;margin-left:auto;font-size:12px;padding:6px 12px;background:transparent;border:1px solid var(--line);color:var(--walnut-mid);border-radius:8px;cursor:pointer;font-family:inherit">Revoke</button>')
           + '</div>';
       }).join('');
     } else {

@@ -1317,7 +1317,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.46', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.47', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1557,19 +1557,22 @@ const server = http.createServer(async (req, res) => {
         .eq('id', el.id)
       await sb.from('prep_users').update({ pcm_id: null }).eq('id', el.elector_id)
 
-      const pcmName = el.pcm?.name || 'Your Personal Contact Minister'
+      const pcmName = el.pcm?.name || 'your Personal Contact Minister'
+      const electorName = el.elector?.name || 'friend'
       let emailed = false
       // Gently notify the elector and invite them to choose again.
       if (el.elector?.email) {
         const r = await sendEmail(el.elector.email,
           'A change in your Personal Contact Minister pairing',
           emailWrap('A change in your pairing',
-            `<p>${pcmName} is no longer able to continue as your Personal Contact Minister.</p>
-             <p>This is simply part of the journey — whenever you're ready, you can choose another minister from the list inside the app. There's no hurry, and no wrong choice.</p>`,
+            `<p>Dear ${electorName},</p>
+             <p>${pcmName} is no longer able to continue as your Personal Contact Minister.</p>
+             <p>This is simply part of the journey, and no reflection on you — whenever you're ready, you can choose another minister from the list inside the app. There's no hurry and no wrong choice, and we'll let you know as soon as your next choice responds.</p>
+             <p>Grace and peace to you.</p>`,
             'Choose another', 'https://preparingyou.app'))
         emailed = !!r.ok
       }
-      await sendSystemMessage(el.elector_id, `${pcmName} is no longer able to continue as your Personal Contact Minister. You can choose another minister from the list whenever you are ready.`)
+      await sendSystemMessage(el.elector_id, `${pcmName} is no longer able to continue as your Personal Contact Minister. This is simply part of the journey, and no reflection on you — you can choose another minister from the list whenever you are ready.`)
       return send(res, 200, { ok: true, emailed })
     }
 
