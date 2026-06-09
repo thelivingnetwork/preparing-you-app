@@ -1317,7 +1317,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.45', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.46', enc: !!_MSG_KEY })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {
@@ -1530,6 +1530,46 @@ const server = http.createServer(async (req, res) => {
       }
       await sendSystemMessage(el.pcm_id, `${electorName} has withdrawn their choice of you as their Personal Contact Minister. This is simply part of the journey — you remain ready for whoever comes next.`)
       await sendSystemMessage(electorId, `This confirms you have withdrawn your choice of ${pcmName}. You can choose another minister from the list whenever you are ready.`)
+      return send(res, 200, { ok: true, emailed })
+    }
+
+    // PCM revokes a pairing they previously accepted — the mirror of
+    // /pcm/withdraw, but initiated by the PCM. Marks the election 'revoked'
+    // (outside the one-active-per-elector unique index, so the elector is free
+    // to choose again), clears the elector's pcm_id, and notifies the elector
+    // by email + in-app. Guarded on pcm_id so a PCM can only end their OWN pairing.
+    if (req.method === 'POST' && req.url === '/pcm/revoke') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const pcmId = v.uid
+      const { electionId, electorId } = await readJson(req)
+      if (!electionId && !electorId) return send(res, 400, { error: 'electionId or electorId required' })
+      let q = sb.from('prep_pcm_elections')
+        .select('id, elector_id, pcm_id, status, elector:elector_id(name, email), pcm:pcm_id(name)')
+        .eq('pcm_id', pcmId).eq('status', 'accepted')
+      q = electionId ? q.eq('id', electionId) : q.eq('elector_id', electorId)
+      const { data: el } = await q.maybeSingle()
+      if (!el) return send(res, 404, { error: 'no_accepted_election' })
+
+      // End the pairing.
+      await sb.from('prep_pcm_elections')
+        .update({ status: 'revoked', responded_at: new Date().toISOString() })
+        .eq('id', el.id)
+      await sb.from('prep_users').update({ pcm_id: null }).eq('id', el.elector_id)
+
+      const pcmName = el.pcm?.name || 'Your Personal Contact Minister'
+      let emailed = false
+      // Gently notify the elector and invite them to choose again.
+      if (el.elector?.email) {
+        const r = await sendEmail(el.elector.email,
+          'A change in your Personal Contact Minister pairing',
+          emailWrap('A change in your pairing',
+            `<p>${pcmName} is no longer able to continue as your Personal Contact Minister.</p>
+             <p>This is simply part of the journey — whenever you're ready, you can choose another minister from the list inside the app. There's no hurry, and no wrong choice.</p>`,
+            'Choose another', 'https://preparingyou.app'))
+        emailed = !!r.ok
+      }
+      await sendSystemMessage(el.elector_id, `${pcmName} is no longer able to continue as your Personal Contact Minister. You can choose another minister from the list whenever you are ready.`)
       return send(res, 200, { ok: true, emailed })
     }
 
