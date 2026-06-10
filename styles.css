@@ -1,0 +1,352 @@
+  :root{
+    /* PreparingYou palette — parchment ground with royal-purple ink and aged gold.
+       Var names kept as `--teal/--terra` for now; they refer to the primary purple
+       and the lighter accent purple respectively. Rename in a later pass. */
+    --teal:#4f2170;       /* primary brand purple */
+    --teal-deep:#371751;  /* darker purple — bottom nav, deep surfaces */
+    --teal-soft:#6c3a92;  /* hover state for primary purple */
+    --terra:#7a3aa6;      /* lighter accent purple — buttons, FAB */
+    --badge:#fa3e3e;      /* Messenger/Facebook-style alert red for nav badges */
+    --terra-deep:#5a2680; /* hovered accent */
+    --terra-soft:rgba(122,58,166,.12);
+    --gold:#a0772a;       /* aged gold — restrained warmth */
+    --gold-soft:rgba(160,119,42,.15);
+    --warn:#e07b1a;       /* priority orange — the active "next step" tile */
+    --warn-soft:rgba(224,123,26,.10);
+    --parch:#faf6e9;      /* warm parchment — page background */
+    --cream:#fefcf4;      /* card surface */
+    --walnut:#3a2818;     /* primary text */
+    --walnut-mid:#6f5641; /* secondary text */
+    --walnut-soft:#a08a72;/* muted text */
+    --line:#e8dec3;       /* card borders / dividers */
+    --success:#2d7a4f;    /* status / confirmation */
+    /* Semantic tokens so light/dark can flip surfaces and ink independently
+       of the brand colours above (which stay purple/gold in both themes). */
+    --surface:#fefcf4;    /* card / input fill (light = same as --cream) */
+    --brand-ink:#4f2170;  /* brand-coloured TEXT on surfaces (headings etc.) */
+    --accent-ink:#5a2680; /* accent TEXT on the --terra-soft tinted cards */
+  }
+  /* ── Dark theme ──────────────────────────────────────────────
+     Manual toggle only (no prefers-color-scheme); the brand purple chrome
+     (header, bottom nav, buttons) stays, while parchment surfaces go dark
+     and the ink inverts to light. */
+  html[data-theme="dark"]{
+    --parch:#15121b;
+    --surface:#221d2b;
+    --cream:#f4f0fa;       /* light ink on the purple chrome */
+    --brand-ink:#c9a6f0;   /* light purple for headings on dark surfaces */
+    --walnut:#ece7f2;      /* primary text */
+    --walnut-mid:#b4aac3;  /* secondary text */
+    --walnut-soft:#8b8198; /* muted text */
+    --line:#352d45;        /* borders / dividers */
+    --accent-ink:#fff;     /* white reads clearly on the tinted cards in dark */
+    --terra-soft:rgba(160,120,210,.20); /* incoming chat bubbles */
+    --gold-soft:rgba(160,119,42,.22);
+    --success:#5cc98e;     /* brighter green so confirmations read on dark */
+  }
+  /* Dark-mode contrast fixes for elements that otherwise sit dark-on-dark. */
+  html[data-theme="dark"] #ptr-spin svg{stroke:var(--walnut)}
+  html[data-theme="dark"] .paul-dot{background:#c9a6f0}
+  html[data-theme="dark"] #paul-status{color:var(--walnut)!important}
+  html[data-theme="dark"] .pcm-status.available{color:#d8a850}
+  html[data-theme="dark"] .auth-error{color:#e98a6a}
+  html{background:var(--parch)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--parch);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.55}
+  /* Horizontal clip + overscroll containment live on the scroll ROOT only.
+     Putting overflow-x:hidden on BOTH html and body turns the flex/100dvh body
+     into a second scroll container, which froze vertical scrolling on some
+     Android Chrome builds (Rafi's phone). Clip on html alone; body stays a
+     plain flex child. The .screen/.page rules already guard their own width. */
+  html{overflow-x:hidden;max-width:100%;overscroll-behavior-y:contain}
+  .ptr-spinning{animation:ptrspin .7s linear infinite}
+  @keyframes ptrspin{to{transform:rotate(360deg)}}
+  h1,h2,h3{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;letter-spacing:.01em;color:var(--brand-ink);font-weight:600;margin:0 0 8px}
+  body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
+    /* Faint paper grain — subtle radial pattern that mimics parchment.
+       background-attachment:fixed was removed: it creates a fixed positioning
+       context that costs paint on every scroll frame and has caused scroll
+       jank/freezes on mobile (and Android Chrome ignores it anyway). At ~5%
+       opacity the scrolling vs fixed difference is imperceptible. */
+    background-image:
+      radial-gradient(circle at 25% 15%, rgba(79,33,112,.045) 0, transparent 40%),
+      radial-gradient(circle at 75% 85%, rgba(160,119,42,.05) 0, transparent 50%);
+  }
+
+  /* ── Landing ────────────────────────────────────────────────── */
+  .landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px}
+  .landing-ark{width:140px;height:auto;margin-bottom:20px;filter:drop-shadow(0 1px 2px rgba(58,40,24,.15))}
+  .landing-title{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:38px;font-weight:600;color:var(--brand-ink);margin:0 0 4px;text-align:center;letter-spacing:.02em}
+  .landing-sub{font-size:14px;color:var(--walnut-mid);font-style:italic;margin:0 0 18px;text-align:center;letter-spacing:.04em}
+  .landing-quote{max-width:480px;color:var(--walnut-mid);font-size:14px;font-style:italic;text-align:center;margin:0 0 32px;padding:0 20px;line-height:1.6}
+  .landing-quote::before, .landing-quote::after{content:'';display:inline-block;width:30px;height:1px;background:var(--gold);vertical-align:middle;margin:0 12px}
+
+  .auth-box{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--walnut);box-shadow:0 4px 18px rgba(58,40,24,.06)}
+  .auth-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line)}
+  .auth-tab{flex:1;background:none;border:none;color:var(--walnut-soft);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;letter-spacing:.10em;padding:10px;cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;font-weight:500}
+  .auth-tab.active{color:var(--brand-ink);border-bottom-color:var(--terra)}
+  .form-label{display:block;font-size:13px;color:var(--walnut-mid);margin:12px 0 4px;letter-spacing:.02em}
+  /* font-size must be >=16px: iOS Safari auto-zooms the page when a smaller
+     input gets focus, and that zoom sticks (pushing the fixed nav off-frame). */
+  .form-input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;transition:border-color .15s}
+  .form-input:focus{border-color:var(--terra)}
+  .row2{display:flex;gap:10px}
+  .row2>div{flex:1;min-width:0}
+  .pw-wrap{position:relative}
+  .pw-wrap .form-input{padding-right:46px}
+  .pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--walnut-soft);padding:8px;line-height:0;border-radius:6px}
+  .pw-eye:hover{color:var(--brand-ink)}
+  .pw-match{font-size:12px;margin:6px 2px 0;min-height:15px;font-style:italic}
+  .pw-match.ok{color:#2d7a4f}
+  .pw-match.bad{color:#9c4a23}
+  .field-hint{font-size:11.5px;color:var(--walnut-soft);font-style:italic;margin:5px 2px 0}
+  select.form-input,select.prof-input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236f5641' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;cursor:pointer}
+  .btn-primary{width:100%;background:var(--terra);color:#fff;border:none;border-radius:12px;padding:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.10em;cursor:pointer;margin-top:16px;text-transform:uppercase;font-weight:500;transition:background .15s}
+  .btn-primary:hover{background:var(--terra-deep)}
+  .auth-error{display:none;background:rgba(159,57,28,.08);border:1px solid rgba(159,57,28,.3);color:#9c4a23;padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic}
+  .auth-error.show{display:block}
+
+  /* ── App shell ───────────────────────────────────────────────── */
+  .screen{display:none}
+  .screen.active{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;min-width:0;max-width:100%;overflow-x:hidden}
+  .hdr,.page{min-width:0;max-width:100%}
+
+  .hdr{background:var(--teal);color:var(--cream);padding:16px 16px;display:flex;align-items:center;gap:10px;border-bottom:3px solid var(--terra)}
+  @media (max-width:430px){ .hdr{gap:8px;padding:14px 12px} .hdr-ark{width:44px;height:44px} .hdr-profile{width:44px;height:44px;font-size:15px} .hdr-paul{font-size:13px;padding:4px 12px 4px 4px} .hdr-paul svg,.hdr-paul .hdr-paul-av{width:36px;height:36px} }
+  .hdr-ark{width:56px;height:56px;flex-shrink:0;background:#fefcf4;border-radius:50%;padding:5px;object-fit:contain;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  /* Dark-mode toggle (header). Moon shows in light mode, sun in dark mode. */
+  .hdr-theme{flex-shrink:0;background:none;border:none;color:var(--cream);cursor:pointer;padding:8px;line-height:0;display:inline-flex;align-items:center}
+  .hdr-theme svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .hdr-theme .ic-sun{display:none}
+  html[data-theme="dark"] .hdr-theme .ic-moon{display:none}
+  html[data-theme="dark"] .hdr-theme .ic-sun{display:inline}
+
+  /* Bottom padding is anchored to the nav's *actual* rendered height at runtime
+     (--nav-clearance, set by syncNavClearance() in JS). The calc() fallback is
+     used only before the first measurement / if JS is disabled. */
+  .page{display:none;flex:1;padding:24px 16px var(--nav-clearance, calc(120px + env(safe-area-inset-bottom)))}
+  .page.active{display:block}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(58,40,24,.04)}
+  /* The journey tile is the user's active priority — give it a thick orange border so it reads as the next thing to do. */
+  #journey-tile{border:3px solid var(--warn);background:var(--warn-soft);box-shadow:0 2px 12px rgba(224,123,26,.18)}
+  .card-title{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;letter-spacing:.04em;color:var(--brand-ink);margin:0 0 10px;text-transform:uppercase;font-weight:600}
+  .card-text{font-size:16px;line-height:1.65;color:var(--walnut);margin:0}
+
+  .tile-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:14px}
+  .tile{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+  .tile:hover{transform:translateY(-2px);border-color:var(--terra);box-shadow:0 6px 16px rgba(122,58,166,.14)}
+  .tile-icon{font-size:30px;margin-bottom:10px;line-height:1}
+  .tile-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.04em;color:var(--brand-ink);text-transform:uppercase;font-weight:600;overflow-wrap:anywhere}
+  .tile-meta{font-size:13px;color:var(--walnut-mid);margin-top:6px;font-weight:500}
+  /* Local Almanac home card — kept compact so the whole thing is glanceable
+     above the bottom nav without scrolling. */
+  #almanac-card{padding:11px 15px}
+  .alm-date{font-size:12px;font-weight:600;color:var(--brand-ink);margin:0 0 7px}
+  .alm-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .alm-temp{display:flex;align-items:center;gap:10px;min-width:0}
+  .alm-t{font-size:27px;font-weight:600;line-height:1;color:var(--brand-ink)}
+  .alm-cond{font-size:12px;color:var(--walnut-mid);margin-top:2px}
+  .alm-loc{text-align:right;min-width:0}
+  .alm-city{font-size:14px;font-weight:600;color:var(--accent-ink);overflow-wrap:anywhere}
+  .alm-lbl{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--walnut-soft);margin-top:2px}
+  .alm-div{height:1px;background:var(--line);margin:7px 0}
+  .alm-sky{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px;text-align:center}
+  .alm-k{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-soft);margin-bottom:3px}
+  .alm-v{font-size:13px;font-weight:600;color:var(--walnut);margin-top:3px}
+  .alm-sub{font-size:10px;color:var(--walnut-mid);margin-top:1px}
+  .alm-col{display:flex;flex-direction:column;align-items:center}
+  .alm-fc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;margin-top:2px}
+  .alm-d{font-size:11px;font-weight:600;color:var(--walnut-mid);margin-bottom:3px}
+  .alm-hl{font-size:12px;margin-top:2px;color:var(--walnut)}
+  .alm-hl b{color:var(--walnut)}
+  .alm-hl span{color:var(--walnut-soft)}
+  /* Home cards kept tight so Welcome + Townhall + Almanac all fit at a glance
+     (above the bottom nav) without scrolling, even with three cards stacked. */
+  #page-home .card{margin-bottom:10px}
+  #journey-tile{padding:13px 16px}
+  #journey-tile .card-title{margin-bottom:5px}
+  #journey-tile .card-text{font-size:13px;line-height:1.4}
+  #townhall-card{padding:12px 15px}
+  #townhall-card .card-title{margin-bottom:4px}
+  #townhall-card .card-text{font-size:13px;line-height:1.4}
+
+  .nav{position:fixed;bottom:0;left:0;right:0;width:100%;max-width:100%;overflow:hidden;background:var(--teal-deep);border-top:1px solid var(--teal-soft);display:flex;justify-content:space-around;padding:4px 0 calc(6px + env(safe-area-inset-bottom));z-index:50}
+  .nav-btn{flex:1 1 0;min-width:0;background:none;border:none;color:rgba(254,252,244,.55);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.02em;padding:3px 2px;cursor:pointer;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500}
+  .nav-btn span,.nav-btn{white-space:nowrap}
+  .nav-btn.active{color:var(--cream)}
+  .nav-btn.active::before{content:'';position:absolute;top:0;width:34px;height:2px;background:var(--terra);border-radius:0 0 2px 2px;margin-top:-5px}
+  .nav-btn{position:relative}
+  .nav-btn svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.5}
+  /* Messenger/Facebook-style alert badge: red circle, white number, capped at 9+.
+     Sits at the top-right of the nav icon. Shared by Home, PCM and Messages. */
+  .nav-badge{position:absolute;top:-1px;left:50%;margin-left:6px;background:var(--badge);color:#fff;font-size:10px;font-weight:700;line-height:16px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;text-align:center;box-shadow:0 0 0 2px var(--teal-deep);font-family:system-ui,sans-serif}
+
+  /* ── First-run guidelines gate ("Before You Enter") ──────────
+     A full-screen overlay shown once after sign-up; Accept & Enter stamps
+     prep_users.guidelines_accepted_at and drops the member into the app. */
+  #guidelines-gate{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+    overflow-y:auto;padding:24px 18px calc(24px + env(safe-area-inset-bottom));
+    background:radial-gradient(125% 75% at 50% 0%,rgba(122,58,166,.16),transparent 55%),var(--parch)}
+  .gl-card{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);
+    border-radius:20px;padding:24px 22px 22px;box-shadow:0 12px 40px rgba(55,23,81,.20);margin:auto}
+  .gl-seal{width:44px;height:44px;border-radius:50%;margin:0 auto 11px;color:#fff;font-size:21px;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 38%,var(--gold) 0%,#7c5a1f 100%);box-shadow:0 2px 10px rgba(55,23,81,.25)}
+  .gl-card h1{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:22px;text-align:center;color:var(--brand-ink);margin:0}
+  .gl-sub{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-style:italic;text-align:center;color:var(--walnut-mid);
+    font-size:13px;line-height:1.4;margin:6px 2px 16px}
+  .gl-list{display:flex;flex-direction:column;gap:12px}
+  .gl-item{display:flex;gap:11px;align-items:flex-start}
+  .gl-ic{flex-shrink:0;width:25px;height:25px;border-radius:7px;margin-top:1px;font-size:13px;
+    display:flex;align-items:center;justify-content:center;background:var(--gold-soft);color:var(--gold)}
+  .gl-item h2{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:14px;color:var(--walnut);line-height:1.25;margin:0 0 1px}
+  .gl-item p{font-size:12.3px;line-height:1.4;color:var(--walnut-mid);margin:0}
+  .gl-item p b{color:var(--brand-ink);font-weight:600}
+  .gl-agree{text-align:center;font-size:11px;font-style:italic;color:var(--walnut-soft);margin:18px 4px 12px;line-height:1.4}
+  .gl-err{display:none;text-align:center;font-size:12px;color:var(--badge);margin:0 4px 10px}
+  .gl-btn{width:100%;border:none;border-radius:12px;cursor:pointer;color:#fff;padding:14px;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:600;font-size:16px;letter-spacing:.02em;
+    background:linear-gradient(180deg,var(--terra),var(--teal));box-shadow:0 4px 14px rgba(79,33,112,.32)}
+  .gl-btn:disabled{opacity:.6;cursor:default}
+  #pcm-agree-gate{position:fixed;inset:0;z-index:201;display:none;align-items:center;justify-content:center;
+    overflow-y:auto;padding:24px 18px calc(24px + env(safe-area-inset-bottom));
+    background:radial-gradient(125% 75% at 50% 0%,rgba(122,58,166,.16),transparent 55%),var(--parch)}
+  .gl-quote{text-align:center;font-style:italic;color:var(--walnut-mid);font-size:12px;line-height:1.5;margin:2px 6px 16px}
+  .gl-quote::before,.gl-quote::after{content:'';display:inline-block;width:22px;height:1px;background:var(--gold);vertical-align:middle;margin:0 9px}
+  .gl-cancel{width:100%;background:none;border:none;color:var(--walnut-soft);font-size:13px;padding:12px 0 2px;cursor:pointer;font-family:inherit}
+
+  /* ── Messages: a fixed chat layout. The thread fills the space between the
+     header and the bottom nav; only #msg-list scrolls (no page-level scroll),
+     and the compose bar is pinned just above the nav with explicit clearance.
+     This stops the compose box tucking under the nav and the thread jumping. */
+  /* Lock the shell to the viewport height while on Messages so the inner list
+     gets a bounded height to scroll within (min-height:100dvh alone lets the
+     page grow and pushes the compose bar below the fold). */
+  html.chat-lock, html.chat-lock body{height:100%;overflow:hidden}
+  html.chat-lock .screen.active{height:100dvh;min-height:0}
+  #page-messages.active{display:flex;flex-direction:column;padding:16px 16px 0;min-height:0;position:relative}
+  #page-messages #msg-thread-wrap{flex:1;min-height:0;flex-direction:column}
+  #page-messages #msg-thread-wrap > .card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0}
+  #page-messages #msg-list{flex:1;min-height:0;overscroll-behavior:contain}
+  /* Open thread tracks the *visual* viewport (set inline from JS, like the Paul
+     drawer): pinned full-bleed above the keyboard so the newest message always
+     sits just over the compose bar. The compose bar drops its bottom-nav
+     padding while pinned since the panel covers the nav. */
+  #msg-thread-wrap.msg-pinned{flex:none}
+  #msg-thread-wrap.msg-pinned > .card{border-radius:0;border-left:0;border-right:0;height:100%}
+  #msg-thread-wrap.msg-pinned #msg-compose{padding-bottom:calc(12px + env(safe-area-inset-bottom)) !important}
+  /* Conversation list (inbox) */
+  #page-messages #msg-inbox{flex:1;min-height:0;display:flex;flex-direction:column}
+  #page-messages #msg-convo-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -4px}
+  .convo-row{display:flex;align-items:center;gap:12px;padding:11px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
+  .convo-row:active{background:var(--gold-soft)}
+  .convo-av{width:50px;height:50px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px}
+  .convo-main{flex:1;min-width:0}
+  .convo-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .convo-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;color:var(--walnut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .convo-time{font-size:11px;color:var(--walnut-soft);flex-shrink:0}
+  .convo-sub{display:flex;align-items:center;gap:8px;margin-top:1px}
+  .convo-prev{flex:1;min-width:0;font-size:13px;color:var(--walnut-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .convo-row.unread .convo-name{font-weight:700;color:var(--brand-ink)}
+  .convo-row.unread .convo-prev{color:var(--walnut);font-weight:600}
+  .convo-badge{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--badge);color:#fff;font-size:11px;font-weight:700;line-height:20px;text-align:center;font-family:system-ui,sans-serif}
+  /* Left-swipe to reveal a per-row Delete — "uncover" design.
+     The red Delete is ALWAYS painted, pinned to the right of the card, exactly
+     the row's height. The opaque .convo-row sits ON TOP of it (z-index) and
+     covers it completely at rest, so no red shows. Swiping slides the row left
+     to UNCOVER the already-painted Delete. Nothing has to repaint or un-clip on
+     swipe (the red was there all along) — which defeats the WebKit bug where the
+     LAST row in a scroll container won't repaint a freshly-revealed element.
+     The Delete is pinned within the card (right:0, top/bottom:0) so it can never
+     be taller than its row or bleed into the row below, and its rounded right
+     corners line up with the row's, so no square red can peek past the corner. */
+  .convo-swipe{position:relative;overflow:hidden;border-radius:10px;margin-bottom:7px}
+  .convo-del{position:absolute;top:0;right:0;bottom:0;width:88px;border:none;border-radius:0 10px 10px 0;background:var(--badge);color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:0}
+  .convo-swipe > .convo-row{position:relative;z-index:1;background:var(--surface);touch-action:pan-y;border-radius:10px;border-bottom:none}
+  .convo-swipe > .convo-row:active{background:var(--gold-soft)}
+  .picker-row{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:10px}
+  .picker-row:active{background:var(--gold-soft)}
+
+  /* ── Paul (header AI button) ──────────────────────────────── */
+  .hdr-paul{flex-shrink:0;display:flex;align-items:center;gap:7px;background:var(--gold);border:none;cursor:pointer;padding:4px 14px 4px 4px;border-radius:999px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;letter-spacing:.04em;line-height:1;box-shadow:0 2px 8px rgba(55,23,81,.4)}
+  .hdr-paul:hover{background:#b8862f}
+  .hdr-profile{flex-shrink:0;width:56px;height:56px;border-radius:50%;overflow:hidden;background:var(--gold);color:#fff;border:2px solid rgba(255,255,255,.55);cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .hdr-profile:hover{filter:brightness(1.06)}
+  .prof-label{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:0 2px 5px}
+  .prof-input{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--walnut);font-size:14px;font-family:inherit;margin-bottom:16px}
+  .prof-input:focus{outline:none;border-color:var(--teal)}
+  .hdr-paul svg,.hdr-paul .hdr-paul-av{width:40px;height:40px;flex-shrink:0;background:#fff;border-radius:50%;overflow:hidden;box-shadow:0 1px 3px rgba(55,23,81,.3)}
+  /* Paul's portrait, framed to a circle (face focused via object-position). */
+  .hdr-paul .hdr-paul-av{object-fit:cover;object-position:50% 24%;display:block}
+  /* Paul portrait at the top of the drawer */
+  .paul-hero-av{flex-shrink:0;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(20,48,52,.35);border:2px solid var(--cream);display:inline-flex}
+  .paul-hero-av svg,.paul-hero-av img{width:100%;height:100%;display:block}
+  .paul-hero-av img{object-fit:cover;object-position:50% 24%}
+  /* Thinking dots — wave */
+  .paul-thinking{display:inline-flex;align-items:flex-end;gap:5px;height:14px}
+  .paul-dot{width:8px;height:8px;border-radius:50%;background:var(--terra);display:inline-block;animation:paul-wave 1.2s ease-in-out infinite}
+  .paul-dot:nth-child(2){animation-delay:.18s}
+  .paul-dot:nth-child(3){animation-delay:.36s}
+  @keyframes paul-wave{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-7px);opacity:1}}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--walnut-mid);font-size:15px}
+  .empty .ico{font-size:42px;margin-bottom:12px;display:block;opacity:.6}
+
+  /* ── Modals ──────────────────────────────────────────────────── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,3,24,.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px 16px;overflow-y:auto}
+  .modal-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;color:var(--walnut);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .modal-title{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;letter-spacing:.06em;color:var(--brand-ink);text-transform:uppercase}
+  .modal-close{background:none;border:none;font-size:18px;color:var(--walnut-mid);cursor:pointer;padding:4px 8px;line-height:1}
+  .modal-body{padding:18px}
+
+  .btn-secondary{width:100%;background:var(--surface);color:var(--brand-ink);border:1px solid var(--brand-ink);border-radius:12px;padding:11px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.10em;cursor:pointer;text-transform:uppercase}
+  .btn-secondary:hover{background:#f5f0fa}
+  .link-btn{background:none;border:none;color:var(--brand-ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;padding:4px 0}
+  .link-btn:hover{color:var(--gold);text-decoration:underline}
+
+  /* ── PCM list rows ───────────────────────────────────────────── */
+  .pcm-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+  .pcm-row.chosen{border-color:var(--success);background:rgba(45,122,79,.04)}
+  .pcm-av{width:42px;height:42px;border-radius:50%;overflow:hidden;background:var(--teal);color:var(--cream);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;flex-shrink:0}
+  .pcm-info{flex:1;min-width:0}
+  .pcm-name{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:var(--brand-ink);letter-spacing:.04em;margin-bottom:2px}
+  .pcm-meta{font-size:12px;color:var(--walnut-mid)}
+  .pcm-channels{font-size:10px;color:var(--walnut-mid);margin-top:4px;letter-spacing:.04em}
+  .pcm-pick{background:var(--teal);color:var(--cream);border:none;border-radius:8px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase;flex-shrink:0}
+  .pcm-pick:hover{background:var(--teal-soft)}
+  .pcm-pick.chosen{background:#2d7a4f}
+  .pcm-status{display:inline-block;font-size:9px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:10px;vertical-align:middle;font-weight:600}
+  .pcm-status.matched{background:rgba(45,122,79,.12);color:var(--success)}
+  .pcm-status.available{background:rgba(192,138,42,.14);color:#9a6b1f}
+  .pcm-peer-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+
+  /* ── Library ─────────────────────────────────────────────────── */
+  .lib-search{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--walnut);font-family:inherit;font-size:16px;outline:none;margin-bottom:14px}
+  .lib-search:focus{border-color:var(--gold)}
+  /* Segmented control: Literature · Video · Audio. Swaps the list in place. */
+  .lib-tabs{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+  .lib-tab{flex:1;min-width:0;background:none;border:none;cursor:pointer;color:var(--walnut-mid);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;letter-spacing:.02em;padding:9px 4px;border-radius:9px;text-transform:uppercase;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;transition:background .15s ease,color .15s ease}
+  .lib-tab svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+  .lib-tab.active{background:linear-gradient(180deg,var(--terra),var(--teal));color:#fff;box-shadow:0 2px 8px rgba(79,33,112,.25)}
+  @media (max-width:360px){ .lib-tab{font-size:11px;letter-spacing:0} .lib-tab svg{display:none} }
+  .lib-letter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .lib-letter{flex:1;min-width:24px;background:none;border:none;color:var(--brand-ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.04em;padding:6px 0;cursor:pointer;text-align:center;border-radius:6px;text-transform:uppercase}
+  .lib-letter:hover{background:rgba(61,31,122,.08)}
+  .lib-letter.disabled{opacity:.25;cursor:default}
+  .lib-letter.disabled:hover{background:none}
+  .lib-section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .lib-section-hdr{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--brand-ink);letter-spacing:.06em;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .lib-topic{padding:8px 0;border-bottom:1px solid #f7f1de}
+  .lib-topic:last-child{border-bottom:none}
+  .lib-topic-title{display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;color:var(--brand-ink);text-decoration:none;font-weight:500}
+  .lib-topic-title:hover{color:var(--gold);text-decoration:underline}
+  .lib-media{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
+  .lib-media a{font-size:10px;background:var(--gold-soft);border:1px solid rgba(160,119,42,.35);color:var(--gold);padding:3px 8px;border-radius:6px;text-decoration:none;letter-spacing:.05em;text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif}
+  .lib-media a:hover{background:var(--gold);color:#fff}
+  .lib-subhead{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--walnut-mid);margin:6px 2px 10px;font-weight:600}
+  .lib-spotify{display:block;width:100%;border:0;border-radius:12px}
+  /* Responsive 16:9 wrapper for the channel video player. */
+  .lib-yt-wrap{position:relative;width:100%;padding-bottom:56.25%;border-radius:12px;overflow:hidden;background:#000}
+  .lib-yt-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
