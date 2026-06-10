@@ -1095,6 +1095,22 @@ function sendEmail(toName, toEmail, subject, message){
   }).catch(e => console.warn('Email failed:', e));
 }
 
+// ── Password-recovery capture — MUST run before the supabase client below ──
+// A reset link lands on the app with the access token in the URL hash
+// (#...type=recovery) and, when the redirect URL is allow-listed, also ?reset=1.
+// supabase-js (detectSessionInUrl, on by default) parses that token to establish
+// the recovery session and then STRIPS the hash — so by window 'load' the signal
+// is gone, and the old check fell through and auto-entered the app instead of
+// showing the "set a new password" form. We capture the signal synchronously
+// here, before the client exists, so the reset form reliably wins.
+let _recoveryMode = (function(){
+  try {
+    var h = window.location.hash || '';
+    var q = new URLSearchParams(window.location.search || '');
+    return h.indexOf('type=recovery') >= 0 || q.get('reset') === '1';
+  } catch(_) { return false; }
+})();
+
 const _sb = (window.supabase && _SB_URL.startsWith('http'))
   ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
@@ -1295,7 +1311,8 @@ async function doResetPassword(){
   if(!pw || pw.length < 8){ err.textContent='Password must be at least 8 characters.'; err.classList.add('show'); return; }
   const { error } = await _sb.auth.updateUser({ password: pw });
   if(error){ err.textContent = error.message; err.classList.add('show'); return; }
-  // Clean URL and proceed
+  // Reset complete — clear recovery mode and clean the URL, then proceed.
+  _recoveryMode = false;
   history.replaceState({}, '', window.location.pathname);
   const { data: { session } } = await _sb.auth.getSession();
   if(session?.user){
@@ -5699,11 +5716,10 @@ async function signOut(){
 window.addEventListener('load', async ()=>{
   if(!_sb) return;
 
-  // Recovery flow — Supabase delivers the access token in the URL hash with type=recovery.
-  // The supabase-js client picks it up automatically on init; we just need to surface the
-  // password-reset panel before any other gating.
-  const hash = window.location.hash || '';
-  if(hash.includes('type=recovery') || new URL(window.location.href).searchParams.get('reset') === '1'){
+  // Recovery flow — captured synchronously at startup (before supabase-js parsed
+  // and stripped the URL hash). If present, surface the set-new-password panel and
+  // NEVER auto-enter the app.
+  if(_recoveryMode){
     showAuthTab('reset');
     return;
   }
@@ -5733,6 +5749,9 @@ window.addEventListener('load', async ()=>{
         data = _rd;
       }
     } catch(__){ /* network/exception — proceed with the cached session */ }
+    // Defensive: if a PASSWORD_RECOVERY event flipped this flag while we were
+    // awaiting above, show the reset form rather than entering the app.
+    if(_recoveryMode){ showAuthTab('reset'); return; }
     await _loadProfile(data.session.user);
     // Restore the cached private key (no password on a session resume). If the
     // device was evicted this returns false and Messenger prompts to unlock.
@@ -5746,7 +5765,7 @@ if(window._sb){ /* placeholder — sb already created above */ }
 document.addEventListener('DOMContentLoaded', () => {
   if(!_sb) return;
   _sb.auth.onAuthStateChange((event) => {
-    if(event === 'PASSWORD_RECOVERY'){ showAuthTab('reset'); return; }
+    if(event === 'PASSWORD_RECOVERY'){ _recoveryMode = true; showAuthTab('reset'); return; }
     // Supabase fires SIGNED_OUT when it gives up on a session it can no longer
     // refresh (dead/rotated refresh token) — exactly the silent-stranding case
     // behind the blank-messages bug. If the member is sitting inside the app when
