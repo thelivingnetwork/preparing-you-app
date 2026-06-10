@@ -1,0 +1,14 @@
+{
+  "name": "preparing-you-tests",
+  "private": true,
+  "description": "Playwright end-to-end tests for the Preparing You single-file app. Lives in its own folder so the repo root stays package.json-free (Netlify serves the static app as-is).",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
