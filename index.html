@@ -1104,11 +1104,23 @@ function sendEmail(toName, toEmail, subject, message){
 // is gone, and the old check fell through and auto-entered the app instead of
 // showing the "set a new password" form. We capture the signal synchronously
 // here, before the client exists, so the reset form reliably wins.
+// Three recovery-link shapes are supported:
+//   • ?token_hash=…&type=recovery  — robust query link; survives the mobile
+//     email→browser handoff (a URL #fragment does NOT) — verified via verifyOtp
+//   • #…type=recovery              — legacy implicit fragment (works on desktop)
+//   • ?reset=1                     — legacy redirect marker
+const _resetQuery = (function(){
+  try {
+    var q = new URLSearchParams(window.location.search || '');
+    return { token_hash: q.get('token_hash') || '', type: q.get('type') || '', reset: q.get('reset') || '' };
+  } catch(_) { return { token_hash:'', type:'', reset:'' }; }
+})();
 let _recoveryMode = (function(){
   try {
     var h = window.location.hash || '';
-    var q = new URLSearchParams(window.location.search || '');
-    return h.indexOf('type=recovery') >= 0 || q.get('reset') === '1';
+    return h.indexOf('type=recovery') >= 0
+        || _resetQuery.reset === '1'
+        || (!!_resetQuery.token_hash && _resetQuery.type === 'recovery');
   } catch(_) { return false; }
 })();
 
@@ -5721,6 +5733,19 @@ async function signOut(){
 // ═════════════════════════ INIT ═════════════════════════
 window.addEventListener('load', async ()=>{
   if(!_sb) return;
+
+  // Robust query-based recovery link: verify the one-time token to establish the
+  // recovery session, then show the set-new-password form. The email template
+  // uses this (?token_hash=…&type=recovery) so the token survives the mobile
+  // email→browser handoff that drops URL fragments.
+  if(_resetQuery.token_hash && _resetQuery.type === 'recovery'){
+    try { await _sb.auth.verifyOtp({ token_hash: _resetQuery.token_hash, type: 'recovery' }); }
+    catch(e){ console.warn('[recovery] verifyOtp failed', e); }
+    _recoveryMode = true;
+    history.replaceState({}, '', window.location.pathname);
+    showAuthTab('reset');
+    return;
+  }
 
   // Recovery flow — captured synchronously at startup (before supabase-js parsed
   // and stripped the URL hash). If present, surface the set-new-password panel and
