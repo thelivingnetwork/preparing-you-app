@@ -181,6 +181,28 @@ function readJson(req) {
   })
 }
 
+// ─── Error log ──────────────────────────────────────────────────────────
+// Fire-and-forget insert into prep_client_errors. Never throws and never
+// blocks the caller — logging must not be able to break a request. Fields
+// are truncated so a runaway stack can't bloat the row.
+const _clip = (s, n) => (s == null ? null : String(s).slice(0, n))
+function logError(source, info) {
+  try {
+    sb.from('prep_client_errors').insert({
+      source,
+      kind:        _clip(info.kind, 40),
+      message:     _clip(info.message, 2000),
+      stack:       _clip(info.stack, 6000),
+      url:         _clip(info.url, 1000),
+      user_agent:  _clip(info.user_agent, 500),
+      app_version: _clip(info.app_version, 60),
+      user_uid:    _clip(info.user_uid, 120),
+      extra:       info.extra && typeof info.extra === 'object' ? info.extra : null
+    }).then(({ error }) => { if (error) console.warn('[logError] insert failed', error.message) },
+            e => console.warn('[logError] threw', e && e.message))
+  } catch (e) { console.warn('[logError] sync threw', e && e.message) }
+}
+
 // ─── Embeddings via OpenAI ──────────────────────────────────────────────
 async function embedQuery(text) {
   const r = await fetch('https://api.openai.com/v1/embeddings', {
@@ -1264,6 +1286,25 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
 
   try {
+    // Client error sink — unauthenticated by design (errors happen before/
+    // without a session). Body size is capped by readJson; fields truncated
+    // by logError. Always 204 so the reporter never retries or surfaces.
+    if (req.method === 'POST' && req.url === '/client-error') {
+      let b = {}
+      try { b = await readJson(req) } catch (_) {}
+      logError('client', {
+        kind:        b.kind || 'error',
+        message:     b.message,
+        stack:       b.stack,
+        url:         b.url,
+        user_agent:  (req.headers && req.headers['user-agent']) || b.user_agent,
+        app_version: b.app_version,
+        user_uid:    b.user_uid,
+        extra:       b.extra
+      })
+      res.writeHead(204); res.end(); return
+    }
+
     if (req.method === 'GET' && req.url === '/admin/kpis') {
       const tok = await verifyToken(req)
       if (tok.error) return send(res, tok.status, { error: tok.error })
@@ -2397,6 +2438,7 @@ const server = http.createServer(async (req, res) => {
     send(res, 404, { error: 'not_found' })
   } catch (e) {
     console.error('[err]', e)
+    logError('server', { kind: 'http_500', message: e && e.message, stack: e && e.stack, url: (req.method || '') + ' ' + (req.url || '') })
     send(res, 500, { error: e.message || 'internal_error' })
   }
 })

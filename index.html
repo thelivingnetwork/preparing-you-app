@@ -1048,6 +1048,57 @@ const _SB_URL  = 'https://qvcfgcwecykilbddgqzv.supabase.co';
 const _SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2Y2ZnY3dlY3lraWxiZGRncXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5NTQ2MzQsImV4cCI6MjA5MzUzMDYzNH0.cn-xvirE9JOG-m9vNFITVRiDLAZQQzE9yzoKEYUGUZg';
 const _SERVER_URL = 'https://preparing-you-server.onrender.com';
 
+// ═════════════════════════ ERROR REPORTING ═════════════════════════
+// Self-hosted: forward uncaught errors, promise rejections, and CSP
+// violations to the server's /client-error sink (→ prep_client_errors).
+// Strictly fire-and-forget and heavily guarded — reporting must never throw,
+// block, or loop. Deduped per-message and capped per session so a tight error
+// loop can't flood the table.
+const _ERR_VERSION = '2026-06-10';   // bump on notable releases for triage
+const _errSeen = new Map();          // message -> last-sent ms
+let _errCount = 0;                    // per-session cap
+function _reportError(kind, message, stack, extra){
+  try {
+    if (_errCount >= 30) return;                       // session flood cap
+    const key = kind + '|' + String(message || '').slice(0, 160);
+    const now = Date.now();
+    if (_errSeen.get(key) && (now - _errSeen.get(key)) < 60000) return; // dedupe 60s
+    _errSeen.set(key, now);
+    _errCount++;
+    let uid = null;
+    try { uid = (window.currentUser && (currentUser.id || currentUser.uid)) || null; } catch(_){}
+    const body = JSON.stringify({
+      kind: kind,
+      message: String(message || '').slice(0, 2000),
+      stack: stack ? String(stack).slice(0, 6000) : null,
+      url: location.href,
+      app_version: _ERR_VERSION,
+      user_uid: uid,
+      extra: extra || null
+    });
+    // keepalive so reports still flush during navigation/unload.
+    fetch(_SERVER_URL + '/client-error', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: body, keepalive: true
+    }).catch(function(){ /* swallow — never surface a reporting failure */ });
+  } catch(_) { /* never throw from the reporter */ }
+}
+window.addEventListener('error', function(e){
+  // Resource-load errors (img/script) have no e.error; still useful to know.
+  var msg = (e && e.message) || (e && e.target && e.target.src ? ('resource load failed: ' + e.target.src) : 'unknown error');
+  _reportError('error', msg, e && e.error && e.error.stack, { line: e && e.lineno, col: e && e.colno, src: e && e.filename });
+});
+window.addEventListener('unhandledrejection', function(e){
+  var r = e && e.reason;
+  _reportError('unhandledrejection', (r && (r.message || r)) || 'unhandled rejection', r && r.stack);
+});
+window.addEventListener('securitypolicyviolation', function(e){
+  // Fires for both enforced and report-only CSP blocks — our visibility net
+  // for anything the allow-list missed.
+  _reportError('csp', e.violatedDirective + ' blocked ' + e.blockedURI, null,
+    { directive: e.effectiveDirective, blockedURI: e.blockedURI, sourceFile: e.sourceFile, line: e.lineNumber });
+});
+
 // Build headers for an authenticated server call. The backend now derives the
 // caller's identity from this Supabase access token (never from the request
 // body), so every privileged endpoint must be called with these headers.

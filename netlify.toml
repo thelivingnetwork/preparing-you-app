@@ -16,11 +16,15 @@
     # blocks injecting EXTERNAL scripts and limits where data can be sent — the
     # hand-rolled output escaping remains the primary XSS defense. If a future
     # dependency needs eval(), add 'unsafe-eval' to script-src.
-    # NOTE: shipped as Report-Only first — it logs violations to the browser
-    # console WITHOUT blocking anything, so it cannot break a feature. After you
-    # click through every flow and confirm zero violations, rename this header to
-    # "Content-Security-Policy" (drop "-Report-Only") to actually enforce it.
-    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net https://geocoding-api.open-meteo.com https://api.open-meteo.com https://api.bigdatacloud.net; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    # NOW ENFORCED (2026-06-10). Before flipping off "-Report-Only" the origin
+    # allow-list was audited against the code: added frame-src for the YouTube
+    # (nocookie) + Spotify library embeds, and api.met.no / wttr.in to
+    # connect-src for the weather fallbacks — without these, enforcement would
+    # have blocked those features. CSP violations are also reported to
+    # prep_client_errors via the client's securitypolicyviolation handler, so
+    # anything missed is visible (not just silently broken). To revert in a
+    # hurry, rename this header back to "Content-Security-Policy-Report-Only".
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net https://geocoding-api.open-meteo.com https://api.open-meteo.com https://api.bigdatacloud.net https://api.met.no https://wttr.in; frame-src https://www.youtube-nocookie.com https://open.spotify.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 # Always revalidate the app shell so deploys show up immediately instead of
 # being served stale from the browser / PWA cache.
