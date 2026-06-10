@@ -405,6 +405,7 @@
 
       <div id="panel-signin">
         <div id="signin-error" class="auth-error">Invalid email or password.</div>
+        <div id="signin-success" style="display:none;background:rgba(45,122,79,.1);border:1px solid rgba(45,122,79,.3);color:var(--success,#2d7a4f);padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic">Password updated — please sign in with your new password.</div>
         <label class="form-label">Email address</label>
         <input class="form-input" id="si-email" type="email" placeholder="your@email.com">
         <label class="form-label">Password</label>
@@ -1311,18 +1312,22 @@ async function doResetPassword(){
   if(!pw || pw.length < 8){ err.textContent='Password must be at least 8 characters.'; err.classList.add('show'); return; }
   const { error } = await _sb.auth.updateUser({ password: pw });
   if(error){ err.textContent = error.message; err.classList.add('show'); return; }
-  // Reset complete — clear recovery mode and clean the URL, then proceed.
+  // Reset complete. Sign out and return to the login screen so the member signs
+  // in fresh with their new password — clearer and more secure than silently
+  // entering the app on the recovery session. The E2EE identity is re-keyed
+  // under the new password on that next sign-in (doSignIn → _initE2EEWithPassword,
+  // which starts a fresh identity since the old key backup can't be unlocked).
   _recoveryMode = false;
+  let _email = '';
+  try { const { data } = await _sb.auth.getSession(); _email = data?.session?.user?.email || ''; } catch(_){}
+  try { await _sb.auth.signOut(); } catch(_){}
+  currentUser = null;
+  document.getElementById('reset-pw').value = '';
   history.replaceState({}, '', window.location.pathname);
-  const { data: { session } } = await _sb.auth.getSession();
-  if(session?.user){
-    await _loadProfile(session.user);
-    // The new password can no longer unlock the old key backup, so this starts
-    // a fresh encryption identity under it (old E2EE history becomes unreadable).
-    await _initE2EEWithPassword(session.user.id, pw);
-    enterApp();
-  }
-  else showAuthTab('signin');
+  const si = document.getElementById('si-email'); if(si && _email) si.value = _email;
+  const sp = document.getElementById('si-pw');   if(sp) sp.value = '';
+  showAuthTab('signin');
+  const ok = document.getElementById('signin-success'); if(ok) ok.style.display = 'block';
 }
 
 async function doSignIn(){
@@ -1330,6 +1335,7 @@ async function doSignIn(){
   const pw    = document.getElementById('si-pw').value;
   const err   = document.getElementById('signin-error');
   err.classList.remove('show');
+  const _ss = document.getElementById('signin-success'); if(_ss) _ss.style.display='none';
   if(!_sb){ err.textContent='Supabase is not configured yet.'; err.classList.add('show'); return; }
   const { data, error } = await _sb.auth.signInWithPassword({ email, password: pw });
   if(error || !data?.user){ err.textContent='Invalid email or password.'; err.classList.add('show'); return; }
