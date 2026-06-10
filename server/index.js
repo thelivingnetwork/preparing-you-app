@@ -1305,6 +1305,19 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(204); res.end(); return
     }
 
+    // Durable cron trigger. pg_cron (via pg_net) POSTs here every minute so the
+    // townhall jobs keep firing even if the in-process timer dies. Guarded by a
+    // shared secret set on both sides (CRON_SECRET on Render + the pg_cron job
+    // header). Fire-and-forget so the heartbeat returns instantly.
+    if (req.method === 'POST' && req.url === '/cron/tick') {
+      const secret = process.env.CRON_SECRET
+      if (!secret || (req.headers['x-cron-secret'] || '') !== secret) {
+        return send(res, 401, { error: 'unauthorized' })
+      }
+      runCronTick('http')
+      return send(res, 200, { ok: true })
+    }
+
     if (req.method === 'GET' && req.url === '/admin/kpis') {
       const tok = await verifyToken(req)
       if (tok.error) return send(res, tok.status, { error: tok.error })
@@ -2764,14 +2777,36 @@ async function runTownhallAutoclose() {
   }
 }
 
-// Run on boot, then on a schedule.
-setTimeout(runTownhallReminders, 5000)
-setInterval(runTownhallReminders, 5 * 60 * 1000)
-setTimeout(runTownhallAnnouncements, 8000)
-setInterval(runTownhallAnnouncements, 5 * 60 * 1000)
-setTimeout(runTownhallRecurrence, 12000)
-setInterval(runTownhallRecurrence, 60 * 60 * 1000)
-setTimeout(runTownhallAutostart, 9000)
-setInterval(runTownhallAutostart, 60 * 1000)          // every minute → opens on time
-setTimeout(runTownhallAutoclose, 15000)
-setInterval(runTownhallAutoclose, 5 * 60 * 1000)
+// ─── Scheduler ──────────────────────────────────────────────────────────
+// All five townhall jobs run in one idempotent tick. Each does a guarded SELECT
+// and usually skips, so running the whole set every minute is cheap and far
+// simpler than five overlapping intervals. `_tickRunning` stops a slow tick from
+// overlapping the next one — and stops the in-process timer from racing a
+// /cron/tick HTTP trigger (both run in this one process).
+let _tickRunning = false
+async function runCronTick(source) {
+  if (_tickRunning) return { skipped: true }
+  _tickRunning = true
+  try {
+    await runTownhallAutostart()
+    await runTownhallReminders()
+    await runTownhallAnnouncements()
+    await runTownhallAutoclose()
+    await runTownhallRecurrence()
+    return { ok: true }
+  } catch (e) {
+    console.error(`[cron-tick:${source || 'timer'}]`, e)
+    logError('server', { kind: 'cron_tick', message: e && e.message, stack: e && e.stack, url: 'runCronTick' })
+    return { ok: false, error: e && e.message }
+  } finally {
+    _tickRunning = false
+  }
+}
+
+// In-process timer = liveness while the server is up. The DURABLE layer is an
+// external pg_cron heartbeat that POSTs /cron/tick every minute (see
+// sql/2026-06-10_townhall_pg_cron.sql): it keeps the jobs firing even if this
+// in-process timer dies, and on any future scale-to-zero plan it wakes the
+// server. Both call the same guarded runCronTick, so they can't double-fire.
+setTimeout(() => runCronTick('boot'), 8000)
+setInterval(() => runCronTick('timer'), 60 * 1000)
