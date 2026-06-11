@@ -706,16 +706,22 @@ async function buildJoinTlnPage(){
     const cta = document.getElementById('join-tln-cta');
     const empty = document.getElementById('join-tln-empty');
     const text = document.getElementById('join-tln-text');
-    if(currentUser.tln_invited_at){
-      cta.style.display = 'block';
-      empty.style.display = 'none';
-      text.textContent = 'Your invitation has been issued. Tap the button below to enter The Living Network — your name and email will be prefilled on the Join screen.';
-      const when = new Date(currentUser.tln_invited_at);
-      document.getElementById('join-tln-when').textContent = 'Invited ' + when.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
-    } else {
-      cta.style.display = 'none';
-      empty.style.display = 'flex';
-      text.textContent = 'When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.';
+    // Reaching this page means the journey gate passed — all five book audio
+    // overviews are complete (stage 4). That IS the requirement for entering
+    // The Living Network; no PCM sign-off needed for the door itself.
+    cta.style.display = 'block';
+    empty.style.display = 'none';
+    text.textContent = 'You have listened to all five books — the door is open. '
+      + 'Join The Living Network with your REAL name and a REAL email address: '
+      + 'your church record forms (the Declaration of Sacred Purpose and the records of the congregation) are generated from them.';
+    const whenEl = document.getElementById('join-tln-when');
+    if(whenEl){
+      if(currentUser.tln_invited_at){
+        const when = new Date(currentUser.tln_invited_at);
+        whenEl.textContent = 'Invited ' + when.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      } else {
+        whenEl.textContent = '';
+      }
     }
   };
   paint();
@@ -725,12 +731,37 @@ async function buildJoinTlnPage(){
 
 function openTlnHandoff(){
   if(!currentUser) return;
-  // Same handoff URL shape used in the email
+  // Deliberately NO name/email in the handoff: Preparing You permits aliases
+  // and alternate emails, but The Living Network needs real details (church
+  // record forms are generated from them) — the user types those fresh on
+  // TLN's Join screen. The opaque pyid links the two accounts so TLN's
+  // Overseer seal can later unlock Volunteer-as-PCM here.
   const handoff = 'https://livingnetwork.netlify.app/?'
     + 'from=preparingyou'
-    + '&name=' + encodeURIComponent(currentUser.name || '')
-    + '&email=' + encodeURIComponent(currentUser.email || '');
+    + '&pyid=' + encodeURIComponent(currentUser.id || '');
   window.open(handoff, '_blank');
+}
+
+// ── TLN seal check (cross-app) ────────────────────────────────────
+// Asks The Living Network's Supabase whether this PY account belongs to a
+// sealed congregant (boolean-only RPC, safe with the public anon key).
+// A seal never un-seals, so a true result is cached for the device.
+const TLN_SB_URL  = 'https://ahtdvcqyxxjdqrkxsovw.supabase.co';
+const TLN_SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFodGR2Y3F5eHhqZHFya3hzb3Z3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTcwODcsImV4cCI6MjA5MTY3MzA4N30.NHv2uVAvPNWFmVYPL1xqwhOwpw-RdYWFt4X-XQF-Gdg';
+async function tlnIsSealedMember(){
+  if(!currentUser) return false;
+  try{ if(localStorage.getItem('py_tln_sealed') === currentUser.id) return true; }catch(_){}
+  try{
+    const r = await fetch(TLN_SB_URL + '/rest/v1/rpc/tln_is_sealed_member', {
+      method:'POST',
+      headers:{ apikey: TLN_SB_ANON, Authorization:'Bearer '+TLN_SB_ANON, 'Content-Type':'application/json' },
+      body: JSON.stringify({ p_pyid: String(currentUser.id||''), p_email: String(currentUser.email||'') })
+    });
+    if(!r.ok) return false;
+    const sealed = (await r.json()) === true;
+    if(sealed){ try{ localStorage.setItem('py_tln_sealed', currentUser.id); }catch(_){} }
+    return sealed;
+  }catch(_){ return false; }
 }
 
 // ═════════════════════════ TOWNHALL ═════════════════════════
@@ -3179,8 +3210,8 @@ function renderJourneyTile(){
       _bookAudioDone.size > 0 ? 'Continue listening' : 'Start listening', "showPage('books')", true);
   } else if(stage === 4){
     html = _journeyCard('Join The Living Network',
-      'You have completed your preparation. When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.',
-      '', 'View status', "showPage('join-tln')", true);
+      'You have listened to all five books — the door is open. Join The Living Network with your real name and a real email address: your church record forms are generated from them.',
+      '', 'Join The Living Network', "showPage('join-tln')", true);
   } else {
     html = '<div class="card-title" style="color:var(--accent-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg>The Living Network</div>'
       + '<div class="card-text">You have been granted access to The Living Network. You may also choose to become a Personal Contact Minister yourself and walk this preparation alongside others.</div>'
@@ -4159,10 +4190,15 @@ async function buildPcmPage(){
     mineCard.style.display = 'none';
     volBtn.textContent = '+ Volunteer as PCM';
   }
-  // Only those granted access to The Living Network (or existing PCMs) may
-  // become a PCM — this drives the multiplication loop.
-  const canBecomePcm = !!currentUser.tln_invited_at || _pcmAmIPcm;
-  volBtn.style.display = canBecomePcm ? '' : 'none';
+  // Only actual congregants of The Living Network — an Overseer-sealed
+  // Declaration of Sacred Purpose — may volunteer as a PCM (existing PCMs
+  // keep their edit button). Verified against TLN itself via tlnIsSealedMember.
+  volBtn.style.display = _pcmAmIPcm ? '' : 'none';
+  if(!_pcmAmIPcm){
+    tlnIsSealedMember().then(function(sealed){
+      if(sealed) volBtn.style.display = '';
+    });
+  }
 
   // 3. Active-PCM roster (already fetched above in parallel) — partition by region
   const rows = rowsRes.data;
