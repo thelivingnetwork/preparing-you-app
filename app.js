@@ -744,23 +744,24 @@ function openTlnHandoff(){
 
 // ── TLN seal check (cross-app) ────────────────────────────────────
 // Asks The Living Network's Supabase whether this PY account belongs to a
-// sealed congregant (boolean-only RPC, safe with the public anon key).
-// A seal never un-seals, so a true result is cached for the device.
+// CURRENT sealed congregant (boolean-only RPC, safe with the public anon
+// key). Cached per session only — membership can end (account deletion), so
+// the verdict must not be persisted on the device.
 const TLN_SB_URL  = 'https://ahtdvcqyxxjdqrkxsovw.supabase.co';
 const TLN_SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFodGR2Y3F5eHhqZHFya3hzb3Z3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTcwODcsImV4cCI6MjA5MTY3MzA4N30.NHv2uVAvPNWFmVYPL1xqwhOwpw-RdYWFt4X-XQF-Gdg';
+let _tlnSealedCache = null;   // null = unknown this session
 async function tlnIsSealedMember(){
   if(!currentUser) return false;
-  try{ if(localStorage.getItem('py_tln_sealed') === currentUser.id) return true; }catch(_){}
+  if(_tlnSealedCache !== null) return _tlnSealedCache;
   try{
     const r = await fetch(TLN_SB_URL + '/rest/v1/rpc/tln_is_sealed_member', {
       method:'POST',
       headers:{ apikey: TLN_SB_ANON, Authorization:'Bearer '+TLN_SB_ANON, 'Content-Type':'application/json' },
       body: JSON.stringify({ p_pyid: String(currentUser.id||''), p_email: String(currentUser.email||'') })
     });
-    if(!r.ok) return false;
-    const sealed = (await r.json()) === true;
-    if(sealed){ try{ localStorage.setItem('py_tln_sealed', currentUser.id); }catch(_){} }
-    return sealed;
+    if(!r.ok) return false;          // fail closed, don't cache failures
+    _tlnSealedCache = (await r.json()) === true;
+    return _tlnSealedCache;
   }catch(_){ return false; }
 }
 
