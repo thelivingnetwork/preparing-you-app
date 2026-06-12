@@ -2499,7 +2499,7 @@ async function buildBooksPage(){
   if(!_booksData.length){ wrap.innerHTML = '<div class="empty">No books yet.</div>'; return; }
   wrap.innerHTML = _booksData.map((b, idx) => {
     const hasAudio = !!b.audio_overview_path;
-    const hasAudiobook = !!b.audiobook_path;
+    const hasAudiobook = !!(b.audiobook_path || _audiobookParts(b));
     const hasPdf = !!b.pdf_storage_path;
     const done = _bookAudioDone.has(b.id);
     const locked = !done && _bookAudioLocked(idx);
@@ -2594,25 +2594,94 @@ function openBookRead(bookId){
   window.open(b.pdf_storage_path, '_blank');
 }
 
+// ── Full audiobooks (Andrew narration, generated 2026-06-12) ──────────
+// Each book is split into <50MB parts (the storage per-object cap); the
+// player auto-advances between parts and the saved resume position is the
+// CUMULATIVE offset across the whole book. Keyed on title fragments so no
+// prep_books migration is required; audiobook_path remains a legacy
+// single-file fallback for any book without a manifest entry.
+const AUDIOBOOK_BASE = 'https://ahtdvcqyxxjdqrkxsovw.supabase.co/storage/v1/object/public/audiobooks/';
+const AUDIOBOOKS = [
+  { match: /higher liberty/i,                 parts: [{f:'THL-part1.m4a',sec:11327},{f:'THL-part2.m4a',sec:11427},{f:'THL-part3.m4a',sec:974}] },
+  { match: /contracts.*covenants|covenants.*constitutions/i, parts: [{f:'CCC-part1.m4a',sec:11500},{f:'CCC-part2.m4a',sec:8116}] },
+];
+function _audiobookParts(b){
+  if(!b || !b.title) return null;
+  const hit = AUDIOBOOKS.find(a => a.match.test(b.title));
+  return hit ? hit.parts : null;
+}
+let _abParts = null;   // active parts manifest (null = legacy single file)
+let _abIdx = 0;        // current part index
+let _abBase = 0;       // seconds of all parts before the current one
+
+function _abCumulative(player){
+  return _abBase + ((player && player.currentTime) || 0);
+}
+
 function openBookAudiobook(bookId){
   const b = _booksData.find(x => x.id === bookId);
-  if(!b || !b.audiobook_path) return;
+  const parts = _audiobookParts(b);
+  if(!b || (!parts && !b.audiobook_path)) return;
   _bookAudiobookId = bookId;
   const resume = _loadAudioPos('audiobook', bookId);
   const wrap = document.getElementById('book-audiobook-wrap');
   const player = document.getElementById('book-audiobook-player');
   document.getElementById('book-audiobook-title').innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>' + _esc(b.title) + ' — Audiobook';
-  player.src = b.audiobook_path;
-  wrap.style.display = 'block';
-  player.load();
-  player.play().catch(()=>{});
-  _resumeAudioAt(player, resume);
+  if(parts){
+    _abParts = parts;
+    // map the cumulative resume offset to a part + local offset
+    let idx = 0, base = 0;
+    while(idx < parts.length - 1 && resume > base + parts[idx].sec){ base += parts[idx].sec; idx++; }
+    _abIdx = idx; _abBase = base;
+    player.src = AUDIOBOOK_BASE + parts[idx].f;
+    _abEnsureAdvance(player);
+    wrap.style.display = 'block';
+    player.load();
+    player.play().catch(()=>{});
+    _resumeAudioAt(player, resume - base);
+  } else {
+    _abParts = null; _abIdx = 0; _abBase = 0;
+    player.src = b.audiobook_path;
+    wrap.style.display = 'block';
+    player.load();
+    player.play().catch(()=>{});
+    _resumeAudioAt(player, resume);
+  }
   wrap.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// One-time listeners: auto-advance to the next part, and persist the
+// cumulative position periodically (not just on close) so a refresh or
+// app switch can't lose more than a few seconds.
+let _abWired = false, _abLastSave = 0;
+function _abEnsureAdvance(player){
+  if(_abWired) return;
+  _abWired = true;
+  player.addEventListener('ended', () => {
+    if(!_abParts || _abIdx >= _abParts.length - 1){
+      if(_bookAudiobookId != null) _saveAudioPos('audiobook', _bookAudiobookId, 0); // finished — restart next time
+      return;
+    }
+    _abBase += _abParts[_abIdx].sec;
+    _abIdx++;
+    player.src = AUDIOBOOK_BASE + _abParts[_abIdx].f;
+    player.load();
+    player.play().catch(()=>{});
+    _saveAudioPos('audiobook', _bookAudiobookId, _abBase);
+  });
+  player.addEventListener('timeupdate', () => {
+    const now = Date.now();
+    if(now - _abLastSave > 5000 && _bookAudiobookId != null && !player.paused){
+      _abLastSave = now;
+      _saveAudioPos('audiobook', _bookAudiobookId, _abParts ? _abCumulative(player) : player.currentTime);
+    }
+  });
 }
 
 function closeBookAudiobook(){
   const player = document.getElementById('book-audiobook-player');
-  if(player){ _saveAudioPos('audiobook', _bookAudiobookId, player.currentTime); try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  if(player){ _saveAudioPos('audiobook', _bookAudiobookId, _abParts ? _abCumulative(player) : player.currentTime); try{ player.pause(); }catch(_){} player.removeAttribute('src'); player.load(); }
+  _abParts = null; _abIdx = 0; _abBase = 0;
   const wrap = document.getElementById('book-audiobook-wrap');
   if(wrap) wrap.style.display = 'none';
 }
