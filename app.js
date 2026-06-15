@@ -2605,6 +2605,7 @@ const AUDIOBOOKS = [
   { match: /higher liberty/i,                 parts: [{f:'THL-part1.m4a',sec:11486},{f:'THL-part2.m4a',sec:8983}] },
   { match: /contracts.*covenants|covenants.*constitutions/i, parts: [{f:'CCC-part1.m4a',sec:11325},{f:'CCC-part2.m4a',sec:6070}] },
   { match: /thy kingdom come/i,               parts: [{f:'TKC-part1.m4a',sec:11392},{f:'TKC-part2.m4a',sec:11264},{f:'TKC-part3.m4a',sec:11179},{f:'TKC-part4.m4a',sec:2403}] },
+  { match: /free church report/i,             parts: [{f:'FCR-part1.m4a',sec:11373},{f:'FCR-part2.m4a',sec:11508},{f:'FCR-part3.m4a',sec:11057}] },
 ];
 function _audiobookParts(b){
   if(!b || !b.title) return null;
