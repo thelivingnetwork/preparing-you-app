@@ -1371,7 +1371,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.47', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.48', enc: !!_MSG_KEY })
+    }
+
+    // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
+    // (un-cached) objects, so the app fetches a short-lived signed URL per part
+    // instead of hitting /object/public/. file is allow-listed to *.m4a names.
+    if (req.method === 'GET' && req.url.startsWith('/audiobook-url')) {
+      const file = (new URL('https://x.x' + req.url).searchParams.get('file') || '')
+      if (!/^[A-Za-z0-9_-]+\.m4a$/.test(file)) return send(res, 400, { error: 'bad file' })
+      const { data, error } = await sb.storage.from('audiobooks').createSignedUrl(file, 86400)
+      if (error || !data) return send(res, 502, { error: (error && error.message) || 'sign failed' })
+      return send(res, 200, { url: data.signedUrl })
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {

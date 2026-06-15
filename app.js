@@ -2603,7 +2603,8 @@ function openBookRead(bookId){
 const AUDIOBOOK_BASE = 'https://ahtdvcqyxxjdqrkxsovw.supabase.co/storage/v1/object/public/audiobooks/';
 const AUDIOBOOKS = [
   { match: /higher liberty/i,                 parts: [{f:'THL-part1.m4a',sec:11327},{f:'THL-part2.m4a',sec:11427},{f:'THL-part3.m4a',sec:974}] },
-  { match: /contracts.*covenants|covenants.*constitutions/i, parts: [{f:'CCC-part1.m4a',sec:11500},{f:'CCC-part2.m4a',sec:8116}] },
+  { match: /contracts.*covenants|covenants.*constitutions/i, parts: [{f:'CCC-part1.m4a',sec:11325},{f:'CCC-part2.m4a',sec:6070}] },
+  { match: /thy kingdom come/i,               parts: [{f:'TKC-part1.m4a',sec:11392},{f:'TKC-part2.m4a',sec:11264},{f:'TKC-part3.m4a',sec:11179},{f:'TKC-part4.m4a',sec:2403}] },
 ];
 function _audiobookParts(b){
   if(!b || !b.title) return null;
@@ -2618,7 +2619,18 @@ function _abCumulative(player){
   return _abBase + ((player && player.currentTime) || 0);
 }
 
-function openBookAudiobook(bookId){
+// The Supabase public CDN intermittently 404s "cold" (un-cached) objects, so
+// fetch a short-lived signed URL per part from the server. Falls back to the
+// public URL only if the signing endpoint is unreachable.
+async function _abSignedSrc(file){
+  try {
+    const r = await fetch(_SERVER_URL + '/audiobook-url?file=' + encodeURIComponent(file));
+    if (r.ok) { const j = await r.json(); if (j && j.url) return j.url; }
+  } catch(_) {}
+  return AUDIOBOOK_BASE + file;
+}
+
+async function openBookAudiobook(bookId){
   const b = _booksData.find(x => x.id === bookId);
   const parts = _audiobookParts(b);
   if(!b || (!parts && !b.audiobook_path)) return;
@@ -2633,7 +2645,7 @@ function openBookAudiobook(bookId){
     let idx = 0, base = 0;
     while(idx < parts.length - 1 && resume > base + parts[idx].sec){ base += parts[idx].sec; idx++; }
     _abIdx = idx; _abBase = base;
-    player.src = AUDIOBOOK_BASE + parts[idx].f;
+    player.src = await _abSignedSrc(parts[idx].f);
     _abEnsureAdvance(player);
     wrap.style.display = 'block';
     player.load();
@@ -2657,14 +2669,14 @@ let _abWired = false, _abLastSave = 0;
 function _abEnsureAdvance(player){
   if(_abWired) return;
   _abWired = true;
-  player.addEventListener('ended', () => {
+  player.addEventListener('ended', async () => {
     if(!_abParts || _abIdx >= _abParts.length - 1){
       if(_bookAudiobookId != null) _saveAudioPos('audiobook', _bookAudiobookId, 0); // finished — restart next time
       return;
     }
     _abBase += _abParts[_abIdx].sec;
     _abIdx++;
-    player.src = AUDIOBOOK_BASE + _abParts[_abIdx].f;
+    player.src = await _abSignedSrc(_abParts[_abIdx].f);
     player.load();
     player.play().catch(()=>{});
     _saveAudioPos('audiobook', _bookAudiobookId, _abBase);
