@@ -1281,6 +1281,7 @@ async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
   return { status: newStatus, pcmAutoInvited, pcmEmail, pcmName, electorName: elector?.name }
 }
 
+let _featuredCache = { at: 0, data: null }   // Keys of the Kingdom latest episode (in-memory, ~6h TTL)
 const server = http.createServer(async (req, res) => {
   cors(res, req)
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
@@ -1371,7 +1372,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.48', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.49', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -1383,6 +1384,39 @@ const server = http.createServer(async (req, res) => {
       const { data, error } = await sb.storage.from('audiobooks').createSignedUrl(file, 86400)
       if (error || !data) return send(res, 502, { error: (error && error.message) || 'sign failed' })
       return send(res, 200, { url: data.signedUrl })
+    }
+
+    // Featured audio (Vault > Audio): newest episode from the Keys of the
+    // Kingdom podcast feed. Cached in-memory ~6h so their site is hit only a
+    // few times a day regardless of traffic; serves stale on a fetch error.
+    if (req.method === 'GET' && req.url === '/featured-audio') {
+      const now = Date.now()
+      if (_featuredCache.data && now - _featuredCache.at < 6 * 3600 * 1000) {
+        return send(res, 200, _featuredCache.data)
+      }
+      try {
+        const r = await fetch('https://keysofthekingdom.info/rss.xml', { headers: { 'User-Agent': 'PreparingYou/1.0' } })
+        const xml = await r.text()
+        const items = [...xml.matchAll(/<item\b[\s\S]*?<\/item>/g)].map(m => m[0])
+        const tag = (block, t) => { const m = block.match(new RegExp('<' + t + '[^>]*>([\\s\\S]*?)</' + t + '>', 'i')); return m ? m[1] : '' }
+        let best = null, bestT = -1
+        for (const b of items) {
+          const t = Date.parse(tag(b, 'pubDate')) || 0
+          if (t > bestT) { bestT = t; best = b }
+        }
+        if (!best) throw new Error('no items')
+        const title = tag(best, 'title').replace(/<!\[CDATA\[|\]\]>/g, '').trim()
+        const encl = best.match(/<enclosure[^>]*\burl="([^"]+)"/i)
+        let url = (encl ? encl[1].trim() : '').replace(/^https?:\/\/[^\/]+/i, s => s.toLowerCase())  // normalize host for CSP
+        if (!/^https:\/\/keysofthekingdom\.info\/[^"']+\.mp3$/i.test(url)) throw new Error('bad audio url')
+        const date = bestT ? new Date(bestT).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' }) : ''
+        const data = { title, date, url }
+        _featuredCache = { at: now, data }
+        return send(res, 200, data)
+      } catch (e) {
+        if (_featuredCache.data) return send(res, 200, _featuredCache.data)
+        return send(res, 502, { error: 'feed unavailable' })
+      }
     }
 
     if (req.method === 'GET' && req.url === '/push/vapid-public-key') {

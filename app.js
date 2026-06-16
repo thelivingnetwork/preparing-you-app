@@ -4055,17 +4055,29 @@ function _libVideoFeature(){
     + '</div>';
 }
 
-// Featured podcast at the top of the Audio tab: Spotify's official show embed.
-// Lists every episode with inline playback and auto-includes new episodes.
-const _LIB_PODCAST_SHOW = '0OyQtDzeMmzlIu48dGWsVE';  // Keys of the Kingdom — His Holy Church
-function _libAudioFeature(){
-  return '<div class="card">'
+// Featured at the top of the Audio tab: the latest "Keys of the Kingdom"
+// episode, pulled live from keysofthekingdom.info's podcast feed via the server
+// (/featured-audio, server-cached ~6h). Native player, no login required; the
+// newest episode appears automatically as the feed updates.
+async function _loadFeaturedAudio(el){
+  el.innerHTML = '<div class="card"><div class="card-title">Keys of the Kingdom</div>'
+    + '<div class="card-text">Loading the latest episode…</div></div>';
+  let ep = null;
+  try {
+    const r = await fetch(_SERVER_URL + '/featured-audio');
+    if(r.ok) ep = await r.json();
+  } catch(_){}
+  if(!ep || !ep.url){
+    el.innerHTML = '<div class="card"><div class="card-title">Keys of the Kingdom</div>'
+      + '<div class="card-text">Brother Gregory’s radio program from His Holy Church. The latest episode is unavailable right now — please check back soon.</div></div>';
+    return;
+  }
+  el.innerHTML = '<div class="card">'
     + '<div class="card-title">Keys of the Kingdom</div>'
-    + '<div class="card-text" style="margin-bottom:12px">Brother Gregory’s radio program from His Holy Church. Every episode plays here, and new ones appear automatically.</div>'
-    + '<iframe class="lib-spotify" title="Keys of the Kingdom podcast" loading="lazy" height="420" '
-    +   'src="https://open.spotify.com/embed/show/' + _LIB_PODCAST_SHOW + '?theme=0" '
-    +   'allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" '
-    +   'allowfullscreen></iframe>'
+    + '<div class="card-text" style="margin-bottom:10px">Brother Gregory’s radio program from His Holy Church — the latest episode.</div>'
+    + '<div style="font-weight:600;line-height:1.3">' + _esc(ep.title || 'Latest episode') + '</div>'
+    + (ep.date ? '<div style="font-size:12px;color:var(--walnut-mid);margin:2px 0 10px">' + _esc(ep.date) + '</div>' : '<div style="height:10px"></div>')
+    + '<audio controls preload="none" style="width:100%" src="' + _esc(ep.url) + '"></audio>'
     + '</div>';
 }
 
@@ -4091,7 +4103,7 @@ function setLibTab(tab){
       if(fa) fa.style.display = 'none';
       feat.style.display = '';
     } else if(tab === 'audio'){
-      if(fa && !fa.dataset.loaded){ fa.innerHTML = _libAudioFeature(); fa.dataset.loaded = '1'; }
+      if(fa && !fa.dataset.loaded){ _loadFeaturedAudio(fa); fa.dataset.loaded = '1'; }
       if(fa) fa.style.display = '';
       if(fv) fv.style.display = 'none';
       feat.style.display = '';
