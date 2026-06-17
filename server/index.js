@@ -637,6 +637,10 @@ async function fetchChurchArticle(url) {
   return `${u.pathname} (hisholychurch.org)\n\n${text}`
 }
 
+// PROMPT-CACHING INVARIANT: PAUL_SYSTEM and BIBLE_TOOLS (incl. the TRANSLATION_LIST
+// interpolated into them) are sent as the cached prefix on every Paul request. They
+// MUST stay byte-identical across calls/restarts for cache reads to hit — do NOT
+// interpolate a date, version, request id, or any per-request value into either.
 const PAUL_SYSTEM = `You are Paul, a guide for someone preparing to enter "The Living Network."
 
 Tone: earnest, reverent, plain-spoken. You are speaking to someone discerning a covenant decision — not a casual chatbot user. Speak as a wise elder might, in the first person where it fits naturally.
@@ -703,6 +707,14 @@ async function executeTool(toolBlock) {
   return await fetchBiblePassage(reference, translation)
 }
 
+// Log token usage + prompt-cache hit/miss for a Paul API response so caching can be
+// verified in the Render logs. cache_read > 0 on a follow-up call confirms the cached
+// tools+system prefix is being served at ~0.1x input price instead of full price.
+function logPaulUsage(tag, resp) {
+  const u = resp && resp.usage
+  if (u) console.log(`[paul] ${tag} in=${u.input_tokens} cache_write=${u.cache_creation_input_tokens || 0} cache_read=${u.cache_read_input_tokens || 0} out=${u.output_tokens}`)
+}
+
 async function paulChat(userId, messages, lang) {
   // The last user message is what we retrieve against.
   const lastUser = [...messages].reverse().find(m => m.role === 'user')
@@ -720,14 +732,24 @@ async function paulChat(userId, messages, lang) {
     `--- excerpt ${i + 1} from "${bookTitle(c.book_id)}" ---\n${c.chunk_text}`
   ).join('\n\n')
 
-  let sys = PAUL_SYSTEM + '\n\nSource excerpts retrieved for this question:\n\n' + context
+  // Per-question content (RAG excerpts + language note) is volatile; PAUL_SYSTEM and
+  // BIBLE_TOOLS are byte-identical on every call. Split `system` into a stable block and
+  // a volatile block so prompt caching serves tools + PAUL_SYSTEM (~5.4k tokens) from
+  // cache on every call across all turns/users, and reuses the excerpts within a turn's
+  // tool loop. Render order is tools → system → messages, so cache_control on the first
+  // system block also caches the tool definitions that precede it.
+  let volatile = '\n\nSource excerpts retrieved for this question:\n\n' + context
   // Always auto-detect the user's language and respond in kind.
   // If the user has explicitly chosen a language via the dropdown, that overrides auto-detection.
   if (lang && PAUL_LANGS.has(lang) && lang !== 'English') {
-    sys += `\n\nLanguage: The user has selected ${lang} as their preferred language. Always respond in ${lang} regardless of what language they write in.`
+    volatile += `\n\nLanguage: The user has selected ${lang} as their preferred language. Always respond in ${lang} regardless of what language they write in.`
   } else {
-    sys += `\n\nLanguage: Detect the language of the user's most recent message and respond in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Match whatever language they use.`
+    volatile += `\n\nLanguage: Detect the language of the user's most recent message and respond in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Match whatever language they use.`
   }
+  const sys = [
+    { type: 'text', text: PAUL_SYSTEM, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: volatile,    cache_control: { type: 'ephemeral' } },
+  ]
 
   // Tool-use loop — Paul can call lookup_bible_passage before answering
   const apiMessages = messages.map(m => ({ role: m.role, content: m.content }))
@@ -738,6 +760,7 @@ async function paulChat(userId, messages, lang) {
     messages: apiMessages,
     tools: BIBLE_TOOLS
   })
+  logPaulUsage('call1', resp)
 
   let toolRounds = 0
   while (resp.stop_reason === 'tool_use' && toolRounds < 8) {
@@ -773,6 +796,7 @@ async function paulChat(userId, messages, lang) {
       messages: apiMessages,
       tools: BIBLE_TOOLS
     })
+    logPaulUsage('loop', resp)
   }
 
   // If we hit the tool-round cap while Claude still wanted to call tools, make one
@@ -789,8 +813,14 @@ async function paulChat(userId, messages, lang) {
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1024,
       system: sys,
-      messages: apiMessages
+      messages: apiMessages,
+      // Keep the tool defs present so the cached tools+system prefix stays byte-stable,
+      // but forbid further tool calls so Claude answers from what it gathered. Changing
+      // tool_choice does not invalidate the tools/system cache; dropping tools would.
+      tools: BIBLE_TOOLS,
+      tool_choice: { type: 'none' }
     })
+    logPaulUsage('cap', resp)
   }
 
   const answer = resp.content.filter(b => b.type === 'text').map(b => b.text).join('').trim()
@@ -825,12 +855,18 @@ async function paulChatStream(userId, messages, lang, onSentence) {
     `--- excerpt ${i + 1} from "${bookTitle(c.book_id)}" ---\n${c.chunk_text}`
   ).join('\n\n')
 
-  let sys = PAUL_SYSTEM + '\n\nSource excerpts retrieved for this question:\n\n' + context
+  // See paulChat: split system into a stable (cached) block + a volatile block so the
+  // tools + PAUL_SYSTEM prefix is served from cache on every stream call.
+  let volatile = '\n\nSource excerpts retrieved for this question:\n\n' + context
   if (lang && PAUL_LANGS.has(lang) && lang !== 'English') {
-    sys += `\n\nLanguage: The user has selected ${lang} as their preferred language. Always respond in ${lang} regardless of what language they write in.`
+    volatile += `\n\nLanguage: The user has selected ${lang} as their preferred language. Always respond in ${lang} regardless of what language they write in.`
   } else {
-    sys += `\n\nLanguage: Detect the language of the user's most recent message and respond in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Match whatever language they use.`
+    volatile += `\n\nLanguage: Detect the language of the user's most recent message and respond in that same language. If they write in Spanish, reply in Spanish. If French, reply in French. Match whatever language they use.`
   }
+  const sys = [
+    { type: 'text', text: PAUL_SYSTEM, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: volatile,    cache_control: { type: 'ephemeral' } },
+  ]
 
   const apiMessages = messages.map(m => ({ role: m.role, content: m.content }))
   let rounds = 0, toolsWithheld = false, answer = ''
@@ -842,7 +878,11 @@ async function paulChatStream(userId, messages, lang, onSentence) {
       max_tokens: 1024,
       system: sys,
       messages: apiMessages,
-      ...(toolsWithheld ? {} : { tools: BIBLE_TOOLS })
+      // Always send the tool defs so the cached tools+system prefix stays byte-stable.
+      // When the round cap is hit, forbid further calls via tool_choice rather than
+      // dropping the tools (which would invalidate the cache).
+      tools: BIBLE_TOOLS,
+      ...(toolsWithheld ? { tool_choice: { type: 'none' } } : {})
     })
     stream.on('text', (delta) => {
       buffer += delta
@@ -851,6 +891,7 @@ async function paulChatStream(userId, messages, lang, onSentence) {
       for (const s of sents) onSentence(s)
     })
     const final = await stream.finalMessage()
+    logPaulUsage('stream', final)
 
     if (final.stop_reason === 'tool_use' && !toolsWithheld) {
       const toolBlocks = final.content.filter(b => b.type === 'tool_use')
@@ -1372,7 +1413,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.49', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.50', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
