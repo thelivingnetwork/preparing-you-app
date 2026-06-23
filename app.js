@@ -1379,10 +1379,33 @@ async function loadMessages(){
     const ageMs = Date.now() - new Date(m.created_at).getTime();
     const isCallInvite = /daily\.co\//.test(m.body);
     const expired = isCallInvite && ageMs > CALL_TTL_MS;
-    // Auto-link URLs (https only). For Daily.co room URLs we route through joinDailyLink so
-    // the recipient mints their own token instead of joining as the caller. Expired calls
-    // get a visual dim + strikethrough but remain technically clickable.
-    let linked = _esc(m.body).replace(/(https?:\/\/[^\s]+)/g, (url) => {
+    // Auto-link URLs. Matches explicit http(s):// and www. forms, plus bare domains ending in a
+    // whitelisted TLD — so "preparingyou.com" links, but "Genesis 1.1" / "index.html" don't.
+    // For Daily.co room URLs we route through joinDailyLink so the recipient mints their own
+    // token instead of joining as the caller. Expired calls get a visual dim + strikethrough
+    // but remain technically clickable. Runs on the already-escaped body, so we never inject raw text.
+    const URL_RE = /(?:https?:\/\/|www\.)[^\s]+|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:com|org|net|edu|gov|io|co|info|tv|me|app|live|news|uk|ca)\b(?:[\/?#][^\s]*)?/gi;
+    let linked = _esc(m.body).replace(URL_RE, (match, offset, full) => {
+      const hasScheme = /^https?:\/\//i.test(match);
+      const isWww = /^www\./i.test(match);
+      // A bare domain glued to a preceding token is usually not a link (e.g. an email's "x@site.com").
+      if(!hasScheme && !isWww){
+        const prev = offset > 0 ? full[offset - 1] : '';
+        if(/[@\w.]/.test(prev)) return match;
+      }
+      // Peel trailing sentence punctuation / unbalanced brackets back out of the link
+      // so "(see site.com)." doesn't swallow the closing paren + period into the href.
+      let url = match, tail = '';
+      for(;;){
+        const ch = url.slice(-1);
+        if(/[.,!?;:]/.test(ch)){ tail = ch + tail; url = url.slice(0, -1); continue; }
+        if(ch === ')' || ch === ']'){
+          const open = ch === ')' ? '(' : '[';
+          if((url.split(open).length - 1) < (url.split(ch).length - 1)){ tail = ch + tail; url = url.slice(0, -1); continue; }
+        }
+        break;
+      }
+      if(!url) return match;
       const linkColor = mine?'var(--cream)':'var(--accent-ink)';
       const decor = expired ? 'line-through' : 'underline';
       const op = expired ? 'opacity:.55;' : '';
@@ -1390,9 +1413,11 @@ async function loadMessages(){
         // Daily room names are restricted to [A-Za-z0-9_-]; strip anything else
         // so an attacker-controlled message body can't break out of the onclick.
         const room = (url.split('/').pop() || '').split('?')[0].replace(/[^A-Za-z0-9_-]/g, '');
-        return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
+        return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>` + tail;
       }
-      return `<a href="${url}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>`;
+      // Scheme-less matches (www. or bare domain) get https:// for the href; visible text stays as typed.
+      const href = hasScheme ? url : 'https://' + url;
+      return `<a href="${href}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>` + tail;
     });
     if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
     const att = _renderAttachment(m, mine);
