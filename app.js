@@ -1379,46 +1379,9 @@ async function loadMessages(){
     const ageMs = Date.now() - new Date(m.created_at).getTime();
     const isCallInvite = /daily\.co\//.test(m.body);
     const expired = isCallInvite && ageMs > CALL_TTL_MS;
-    // Auto-link URLs. Matches explicit http(s):// and www. forms, plus bare domains ending in a
-    // whitelisted TLD — so "preparingyou.com" links, but "Genesis 1.1" / "index.html" don't.
-    // For Daily.co room URLs we route through joinDailyLink so the recipient mints their own
-    // token instead of joining as the caller. Expired calls get a visual dim + strikethrough
-    // but remain technically clickable. Runs on the already-escaped body, so we never inject raw text.
-    const URL_RE = /(?:https?:\/\/|www\.)[^\s]+|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:com|org|net|edu|gov|io|co|info|tv|me|app|live|news|uk|ca)\b(?:[\/?#][^\s]*)?/gi;
-    let linked = _esc(m.body).replace(URL_RE, (match, offset, full) => {
-      const hasScheme = /^https?:\/\//i.test(match);
-      const isWww = /^www\./i.test(match);
-      // A bare domain glued to a preceding token is usually not a link (e.g. an email's "x@site.com").
-      if(!hasScheme && !isWww){
-        const prev = offset > 0 ? full[offset - 1] : '';
-        if(/[@\w.]/.test(prev)) return match;
-      }
-      // Peel trailing sentence punctuation / unbalanced brackets back out of the link
-      // so "(see site.com)." doesn't swallow the closing paren + period into the href.
-      let url = match, tail = '';
-      for(;;){
-        const ch = url.slice(-1);
-        if(/[.,!?;:]/.test(ch)){ tail = ch + tail; url = url.slice(0, -1); continue; }
-        if(ch === ')' || ch === ']'){
-          const open = ch === ')' ? '(' : '[';
-          if((url.split(open).length - 1) < (url.split(ch).length - 1)){ tail = ch + tail; url = url.slice(0, -1); continue; }
-        }
-        break;
-      }
-      if(!url) return match;
-      const linkColor = mine?'var(--cream)':'var(--accent-ink)';
-      const decor = expired ? 'line-through' : 'underline';
-      const op = expired ? 'opacity:.55;' : '';
-      if(/daily\.co\//.test(url)){
-        // Daily room names are restricted to [A-Za-z0-9_-]; strip anything else
-        // so an attacker-controlled message body can't break out of the onclick.
-        const room = (url.split('/').pop() || '').split('?')[0].replace(/[^A-Za-z0-9_-]/g, '');
-        return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>` + tail;
-      }
-      // Scheme-less matches (www. or bare domain) get https:// for the href; visible text stays as typed.
-      const href = hasScheme ? url : 'https://' + url;
-      return `<a href="${href}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>` + tail;
-    });
+    // Auto-link URLs (explicit scheme, www., and bare domains with a recognized public
+    // suffix). See _linkifyBody — kept as a standalone function so it can be unit-tested.
+    let linked = _linkifyBody(m.body, mine, expired);
     if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
     const att = _renderAttachment(m, mine);
     const hasBody = !!(m.body && m.body.trim());
@@ -4629,6 +4592,74 @@ function _avInner(u){
 function _esc(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');
+}
+
+// Whether a bare (scheme-less) host ends in a public suffix we recognize. `host` is the domain
+// only (no path/query). Accepts foo.com, foo.io, preparing-you.app, bbc.co.uk, marcopainting.com.au;
+// rejects index.html, app.js, Genesis.1, bare IPs, and a naked suffix like "gov.au" (a compound
+// ccTLD suffix needs a real registrable label in front, i.e. ≥3 parts).
+function _isLinkableHost(host){
+  const labels = String(host || '').toLowerCase().split('.');
+  if(labels.length < 2 || labels.some(l => l === '')) return false;
+  const TLDS = ['com','org','net','edu','gov','mil','io','co','info','tv','me','app','live','news','blog','dev','uk','ca','be'];
+  const SLDS = ['com','org','net','co','gov','edu','ac']; // 2nd-level under ccTLD: com.au, co.uk, ac.uk…
+  const last = labels[labels.length - 1];
+  const sld  = labels[labels.length - 2];
+  if(/^[a-z]{2}$/.test(last) && SLDS.indexOf(sld) >= 0) return labels.length >= 3; // compound ccTLD
+  return TLDS.indexOf(last) >= 0;
+}
+
+// Auto-link URLs inside a message body. Matches explicit http(s):// and www. forms, plus bare
+// domains whose public suffix _isLinkableHost recognizes — so "preparingyou.com" and
+// "marcopainting.com.au" link in full, but "Genesis 1.1" / "index.html" / "app.js" don't.
+// Runs on the already-escaped body, so we never inject raw user text. Daily.co room URLs route
+// through joinDailyLink (the recipient mints their own token instead of joining as the caller).
+// `expired` applies the dim + strikethrough styling for stale call invites.
+function _linkifyBody(body, mine, expired){
+  const URL_RE = /(?:https?:\/\/|www\.)[^\s]+|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)+(?:[\/?#][^\s]*)?/gi;
+  return _esc(body).replace(URL_RE, (match, offset, full) => {
+    const hasScheme = /^https?:\/\//i.test(match);
+    const isWww = /^www\./i.test(match);
+    // Peel trailing sentence punctuation / unbalanced brackets back out of the link
+    // so "(see site.com)." doesn't swallow the closing paren + period into the href.
+    let url = match, tail = '';
+    for(;;){
+      const ch = url.slice(-1);
+      if(/[.,!?;:]/.test(ch)){ tail = ch + tail; url = url.slice(0, -1); continue; }
+      if(ch === ')' || ch === ']'){
+        const open = ch === ')' ? '(' : '[';
+        if((url.split(open).length - 1) < (url.split(ch).length - 1)){ tail = ch + tail; url = url.slice(0, -1); continue; }
+      }
+      break;
+    }
+    if(!url) return match;
+    // Bare domains get extra gating against false positives:
+    //  - not glued to a preceding token  — an email's "x@site.com", or mid-word;
+    //  - not immediately followed by "@"  — the local part of an email ("see.app@church.org");
+    //  - host must end in a recognized public suffix;
+    //  - the TLD label must be lowercase as typed — a capitalized one ("you.Me", "Sacramento.CA")
+    //    is almost always a missing space after a sentence period, not a real domain.
+    if(!hasScheme && !isWww){
+      const prev = offset > 0 ? full[offset - 1] : '';
+      if(/[@\w.]/.test(prev)) return match;
+      if(full[offset + match.length] === '@') return match;
+      const host = url.split(/[\/?#]/)[0];
+      if(!_isLinkableHost(host)) return match;
+      if(/[A-Z]/.test(host.split('.').pop())) return match;
+    }
+    const linkColor = mine ? 'var(--cream)' : 'var(--accent-ink)';
+    const decor = expired ? 'line-through' : 'underline';
+    const op = expired ? 'opacity:.55;' : '';
+    if(/daily\.co\//.test(url)){
+      // Daily room names are restricted to [A-Za-z0-9_-]; strip anything else
+      // so an attacker-controlled message body can't break out of the onclick.
+      const room = (url.split('/').pop() || '').split('?')[0].replace(/[^A-Za-z0-9_-]/g, '');
+      return `<a href="javascript:void(0)" onclick="joinDailyLink('${room}')" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>` + tail;
+    }
+    // Scheme-less matches (www. or bare domain) get https:// for the href; visible text stays as typed.
+    const href = hasScheme ? url : 'https://' + url;
+    return `<a href="${href}" target="_blank" rel="noopener" style="${op}color:${linkColor};text-decoration:${decor}">${url}</a>` + tail;
+  });
 }
 
 // Elect (replaces direct pick): creates pending election, emails the PCM.
