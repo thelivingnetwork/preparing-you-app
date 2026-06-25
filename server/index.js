@@ -49,7 +49,9 @@ else console.log('[enc] message encryption enabled')
 
 function encryptBody(plain) {
   if (plain == null) return null
-  if (!_MSG_KEY) return plain // graceful degrade: keep app working until key is set
+  // Fail loud rather than silently storing cleartext: a missing key is a misconfiguration,
+  // not a reason to write plaintext bodies to the database.
+  if (!_MSG_KEY) throw new Error('MESSAGE_ENC_KEY not configured — refusing to store plaintext')
   const iv = crypto.randomBytes(12)
   const cipher = crypto.createCipheriv('aes-256-gcm', _MSG_KEY, iv)
   const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()])
@@ -774,7 +776,9 @@ async function paulChat(userId, messages, lang) {
     const toolResults = []
     for (const toolBlock of toolBlocks) {
       const _t0 = Date.now()
-      console.log(`[paul] tool ${toolBlock.name} input=${JSON.stringify(toolBlock.input)}`)
+      // NB: do NOT log toolBlock.input — it's derived from the user's message and would
+      // leak conversation content into Render logs. Name + timing/size only.
+      console.log(`[paul] tool ${toolBlock.name}`)
       let toolResult
       try {
         toolResult = await executeTool(toolBlock)
@@ -827,9 +831,12 @@ async function paulChat(userId, messages, lang) {
 
   // Persist both turns
   if (userId) {
+    // Operator-blind: persist only what the daily-cap count needs (a user-role row per turn),
+    // NOT the conversation content. Paul history is never shown back to the user or an admin,
+    // so storing the text would be pure liability — message is left empty on purpose.
     await sb.from('prep_paul_chats').insert([
-      { user_id: userId, role: 'user',      message: encryptBody(lastUser.content) },
-      { user_id: userId, role: 'assistant', message: encryptBody(answer) },
+      { user_id: userId, role: 'user',      message: '' },
+      { user_id: userId, role: 'assistant', message: '' },
     ])
   }
 
@@ -923,9 +930,12 @@ async function paulChatStream(userId, messages, lang, onSentence) {
   }
 
   if (userId) {
+    // Operator-blind: persist only what the daily-cap count needs (a user-role row per turn),
+    // NOT the conversation content. Paul history is never shown back to the user or an admin,
+    // so storing the text would be pure liability — message is left empty on purpose.
     await sb.from('prep_paul_chats').insert([
-      { user_id: userId, role: 'user',      message: encryptBody(lastUser.content) },
-      { user_id: userId, role: 'assistant', message: encryptBody(answer) },
+      { user_id: userId, role: 'user',      message: '' },
+      { user_id: userId, role: 'assistant', message: '' },
     ])
   }
 
@@ -1413,7 +1423,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.51', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.52', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2062,56 +2072,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, scanned: (rows || []).length, migrated })
     }
 
-    // ─── Paul chat encryption: admin break-glass reveal ─────────────────────
-    // Paul conversations are encrypted at rest (encryptBody, same MESSAGE_ENC_KEY
-    // as message bodies). Unlike private messages, the server HOLDS the key (it
-    // must, to talk to Claude), so an admin can decrypt a member's conversation —
-    // but only as a deliberate, reason-tagged, audit-logged "break glass" action.
-    // Fails CLOSED: if the audit row can't be written, no plaintext is returned.
-    if (req.method === 'POST' && req.url === '/admin/paul-chats/reveal') {
-      const a = await requireAdmin(req)
-      if (a.error) return send(res, a.status, { error: a.error })
-      if (!_MSG_KEY) return send(res, 400, { error: 'MESSAGE_ENC_KEY not set' })
-      const body = await readJson(req)
-      const targetId = body && body.user_id
-      const reason = body && typeof body.reason === 'string' ? body.reason.trim() : ''
-      if (!targetId) return send(res, 400, { error: 'user_id required' })
-      if (!reason)   return send(res, 400, { error: 'reason required' })
-      // Audit the attempt FIRST — before reading anything — and fail closed if it
-      // can't be recorded (no audit, no reveal). Logging before the read means even
-      // a reveal that then fails on the DB read still leaves an audit trace.
-      const { error: auditErr } = await sb.from('prep_admin_audit').insert({
-        admin_user_id: a.uid, action: 'paul_reveal', target_user_id: targetId, reason
-      })
-      if (auditErr) {
-        console.error('[breakglass] audit insert FAILED, refusing reveal:', auditErr.message)
-        return send(res, 500, { error: 'audit log unavailable — reveal refused' })
-      }
-      console.log(`[breakglass] admin ${a.uid} breaking glass on Paul chats for user ${targetId} — reason: ${reason}`)
-      const { data: rows, error } = await sb.from('prep_paul_chats')
-        .select('id, role, message, created_at')
-        .eq('user_id', targetId).order('created_at', { ascending: true })
-      if (error) return send(res, 500, { error: error.message })
-      const chats = (rows || []).map(m => ({ role: m.role, created_at: m.created_at, message: decryptBody(m.message) }))
-      return send(res, 200, { chats })
-    }
-
-    // Admin one-time migration: encrypt any legacy plaintext Paul chat messages.
-    // Idempotent — already-encrypted rows are skipped.
-    if (req.method === 'POST' && req.url === '/admin/migrate-encrypt-paul-chats') {
-      const a = await requireAdmin(req)
-      if (a.error) return send(res, a.status, { error: a.error })
-      if (!_MSG_KEY) return send(res, 400, { error: 'MESSAGE_ENC_KEY not set' })
-      const { data: rows, error } = await sb.from('prep_paul_chats').select('id, message').not('message', 'is', null)
-      if (error) return send(res, 500, { error: error.message })
-      let migrated = 0
-      for (const m of (rows || [])) {
-        if (isEncrypted(m.message)) continue
-        const { error: upErr } = await sb.from('prep_paul_chats').update({ message: encryptBody(m.message) }).eq('id', m.id)
-        if (!upErr) migrated++
-      }
-      return send(res, 200, { ok: true, scanned: (rows || []).length, migrated })
-    }
+    // ─── Paul chat history is now operator-blind (changed 2026-06-25) ───────
+    // The break-glass reveal + encrypt-migration endpoints were removed. Paul
+    // message bodies are no longer persisted (see the prep_paul_chats inserts in
+    // the chat handlers — we store role + timestamp only), so there is nothing
+    // to decrypt, reveal, or migrate. prep_admin_audit remains for any future
+    // audited admin actions.
 
     if (req.method === 'POST' && req.url === '/peers') {
       const v = await verifyToken(req)
