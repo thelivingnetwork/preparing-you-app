@@ -916,6 +916,9 @@ let _msgOpenRoom = null;     // room to deep-link straight into (PCM-page shortc
 const _PCM_ROOM_ID = 'pcm_fellowship';
 let _pendingAttachment = null; // { url, name, type }
 const _ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+// First-seen signed attachment URL per message ('d'|'r' prefix — DM and room
+// ids are independent serials and can collide). See loadMessages for why.
+const _attUrlCache = new Map(); // key -> { url, at }
 
 // Find a peer's identity (name/avatar/role/region) from whichever source
 // has it — the messageable-peers list or the conversation rows.
@@ -1428,6 +1431,20 @@ async function loadMessages(){
       catch(e){ m.body = '\uD83D\uDD12 Encrypted — unlock your messages on this device to read this.'; }
     }
   }
+  // Every fetch returns freshly-signed attachment URLs, so a rebuild (new
+  // message / reaction / "Seen" flip) re-downloaded every image — the visible
+  // flash-and-shudder. Pin each message's first-seen URL for 45 min (signatures
+  // are valid 60): the rebuilt <img> keeps the same URL string, the browser
+  // cache serves it, nothing re-downloads or reflows.
+  const _attNow = Date.now();
+  for(const m of msgs){
+    if(!m || !m.attachment_url) continue;
+    const k = (group ? 'r' : 'd') + m.id;
+    const c = _attUrlCache.get(k);
+    if(c && (_attNow - c.at) < 45 * 60 * 1000) m.attachment_url = c.url;
+    else _attUrlCache.set(k, { url: m.attachment_url, at: _attNow });
+  }
+
   const list = document.getElementById('msg-list');
 
   // Skip the rebuild when nothing changed. The 5s poll would otherwise reflow
@@ -1896,7 +1913,9 @@ if ('serviceWorker' in navigator) {
   // iOS invalidates the previous push endpoint on SW update, so we must
   // re-subscribe immediately to get a fresh endpoint into the server.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (Notification.permission === 'granted' && currentUser) {
+    // Notification doesn't exist in an iOS Safari tab (only in installed
+    // PWAs) — an unguarded access here threw on every SW update there.
+    if ('Notification' in window && Notification.permission === 'granted' && currentUser) {
       navigator.serviceWorker.ready.then(async reg => {
         try {
           // Unsubscribe the now-stale endpoint, get a fresh one from Apple.
