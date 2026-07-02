@@ -911,6 +911,9 @@ let _msgPeers = [];          // everyone the member can message (for "New messag
 let _msgConvos = [];         // conversation rows from /messages/inbox
 let _msgView = 'list';       // 'list' (inbox) | 'thread'
 let _msgOpenPeer = null;     // peer to deep-link straight into a thread
+let _msgRoomId = null;       // open group room ('pcm_fellowship') — null while a DM thread is open
+let _msgOpenRoom = null;     // room to deep-link straight into (PCM-page shortcut)
+const _PCM_ROOM_ID = 'pcm_fellowship';
 let _pendingAttachment = null; // { url, name, type }
 const _ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -926,6 +929,12 @@ async function buildMessagesPage(){
   // offer to unlock with the password before reading the thread / inbox.
   _maybePromptE2EEUnlock();
 
+  // Deep-link straight into the PCM Fellowship room (PCM-page shortcut).
+  if(_msgOpenRoom){
+    const rid = _msgOpenRoom; _msgOpenRoom = null;
+    await openRoomThread(rid);
+    return;
+  }
   // Deep-link straight into a thread (PCM "Message" button / New-message pick).
   // A brand-new thread has no inbox row yet, so its header identity comes from
   // the peer directory — wait for it on that path only.
@@ -959,6 +968,7 @@ async function _loadMsgPeers(){
 // ── Inbox (conversation list) ──────────────────────────────────────
 async function showMsgList(){
   _msgView = 'list';
+  _msgRoomId = null;
   _closeTypingChannel(); // leaving the thread — drop its typing channel
   closeNewMessagePicker();
   document.getElementById('msg-thread-wrap').style.display = 'none';
@@ -1016,13 +1026,29 @@ function renderInbox(){
   }
   // Skip the rebuild when nothing changed, so the 6s poll never snaps a row
   // closed mid-swipe or flickers the list.
-  const sig = _msgConvos.map(c => c.peerId + ':' + c.last_at + ':' + c.unread).join('|');
+  const sig = _msgConvos.map(c => (c.peerId || c.roomId) + ':' + c.last_at + ':' + c.unread).join('|');
   if(sig === _inboxSig) return;
   _inboxSig = sig;
   emptyEl.style.display = 'none';
   listEl.innerHTML = _msgConvos.map(c => {
     const unread = c.unread > 0;
     const prev = (c.last_mine ? 'You: ' : '') + (c.last_preview || '');
+    if(c.roomId){
+      // Group room row (PCM Fellowship) — no swipe-to-delete: the room is the
+      // one shared space, hiding it would just strand its unread count.
+      return '<div class="convo-swipe">'
+        + '<div class="convo-row' + (unread ? ' unread' : '') + '" data-noswipe="1" onclick="openRoomThread(\'' + c.roomId + '\')">'
+        + '<div class="convo-av">' + _roomAvIcon() + '</div>'
+        + '<div class="convo-main">'
+        +   '<div class="convo-top"><span class="convo-name">' + _esc(c.name) + '</span>'
+        +     '<span class="convo-time">' + _msgTime(c.last_at) + '</span></div>'
+        +   '<div class="convo-sub"><span class="convo-prev">' + (prev ? _esc(prev) : '<i>Say hello to your fellow PCMs</i>') + '</span>'
+        +     (unread ? '<span class="convo-badge">' + (c.unread > 9 ? '9+' : c.unread) + '</span>' : '')
+        +   '</div>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+    }
     return '<div class="convo-swipe">'
       + '<button class="convo-del" onclick="hideConvo(\'' + c.peerId + '\',event)">Delete</button>'
       + '<div class="convo-row' + (unread ? ' unread' : '') + '" data-peer="' + c.peerId + '" onclick="onConvoTap(\'' + c.peerId + '\',event,this)">'
@@ -1066,7 +1092,7 @@ function _wireConvoSwipe(){
   _convoSwipeWired = true;
   list.addEventListener('touchstart', e => {
     const row = e.target.closest('.convo-row');
-    if(!row){ _convoDrag = null; return; }
+    if(!row || row.dataset.noswipe){ _convoDrag = null; return; }
     const t = e.touches[0];
     _convoDrag = { row, startX:t.clientX, startY:t.clientY, baseX:_convoRowX(row), dir:null, moved:false };
     row.style.transition = 'none';
@@ -1135,10 +1161,11 @@ async function hideConvo(peerId, ev){
 // ── Thread (individual conversation) ───────────────────────────────
 async function openThread(id){
   _msgPeerId = id;
+  _msgRoomId = null;
   _msgView = 'thread';
   _msgSig = ''; _msgRenderedPeer = null; // force a fresh render
   _hidePeerTyping();
-  _openTypingChannel(id); // ephemeral typing-presence channel for this conversation
+  _openTypingChannel(_convoKey(id)); // ephemeral typing-presence channel for this conversation
   closeNewMessagePicker();
   document.getElementById('msg-inbox').style.display = 'none';
   document.getElementById('msg-empty').style.display = 'none';
@@ -1169,6 +1196,49 @@ async function renderActivePeer(){
   const _call = document.getElementById('msg-call-btn');
   if(_call) _call.style.display = sys ? 'none' : 'inline-flex';
   await loadMessages();
+}
+
+// ── Group room thread (PCM Fellowship) ─────────────────────────────
+// Feather "users" icon standing in for the group's avatar.
+function _roomAvIcon(){
+  return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+}
+
+async function openRoomThread(roomId){
+  _msgRoomId = roomId;
+  _msgPeerId = null;
+  _msgView = 'thread';
+  _msgSig = ''; _msgRenderedPeer = null; // force a fresh render
+  _hidePeerTyping();
+  _openTypingChannel('room-' + roomId); // one shared typing channel for the room
+  closeNewMessagePicker();
+  document.getElementById('msg-inbox').style.display = 'none';
+  document.getElementById('msg-empty').style.display = 'none';
+  document.getElementById('msg-thread-wrap').style.display = 'flex';
+  _enableMsgViewport();
+  _wireMsgScroll();
+  // Fixed group identity — no per-peer lookup. No call button (Daily rooms are
+  // pairwise today); compose is always on (the server rejects non-PCMs anyway).
+  document.getElementById('msg-peer-av').innerHTML = _roomAvIcon();
+  document.getElementById('msg-peer-name').textContent = 'PCM Fellowship';
+  document.getElementById('msg-peer-role').textContent = 'All active Personal Contact Ministers';
+  const _compose = document.getElementById('msg-compose');
+  if(_compose) _compose.style.display = 'flex';
+  const _note = document.getElementById('msg-readonly-note');
+  if(_note) _note.style.display = 'none';
+  const _call = document.getElementById('msg-call-btn');
+  if(_call) _call.style.display = 'none';
+  await loadMessages();
+  if(_msgPollTimer) clearInterval(_msgPollTimer);
+  _msgPollTimer = setInterval(() => {
+    if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'thread') loadMessages();
+  }, 12000); // Realtime is primary; this is a dropped-socket fallback
+}
+
+// PCM-page shortcut into the fellowship room.
+function openPcmFellowship(){
+  _msgOpenRoom = _PCM_ROOM_ID;
+  showPage('messages');
 }
 
 // ── New-message picker ─────────────────────────────────────────────
@@ -1331,26 +1401,28 @@ function _disableMsgViewport(){
 }
 
 async function loadMessages(){
-  if(!_msgPeerId) return;
+  if(!_msgPeerId && !_msgRoomId) return;
+  const group = !!_msgRoomId;
   // Message bodies are encrypted at rest; only the server (which holds the
-  // key) can return plaintext, and only to the two participants. So the
-  // thread is fetched from /messages/thread rather than read directly.
-  // Use _authHeaders() so a stale token on a backgrounded iOS PWA is refreshed
-  // rather than silently 401'ing and leaving the thread blank.
+  // key) can return plaintext, and only to the participants. So the thread is
+  // fetched from /messages/thread (or /room/thread for the group) rather than
+  // read directly. Use _authHeaders() so a stale token on a backgrounded iOS
+  // PWA is refreshed rather than silently 401'ing and leaving the thread blank.
   let msgs = [];
   try {
-    const r = await fetch(_SERVER_URL + '/messages/thread', {
+    const r = await fetch(_SERVER_URL + (group ? '/room/thread' : '/messages/thread'), {
       method: 'POST',
       headers: await _authHeaders(),
-      body: JSON.stringify({ peerId: _msgPeerId })
+      body: JSON.stringify(group ? { roomId: _msgRoomId } : { peerId: _msgPeerId })
     });
     const j = await r.json().catch(() => ({}));
     if(r.ok) msgs = j.messages || [];
   } catch(e){ /* offline / transient — keep prior render */ return; }
   // Decrypt client-encrypted (e2ee) bodies in place before rendering. Every
   // message in this thread is with the same peer (_msgPeerId), so the shared
-  // key is identical for messages I sent and ones I received.
-  for(const m of msgs){
+  // key is identical for messages I sent and ones I received. (The group room
+  // is server-decrypted — per-peer E2EE can't cover N readers — so no pass.)
+  if(!group) for(const m of msgs){
     if(m && m.e2ee && m.body){
       try { m.body = await E2EE.decrypt(_msgPeerId, m.body); }
       catch(e){ m.body = '\uD83D\uDD12 Encrypted — unlock your messages on this device to read this.'; }
@@ -1364,7 +1436,8 @@ async function loadMessages(){
   // Include per-message read state so the poll re-renders when the peer reads
   // my message (the id set is unchanged, only read_at flips) — drives "Seen".
   const sig = (msgs || []).map(m => m.id + (m.read_at ? 'r' : '') + '|' + (m.reactions ? Object.keys(m.reactions).sort().map(k => k.slice(0,6) + m.reactions[k]).join('') : '')).join(',');
-  const peerChanged = _msgRenderedPeer !== _msgPeerId;
+  const renderKey = group ? 'room:' + _msgRoomId : _msgPeerId;
+  const peerChanged = _msgRenderedPeer !== renderKey;
   if(sig === _msgSig && !peerChanged){ refreshMessageBadge(); return; }
 
   // Preserve scroll position unless the user is already at the bottom, just
@@ -1374,8 +1447,13 @@ async function loadMessages(){
   const lastMine = msgs.length && msgs[msgs.length - 1].sender_id === currentUser.id;
 
   const CALL_TTL_MS = 10 * 60 * 1000;
+  let _prevSender = null;
   const _bubbles = (msgs || []).map(m => {
     const mine = m.sender_id === currentUser.id;
+    // Group threads label who's speaking; only on the first bubble of a run so
+    // consecutive messages from one person read as a block, Messenger-style.
+    const showName = group && !mine && m.sender_id !== _prevSender;
+    _prevSender = m.sender_id;
     const ageMs = Date.now() - new Date(m.created_at).getTime();
     const isCallInvite = /daily\.co\//.test(m.body);
     const expired = isCallInvite && ageMs > CALL_TTL_MS;
@@ -1391,14 +1469,15 @@ async function loadMessages(){
     const _rcStr = Object.keys(_rcCounts).map(e => e + (_rcCounts[e] > 1 ? '<span style="font-size:11px;margin-left:1px">' + _rcCounts[e] + '</span>' : '')).join(' ');
     const _rcHtml = _rcStr ? `<div class="msg-react" style="margin-top:-7px;background:var(--cream);border:1px solid var(--terra-soft);border-radius:12px;padding:0 6px;font-size:14px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.18)">${_rcStr}</div>` : '';
     const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none${expired?';opacity:.75':''}">${inner}</div>`;
-    return `<div class="msg-item" data-mid="${m.id}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
+    const _nameLbl = showName ? `<div style="font-size:12px;font-weight:600;color:var(--walnut-mid);margin:2px 6px 2px">${_esc(m.sender_name || 'Member')}</div>` : '';
+    return `<div class="msg-item" data-mid="${m.id}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">${_nameLbl}${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
   }).join('');
 
   // Read receipt: if my message is the newest in the thread, show its delivery
   // state underneath it (read_at comes from /messages/thread). When the peer is
   // the last to speak they've clearly seen mine, so no receipt is shown.
   let _receipt = '';
-  const _lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+  const _lastMsg = (!group && msgs.length) ? msgs[msgs.length - 1] : null;
   if(_lastMsg && _lastMsg.sender_id === currentUser.id){
     const _seen = !!_lastMsg.read_at;
     _receipt = `<div style="align-self:flex-end;font-size:11px;font-style:italic;color:var(--walnut-mid);margin:-2px 2px 2px">${_seen ? 'Seen' : 'Delivered'}</div>`;
@@ -1418,7 +1497,7 @@ async function loadMessages(){
   });
 
   _msgSig = sig;
-  _msgRenderedPeer = _msgPeerId;
+  _msgRenderedPeer = renderKey;
 
   // Inbound messages are marked read server-side by /messages/thread.
   refreshMessageBadge();
@@ -1491,7 +1570,7 @@ function _openReactionPopup(item){
 }
 async function reactToMessage(mid, emoji){
   try {
-    const r = await fetch(_SERVER_URL + '/messages/react', {
+    const r = await fetch(_SERVER_URL + (_msgRoomId ? '/room/react' : '/messages/react'), {
       method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ messageId: mid, emoji })
     });
@@ -1556,7 +1635,8 @@ async function sendMessage(){
   const text = (input.value || '').trim();
   const attach = _pendingAttachment;
   if(!text && !attach){ return; } // nothing to send
-  if(!_msgPeerId){
+  const group = !!_msgRoomId;
+  if(!_msgPeerId && !group){
     alert('No peer selected. Refresh the page.');
     return;
   }
@@ -1568,16 +1648,20 @@ async function sendMessage(){
   clearAttachment();
   // End-to-end encrypt the text body to the peer's published key when ours is
   // unlocked. If anything is missing we fall back to legacy server-side
-  // encryption so a message is never lost.
+  // encryption so a message is never lost. The group room is always
+  // server-side encrypted (per-peer E2EE can't cover N readers).
   let _bodyOut = text, _e2ee = false;
-  if(text && E2EE && !E2EE.unavailable && E2EE.ready()){
+  if(!group && text && E2EE && !E2EE.unavailable && E2EE.ready()){
     try { _bodyOut = await E2EE.encrypt(_msgPeerId, text); _e2ee = true; }
     catch(e){ _bodyOut = text; _e2ee = false; }
   }
-  const r = await fetch(_SERVER_URL + '/messages/send', {
+  const r = await fetch(_SERVER_URL + (group ? '/room/send' : '/messages/send'), {
     method: 'POST',
     headers: await _authHeaders(),
-    body: JSON.stringify({
+    body: JSON.stringify(group ? {
+      roomId: _msgRoomId, body: text,
+      attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
+    } : {
       senderId: currentUser.id, recipientId: _msgPeerId, body: _bodyOut, e2ee: _e2ee,
       attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
     })
@@ -2010,7 +2094,25 @@ function _subscribeMsgRealtime(){
     }, () => {
       if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
     })
+    // PCM Fellowship room. RLS only delivers these events to active PCMs, so
+    // subscribing unconditionally is safe — everyone else simply hears nothing.
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'prep_room_messages'
+    }, (payload) => { _onRealtimeRoomMsg(payload && payload.new || {}); })
+    // A room message was updated (someone reacted) — refresh the open thread.
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'prep_room_messages'
+    }, () => {
+      if(_msgRoomId && _msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
+    })
     .subscribe();
+}
+function _onRealtimeRoomMsg(row){
+  if(row.sender_id === currentUser.id) return; // own echo — already rendered on send
+  refreshMessageBadge();
+  if(!document.getElementById('page-messages').classList.contains('active')) return;
+  if(_msgView === 'thread' && _msgRoomId) loadMessages();
+  else if(_msgView === 'list') refreshInbox();
 }
 function _onRealtimeMsgInsert(row){
   // Keep the unread badge current even when off the Messages page.
@@ -2034,15 +2136,19 @@ let _typingChannelKey = null;
 let _typingSendThrottle = 0;
 let _peerTypingTimer = null;
 function _convoKey(peerId){ return [currentUser.id, peerId].sort().join('__'); }
-function _openTypingChannel(peerId){
-  if(!_sb || !currentUser || !peerId) return;
-  const key = _convoKey(peerId);
+// `key` is the channel key itself: the sorted uid pair for a DM (via
+// _convoKey) or 'room-<roomId>' for the group room.
+function _openTypingChannel(key){
+  if(!_sb || !currentUser || !key) return;
   if(_typingChannel && _typingChannelKey === key) return; // already open for this convo
   _closeTypingChannel();
   _typingChannelKey = key;
   _typingChannel = _sb.channel('typing-' + key, { config: { broadcast: { self: false } } });
   _typingChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
-    if(payload && payload.from === _msgPeerId) _showPeerTyping();
+    if(!payload) return;
+    // Room channel: anyone else typing counts (their name rides the payload).
+    if(_msgRoomId){ if(payload.from !== currentUser.id) _showPeerTyping(payload.name); }
+    else if(payload.from === _msgPeerId) _showPeerTyping();
   });
   _typingChannel.subscribe();
 }
@@ -2055,14 +2161,14 @@ function _onMsgTyping(){
   const now = Date.now();
   if(_typingChannel && now - _typingSendThrottle > 1500){
     _typingSendThrottle = now;
-    _typingChannel.send({ type: 'broadcast', event: 'typing', payload: { from: currentUser.id } });
+    _typingChannel.send({ type: 'broadcast', event: 'typing', payload: { from: currentUser.id, name: (currentUser.name || '').split(' ')[0] } });
   }
 }
-function _showPeerTyping(){
+function _showPeerTyping(nameOverride){
   const el = document.getElementById('msg-typing');
   if(!el) return;
   const peer = _findPeer(_msgPeerId);
-  const name = (peer && peer.name) ? String(peer.name).split(' ')[0] : 'They';
+  const name = nameOverride || ((peer && peer.name) ? String(peer.name).split(' ')[0] : 'They');
   el.textContent = name + ' is typing…';
   el.style.display = 'block';
   if(_peerTypingTimer) clearTimeout(_peerTypingTimer);
@@ -2440,14 +2546,45 @@ async function removeAvatar(){
 
 let _prevMsgCount = 0;
 let _lastMsgUnread = 0;
+// Am I an active PCM? Checked once per session (buildPcmPage refreshes it) so
+// the 30s badge poll doesn't pay two extra queries for regular members.
+let _amPcmMemo = null; // null = not yet checked
+async function _amActivePcm(){
+  if(!_sb || !currentUser) return false;
+  if(_amPcmMemo !== null) return _amPcmMemo;
+  try {
+    const { data } = await _sb.from('prep_pcms').select('id')
+      .eq('id', currentUser.id).eq('active', true).maybeSingle();
+    _amPcmMemo = !!data;
+  } catch(_){ return false; } // transient — stay unknown so we re-check
+  return _amPcmMemo;
+}
+
+// Unread count for the PCM Fellowship room: messages newer than my read
+// cursor that I didn't send. RLS scopes both tables (and returns nothing at
+// all until the room migration has been applied — count stays 0).
+async function _roomUnreadCount(){
+  try {
+    if(!(await _amActivePcm())) return 0;
+    const { data: cur } = await _sb.from('prep_room_reads').select('last_read_at')
+      .eq('user_id', currentUser.id).eq('room_id', _PCM_ROOM_ID).maybeSingle();
+    let q = _sb.from('prep_room_messages').select('id', { count:'exact', head:true })
+      .eq('room_id', _PCM_ROOM_ID).neq('sender_id', currentUser.id);
+    if(cur && cur.last_read_at) q = q.gt('created_at', cur.last_read_at);
+    const { count } = await q;
+    return count || 0;
+  } catch(_){ return 0; }
+}
+
 async function refreshMessageBadge(){
   if(!_sb || !currentUser) return;
   const { count } = await _sb.from('prep_messages')
     .select('id', { count:'exact', head:true })
     .eq('recipient_id', currentUser.id).is('read_at', null);
+  const roomUnread = await _roomUnreadCount();
   const badge = document.getElementById('nav-msg-badge');
   if(!badge) return;
-  const n = count || 0;
+  const n = (count || 0) + roomUnread;
   _lastMsgUnread = n;
   if(n > 0){
     badge.style.display = 'inline-block';
@@ -4257,6 +4394,7 @@ async function buildPcmPage(){
   ]);
   const myPcm = myPcmRes.data;
   _pcmAmIPcm = !!(myPcm && myPcm.active);
+  _amPcmMemo = _pcmAmIPcm; // keep the badge's session memo fresh (volunteer/stop re-run this)
   const mineCard = document.getElementById('pcm-mine');
   const volBtn   = document.getElementById('pcm-volunteer-btn');
   if(_pcmAmIPcm){
@@ -4269,7 +4407,10 @@ async function buildPcmPage(){
       + (myPcm.phone ? '<div><strong>Phone:</strong> ' + _esc(myPcm.phone) + '</div>' : '')
       + (myPcm.telegram ? '<div><strong>Telegram:</strong> ' + _esc(myPcm.telegram) + '</div>' : '')
       + (myPcm.messenger ? '<div><strong>Messenger:</strong> ' + _esc(myPcm.messenger) + '</div>' : '')
-      + '</div>';
+      + '</div>'
+      + '<button class="btn-primary" style="margin-top:12px;width:100%" onclick="openPcmFellowship()">'
+      + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+      + 'PCM Fellowship chat</button>';
   } else {
     mineCard.style.display = 'none';
     volBtn.textContent = '+ Volunteer as PCM';

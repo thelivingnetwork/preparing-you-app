@@ -72,6 +72,11 @@ function decryptBody(stored) {
   } catch (e) { return '[unable to decrypt]' }
 }
 
+// ── PCM Fellowship group room ─────────────────────────────────────────
+// The single shared room id for the all-active-PCMs group chat. Messages
+// live in prep_room_messages (not prep_messages, which is strictly 1:1).
+const PCM_ROOM_ID = 'pcm_fellowship'
+
 // ── System sender ("Preparing You") ───────────────────────────────────
 // A dedicated, non-human account used for one-way admin -> member messages.
 // Provisioned on first use via the Admin API (no manual setup), then cached
@@ -1423,7 +1428,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.52', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.53', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2013,6 +2018,7 @@ const server = http.createServer(async (req, res) => {
       if (list.length) {
         const ids = list.map(c => c.peerId)
         const { data: us } = await sb.from('prep_users').select('id, name, region, avatar_url, is_system').in('id', ids)
+        // (room conversations added below carry their own identity — no lookup)
         const uMap = new Map((us || []).map(u => [u.id, u]))
         const { data: me } = await sb.from('prep_users').select('pcm_id').eq('id', meId).maybeSingle()
         const myPcmId = me?.pcm_id || null
@@ -2030,7 +2036,146 @@ const server = http.createServer(async (req, res) => {
                  : 'Personal Contact Minister'
         }
       }
+      // PCM Fellowship group room: every active PCM sees it in the inbox (even
+      // before anyone has posted, so the room is discoverable). Defensive like
+      // the clears table above: if the migration hasn't run yet, the room query
+      // errors and we simply skip the row — DM conversations are unaffected.
+      const { data: _amPcmInbox } = await sb.from('prep_pcms').select('id').eq('id', meId).eq('active', true).maybeSingle()
+      if (_amPcmInbox) {
+        const { data: lastArr, error: rmErr } = await sb.from('prep_room_messages')
+          .select('sender_id, body, created_at, attachment_name')
+          .eq('room_id', PCM_ROOM_ID)
+          .order('created_at', { ascending: false }).limit(1)
+        if (!rmErr) {
+          const last = (lastArr || [])[0] || null
+          let unread = 0
+          if (last) {
+            const { data: cursor } = await sb.from('prep_room_reads')
+              .select('last_read_at').eq('user_id', meId).eq('room_id', PCM_ROOM_ID).maybeSingle()
+            let cq = sb.from('prep_room_messages')
+              .select('id', { count: 'exact', head: true })
+              .eq('room_id', PCM_ROOM_ID).neq('sender_id', meId)
+            if (cursor?.last_read_at) cq = cq.gt('created_at', cursor.last_read_at)
+            const { count } = await cq
+            unread = count || 0
+          }
+          let preview = ''
+          let lastMine = false
+          if (last) {
+            lastMine = last.sender_id === meId
+            const decoded = last.body ? decryptBody(last.body) : ''
+            if (decoded && decoded.trim()) preview = decoded.trim().slice(0, 120)
+            else if (last.attachment_name) preview = '📎 ' + last.attachment_name
+            if (preview && !lastMine) {
+              const { data: su } = await sb.from('prep_users').select('name').eq('id', last.sender_id).maybeSingle()
+              const first = (su?.name || '').split(' ')[0]
+              if (first) preview = first + ': ' + preview
+            }
+          }
+          list.push({
+            roomId: PCM_ROOM_ID, name: 'PCM Fellowship',
+            role: 'All active Personal Contact Ministers', region: '',
+            last_preview: preview, last_e2ee: false, last_mine: lastMine,
+            last_at: last ? last.created_at : null, unread
+          })
+          // Keep newest-first ordering with the room row merged in; an empty
+          // room (last_at null) sinks to the bottom.
+          list.sort((a, b) => new Date(b.last_at || 0) - new Date(a.last_at || 0))
+        }
+      }
       return send(res, 200, { conversations: list })
+    }
+
+    // ─── PCM Fellowship group room ───────────────────────────────────────
+    // One shared thread for all active PCMs (room_id 'pcm_fellowship').
+    // Bodies use the same server-side at-rest encryption as legacy DMs; the
+    // client renders sender names/avatars since the room has N participants.
+
+    // Full room thread (newest 300), sender identities attached; bumps the
+    // caller's read cursor so the unread badge clears.
+    if (req.method === 'POST' && req.url === '/room/thread') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { data: amPcm } = await sb.from('prep_pcms').select('id').eq('id', meId).eq('active', true).maybeSingle()
+      if (!amPcm) return send(res, 403, { error: 'pcm_only' })
+      // Newest 300, then reverse to chronological — .order(asc).limit() would
+      // return the OLDEST 300 and pin a busy room to ancient history.
+      const { data: rows, error } = await sb.from('prep_room_messages')
+        .select('*').eq('room_id', PCM_ROOM_ID)
+        .order('created_at', { ascending: false }).limit(300)
+      if (error) return send(res, 500, { error: error.message })
+      const ordered = (rows || []).reverse()
+      const senderIds = [...new Set(ordered.map(m => m.sender_id))]
+      let uMap = new Map()
+      if (senderIds.length) {
+        const { data: us } = await sb.from('prep_users').select('id, name, avatar_url').in('id', senderIds)
+        uMap = new Map((us || []).map(u => [u.id, u]))
+      }
+      const messages = []
+      for (const m of ordered) {
+        const u = uMap.get(m.sender_id) || {}
+        messages.push({
+          id: m.id, sender_id: m.sender_id,
+          sender_name: u.name || 'Member', sender_avatar: u.avatar_url || null,
+          body: decryptBody(m.body), created_at: m.created_at,
+          reactions: m.reactions || {},
+          attachment_url: await signAttachment(m.attachment_url),
+          attachment_name: m.attachment_name, attachment_type: m.attachment_type
+        })
+      }
+      await sb.from('prep_room_reads')
+        .upsert({ user_id: meId, room_id: PCM_ROOM_ID, last_read_at: new Date().toISOString() }, { onConflict: 'user_id,room_id' })
+      return send(res, 200, { messages })
+    }
+
+    // Post to the room. No per-message push/bell fan-out (a busy room would be
+    // a notification storm) — delivery is Realtime + the unread badge.
+    if (req.method === 'POST' && req.url === '/room/send') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { data: amPcm } = await sb.from('prep_pcms').select('id').eq('id', meId).eq('active', true).maybeSingle()
+      if (!amPcm) return send(res, 403, { error: 'pcm_only' })
+      const { body: msgBody, attachmentPath, attachmentName, attachmentType } = await readJson(req)
+      const trimmedBody = (msgBody || '').trim()
+      const attachVal = attachmentPath || null
+      if (!trimmedBody && !attachVal) return send(res, 400, { error: 'a body or attachment is required' })
+      const { error: insErr } = await sb.from('prep_room_messages').insert({
+        room_id: PCM_ROOM_ID, sender_id: meId,
+        body: encryptBody(trimmedBody || null),
+        attachment_url: attachVal,
+        attachment_name: attachmentName || null,
+        attachment_type: attachmentType || null
+      })
+      if (insErr) return send(res, 500, { error: insErr.message })
+      // The sender has plainly seen the room as of their own post.
+      await sb.from('prep_room_reads')
+        .upsert({ user_id: meId, room_id: PCM_ROOM_ID, last_read_at: new Date().toISOString() }, { onConflict: 'user_id,room_id' })
+      return send(res, 200, { ok: true })
+    }
+
+    // Tap-back reaction on a room message — same model as /messages/react
+    // ({ userId: emoji } map, one per user), participant check = active PCM.
+    if (req.method === 'POST' && req.url === '/room/react') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const meId = v.uid
+      const { data: amPcm } = await sb.from('prep_pcms').select('id').eq('id', meId).eq('active', true).maybeSingle()
+      if (!amPcm) return send(res, 403, { error: 'pcm_only' })
+      const { messageId, emoji } = await readJson(req)
+      if (messageId == null || !/^\d+$/.test(String(messageId))) return send(res, 400, { error: 'valid messageId required' })
+      const ALLOWED = ['❤️', '😆', '😮', '😢', '😠', '👍']
+      if (emoji != null && !ALLOWED.includes(emoji)) return send(res, 400, { error: 'unsupported_emoji' })
+      const { data: msg } = await sb.from('prep_room_messages')
+        .select('id, reactions').eq('id', messageId).eq('room_id', PCM_ROOM_ID).maybeSingle()
+      if (!msg) return send(res, 404, { error: 'message_not_found' })
+      const reactions = (msg.reactions && typeof msg.reactions === 'object') ? msg.reactions : {}
+      if (!emoji || reactions[meId] === emoji) delete reactions[meId]
+      else reactions[meId] = emoji
+      const { error: upErr } = await sb.from('prep_room_messages').update({ reactions }).eq('id', messageId)
+      if (upErr) return send(res, 500, { error: upErr.message })
+      return send(res, 200, { ok: true, reactions })
     }
 
     // Admin: message METADATA only (who/when, attachment name) — never the
