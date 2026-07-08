@@ -489,6 +489,11 @@ async function doJoin(){
   enterApp();
 }
 
+// prep_users columns the client may read (everything except email — that
+// column is SELECT-revoked for authenticated so member emails can never be
+// pulled through the API by another member).
+const _PREP_USER_COLS = 'id, name, region, avatar_url, pcm_id, tln_invited_at, joined_tln_at, guidelines_accepted_at, pcm_guidelines_accepted_at, gateway_v1_at, gateway_v2_at, gateway_v3_at, gateway_watched_at, timezone, is_system, created_at';
+
 async function _loadProfile(authUser){
   // Upsert prep_users row keyed on auth.users.id
   if(_sb && authUser){
@@ -496,7 +501,12 @@ async function _loadProfile(authUser){
     // their own local time. Best-effort; older browsers may not resolve a zone.
     let tz = '';
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch(e) {}
-    const { data } = await _sb.from('prep_users').select('*').eq('id', authUser.id).maybeSingle();
+    // Explicit column list — the email column is SELECT-revoked for the
+    // authenticated role (emails must not be obtainable via the REST API;
+    // own email comes from the auth session below). select('*') would 401.
+    const { data } = await _sb.from('prep_users')
+      .select(_PREP_USER_COLS).eq('id', authUser.id).maybeSingle();
+    if(data && !data.email) data.email = authUser.email;
     currentUser = data || {
       id: authUser.id,
       email: authUser.email,
@@ -4627,19 +4637,22 @@ async function buildPcmPage(){
   if(!_sb || !currentUser) return;
 
   // 1. Refresh my own profile (so we have latest pcm_id)
-  const { data: me } = await _sb.from('prep_users').select('*').eq('id', currentUser.id).maybeSingle();
-  if(me) currentUser = Object.assign(currentUser, me);
+  const { data: me } = await _sb.from('prep_users').select(_PREP_USER_COLS).eq('id', currentUser.id).maybeSingle();
+  if(me) currentUser = Object.assign(currentUser, me);   // email stays from the auth session
 
   // Gate: can't choose a PCM until the three introduction videos are done.
   if(_gateJourneyPage('page-pcm', 'pcm-content', 2)) return;
 
   // 2. Am I myself a PCM? — fetch this and the active-PCM roster together,
   //    since the two queries are independent (parallel, not a waterfall).
+  // Own PCM row comes from the server (contact columns are SELECT-revoked
+  // client-side); the public roster carries no contact details at all.
   const [myPcmRes, rowsRes] = await Promise.all([
-    _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle(),
-    _sb.from('prep_pcms').select('id, name, email, phone, telegram, messenger, region, active').eq('active', true),
+    _authHeaders().then(h => fetch(_SERVER_URL + '/pcm/mine', { method:'POST', headers: h }))
+      .then(r => r.ok ? r.json() : null).catch(() => null),
+    _sb.from('prep_pcms').select('id, name, region, active').eq('active', true),
   ]);
-  const myPcm = myPcmRes.data;
+  const myPcm = myPcmRes && myPcmRes.pcm;
   _pcmAmIPcm = !!(myPcm && myPcm.active);
   _amPcmMemo = _pcmAmIPcm; // keep the badge's session memo fresh (volunteer/stop re-run this)
   const mineCard = document.getElementById('pcm-mine');
@@ -4757,7 +4770,7 @@ async function buildPcmPage(){
   const inboundCard = document.getElementById('pcm-inbound');
   if(inboundCard && _pcmAmIPcm){
     const { data: inbound } = await _sb.from('prep_pcm_elections')
-      .select('id, elector_id, elected_at, elector:elector_id(name, email, region, avatar_url)')
+      .select('id, elector_id, elected_at, elector:elector_id(name, region, avatar_url)')
       .eq('pcm_id', currentUser.id).eq('status', 'pending').order('elected_at');
     _inboundElections = inbound || [];
     if((inbound || []).length){
@@ -4784,7 +4797,7 @@ async function buildPcmPage(){
   const electorsCard = document.getElementById('pcm-electors');
   if(electorsCard && _pcmAmIPcm){
     const { data: accepted } = await _sb.from('prep_pcm_elections')
-      .select('id, elector_id, responded_at, elector:elector_id(name, email, region, tln_invited_at, avatar_url)')
+      .select('id, elector_id, responded_at, elector:elector_id(name, region, tln_invited_at, avatar_url)')
       .eq('pcm_id', currentUser.id).eq('status', 'accepted').order('responded_at', { ascending:false });
     _acceptedElectors = accepted || [];
     if((accepted || []).length){
@@ -4829,12 +4842,10 @@ let _acceptedElectors = [];
 
 async function signoffToTln(electorId, electorName){
   if(!confirm('Sign off on '+(electorName||'this elector')+' and invite them into The Living Network? They will be emailed a signup link.')) return;
-  const el = _acceptedElectors.find(x => x.elector_id === electorId);
-  const electorEmail = el?.elector?.email;
   try {
     const r = await fetch(_SERVER_URL + '/tln/invite', {
       method:'POST', headers: await _authHeaders(),
-      body: JSON.stringify({ userId: electorId, fromName: currentUser?.name || null, skipEmail: true })
+      body: JSON.stringify({ userId: electorId, fromName: currentUser?.name || null })
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || 'invite failed');
@@ -4845,15 +4856,8 @@ async function signoffToTln(electorId, electorName){
       buildPcmPage();
       return;
     }
-    if(electorEmail){
-      const handoff = 'https://livingnetwork.netlify.app/?'
-        + 'from=preparingyou'
-        + '&name=' + encodeURIComponent(electorName || '')
-        + '&email=' + encodeURIComponent(electorEmail)
-        + '&inviter=' + encodeURIComponent(currentUser?.name || '');
-      sendEmail(electorName, electorEmail, 'You have been invited to The Living Network',
-        (currentUser?.name || 'Your PCM')+' has signed off on your readiness and invites you to enter The Living Network.\n\nThe link below will take you straight to the Join screen with your details prefilled:\n\n'+handoff);
-    }
+    // The invite email (with the prefilled TLN handoff link) is sent
+    // SERVER-side \u2014 the elector's address never reaches the PCM's device.
     alert('Invitation sent. They will receive an email with a TLN signup link.');
     buildPcmPage();
   } catch(e){
@@ -4958,15 +4962,11 @@ function _pcmRow(p){
 function messagePcm(id){ _msgOpenPeer = id; showPage('messages'); }
 function callPcm(id){ _msgPeerId = id; startPcmCall(); }
 
-function _pcmChannelLines(p){
-  const parts = [];
-  // Email is deliberately NOT shown — member emails must never be visible to
-  // other users (Mark, 2026-07-09). Contact goes through in-app Message/Call;
-  // the address is still fetched for the notification-email sends only.
-  if(p.phone)    parts.push('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:5px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' + _esc(p.phone));
-  if(p.telegram) parts.push('Tg ' + _esc(p.telegram));
-  if(p.messenger)parts.push('M ' + _esc(p.messenger));
-  return parts.length ? '<div class="pcm-channels">' + parts.join('   ·   ') + '</div>' : '';
+function _pcmChannelLines(){
+  // Personal contact details (email/phone/telegram/messenger) are deliberately
+  // NOT shown to other members (Mark, 2026-07-09) — in-app Message and Call
+  // are the contact path. The PCM still sees their own details in the edit form.
+  return '';
 }
 
 function _initials(s){
@@ -5067,7 +5067,7 @@ async function choosePcm(pcmId){
   try {
     const r = await fetch(_SERVER_URL + '/elect', {
       method:'POST', headers: await _authHeaders(),
-      body: JSON.stringify({ electorId: currentUser.id, pcmId, skipEmail: true })
+      body: JSON.stringify({ electorId: currentUser.id, pcmId })
     });
     const j = await r.json();
     if(!r.ok){
@@ -5078,16 +5078,8 @@ async function choosePcm(pcmId){
       }
       throw new Error(j.error || 'request failed');
     }
-    // Client-side emails via EmailJS
-    const pcm = _pcmList.find(p => p.id === pcmId);
-    if(pcm?.email){
-      sendEmail(pcm.name, pcm.email, 'You have been chosen as a Personal Contact Minister',
-        (currentUser.name||'A user')+' has chosen you as their Personal Contact Minister. Open the app to accept or decline:\n\nhttps://preparingyou.app');
-    }
-    if(currentUser.email){
-      sendEmail(currentUser.name, currentUser.email, 'Your choice has been sent',
-        'You have chosen '+(pcm?.name||'a PCM')+'. They have been emailed and will respond shortly. We will email you again once they accept or decline.\n\nhttps://preparingyou.app');
-    }
+    // Notification emails are sent SERVER-side (no skipEmail) — member email
+    // addresses must never be present on another member's device.
     alert('Your choice has been sent. Your PCM has been emailed and will accept or decline shortly.');
     buildPcmPage();
   } catch(e){
@@ -5151,37 +5143,15 @@ let _inboundElections = [];
 async function pcmRespondElection(electionId, accept){
   if(!_sb || !currentUser) return;
   if(!accept && !confirm('Decline this request? The user will be told you are currently unavailable.')) return;
-  // Capture elector details before the row goes away
-  const el = _inboundElections.find(x => x.id === electionId);
-  const electorEmail = el?.elector?.email;
-  const electorName = el?.elector?.name;
   try {
     const r = await fetch(_SERVER_URL + '/election/respond', {
       method:'POST', headers: await _authHeaders(),
-      body: JSON.stringify({ electionId, pcmId: currentUser.id, accept, skipEmail: true })
+      body: JSON.stringify({ electionId, pcmId: currentUser.id, accept })
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || 'response failed');
-    // Client-side email to elector
-    if(electorEmail){
-      if(accept){
-        sendEmail(electorName, electorEmail, 'Your PCM accepted your choice',
-          (currentUser.name||'Your PCM')+' has accepted your choice. They will walk this preparation alongside you. You can now message them or schedule a call from inside the app.\n\nhttps://preparingyou.app');
-      } else {
-        sendEmail(electorName, electorEmail, 'Your PCM is currently unavailable',
-          (currentUser.name||'Your PCM')+' is unavailable at this time. Please choose another Personal Contact Minister from the list.\n\nhttps://preparingyou.app');
-      }
-    }
-    // PCM auto-invited to TLN on their first accepted election
-    if(j.pcmAutoInvited && j.pcmEmail){
-      const handoff = 'https://livingnetwork.netlify.app/?'
-        + 'from=preparingyou'
-        + '&name=' + encodeURIComponent(j.pcmName || '')
-        + '&email=' + encodeURIComponent(j.pcmEmail)
-        + '&inviter=' + encodeURIComponent(j.electorName || '');
-      sendEmail(j.pcmName, j.pcmEmail, 'You have been invited to The Living Network',
-        'You have been chosen by '+(j.electorName||'someone')+' as their Personal Contact Minister. The act of being chosen is itself the qualifying event — you are now invited to enter The Living Network.\n\nThe link below will take you straight to the Join screen with your details prefilled:\n\n'+handoff);
-    }
+    // Accept/decline emails to the elector — and the first-accept TLN
+    // auto-invite (with prefilled handoff link) — are sent SERVER-side.
     buildPcmPage();
   } catch(e){
     alert('Could not respond: ' + e.message);
@@ -5205,9 +5175,12 @@ function openPcmVolunteer(){
   document.getElementById('pcm-phone').value = '';
   document.getElementById('pcm-telegram').value = '';
   document.getElementById('pcm-messenger').value = '';
-  // If already a PCM, hydrate with current values
+  // If already a PCM, hydrate with current values (own row via the server —
+  // contact columns are SELECT-revoked for the client role).
   if(_sb && _pcmAmIPcm){
-    _sb.from('prep_pcms').select('*').eq('id', currentUser.id).maybeSingle().then(({data})=>{
+    _authHeaders().then(h => fetch(_SERVER_URL + '/pcm/mine', { method:'POST', headers: h }))
+      .then(r => r.ok ? r.json() : null).then(j => {
+      const data = j && j.pcm;
       if(data){
         _fillCountrySelect(document.getElementById('pcm-country'), _regionCountry(data.region || ''));
         document.getElementById('pcm-state').value = _regionState(data.region || '');
@@ -5216,7 +5189,7 @@ function openPcmVolunteer(){
         document.getElementById('pcm-telegram').value = data.telegram || '';
         document.getElementById('pcm-messenger').value = data.messenger || '';
       }
-    });
+    }).catch(()=>{});
     document.getElementById('pcm-stop-btn').style.display = 'block';
   } else {
     document.getElementById('pcm-stop-btn').style.display = 'none';

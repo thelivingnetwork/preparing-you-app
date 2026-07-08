@@ -1069,18 +1069,25 @@ async function dailyMintToken(roomName, { userName, isOwner, startRecording }) {
 // ─── TLN invitation ─────────────────────────────────────────────────────
 const TLN_URL = process.env.TLN_URL || 'https://livingnetwork.netlify.app'
 
-async function inviteToTln(userId, reasonHtml, skipEmail) {
+async function inviteToTln(userId, reasonHtml, skipEmail, inviterName) {
   if (!userId) return { ok: false, reason: 'no userId' }
   const { data: u } = await sb.from('prep_users').select('name, email, tln_invited_at').eq('id', userId).maybeSingle()
   if (!u?.email) return { ok: false, reason: 'no email' }
   if (u.tln_invited_at) return { ok: false, reason: 'already invited', at: u.tln_invited_at }
 
   if (!skipEmail) {
+    // Handoff link prefills the TLN Join screen. This used to be built
+    // client-side; invite emails are server-only now so member addresses
+    // never travel to another member's device.
+    const handoff = TLN_URL + '/?from=preparingyou'
+      + '&name=' + encodeURIComponent(u.name || '')
+      + '&email=' + encodeURIComponent(u.email)
+      + '&inviter=' + encodeURIComponent(inviterName || '')
     await sendEmail(u.email, 'You have been invited to The Living Network',
       emailWrap('Welcome to The Living Network',
         (reasonHtml || `<p>${u.name || 'Friend'},</p><p>Your preparation has been recognised.</p>`) +
-        `<p>You may now create your account in The Living Network. Use the same email so your records align.</p>`,
-        'Open The Living Network', TLN_URL))
+        `<p>You may now create your account in The Living Network. The link below takes you straight to the Join screen with your details prefilled.</p>`,
+        'Open The Living Network', handoff))
   }
 
   await sb.from('prep_users').update({ tln_invited_at: new Date().toISOString() }).eq('id', userId)
@@ -1320,21 +1327,15 @@ async function respondPcm({ electionId, pcmId, accept, skipEmail }) {
       .select('id', { count:'exact', head:true })
       .eq('pcm_id', pcmId).eq('status', 'accepted')
     if (count === 1) {
-      // Skip the server email (client will send via EmailJS); inviteToTln
-      // still records tln_invited_at + drops a notification.
       const result = await inviteToTln(pcmId,
         `<p>${pcm?.name || 'Friend'},</p>
          <p>You have been chosen by ${elector?.name || 'someone'} as their Personal Contact Minister. The act of being elected is itself the qualifying event — you are now invited to enter The Living Network.</p>`,
-        skipEmail)
-      if (result.ok) {
-        pcmAutoInvited = true
-        const { data: pcmFull } = await sb.from('prep_users').select('name, email').eq('id', pcmId).single()
-        pcmEmail = pcmFull?.email
-        pcmName = pcmFull?.name
-      }
+        skipEmail, elector?.name)
+      if (result.ok) pcmAutoInvited = true
     }
   }
-  return { status: newStatus, pcmAutoInvited, pcmEmail, pcmName, electorName: elector?.name }
+  // NB: no email addresses in the response — it lands on a member's device.
+  return { status: newStatus, pcmAutoInvited, pcmName, electorName: elector?.name }
 }
 
 let _featuredCache = { at: 0, data: null }   // Keys of the Kingdom latest episode (in-memory, ~6h TTL)
@@ -1428,7 +1429,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.53', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.54', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -1804,7 +1805,7 @@ const server = http.createServer(async (req, res) => {
       const reason = fromName
         ? `<p>${fromName} has signed off on your readiness and invites you to enter The Living Network.</p>`
         : `<p>You have been invited to enter The Living Network.</p>`
-      const result = await inviteToTln(userId, reason, skipEmail)
+      const result = await inviteToTln(userId, reason, skipEmail, fromName)
       return send(res, 200, result)
     }
 
