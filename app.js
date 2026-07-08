@@ -596,6 +596,12 @@ document.addEventListener('visibilitychange', () => {
   } else if(!_appPollersOn){
     // Back in the foreground: refresh once immediately, then resume polling.
     refreshMessageBadge(); refreshNavBadges(); refreshTownhallCard();
+    // Realtime may have died while backgrounded (iOS suspends the socket);
+    // catch up the open messages view now rather than on the 60s heartbeat.
+    const _mp = document.getElementById('page-messages');
+    if(_mp && _mp.classList.contains('active')){
+      if(_msgView === 'thread') loadMessages(); else refreshInbox();
+    }
     _startAppPollers();
   }
 });
@@ -922,6 +928,15 @@ const _ATTACH_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 // First-seen signed attachment URL per message ('d'|'r' prefix — DM and room
 // ids are independent serials and can collide). See loadMessages for why.
 const _attUrlCache = new Map(); // key -> { url, at }
+// Decrypted plaintext per message ('d'+id) / inbox preview ('p'+peer+':'+ts).
+// E2EE decrypt is main-thread crypto (~5-50ms per message on a phone); without
+// this every poll/realtime tick re-decrypted the whole thread. Failures are
+// NOT cached so a later key unlock still retries. Page reload clears it.
+const _e2eeCache = new Map();
+let _msgLastMsgs = [];  // last rendered thread — optimistic send/react mutate this and repaint
+let _pendingSeq = 0;    // ids for optimistic (not-yet-confirmed) outgoing bubbles
+let _msgLoadBusy = false, _msgLoadAgain = false; // single-flight guard for loadMessages
+let _msgLoadSoonT = 0;  // debounce handle for realtime-burst coalescing
 
 // Find a peer's identity (name/avatar/role/region) from whichever source
 // has it — the messageable-peers list or the conversation rows.
@@ -985,7 +1000,7 @@ async function showMsgList(){
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
     if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'list') refreshInbox();
-  }, 15000); // Realtime is primary now; this is a dropped-socket fallback
+  }, 60000); // Realtime is primary; slow heartbeat only covers a silently dead socket
 }
 
 async function refreshInbox(){
@@ -1004,10 +1019,14 @@ async function refreshInbox(){
     if(r.ok) convos = j.conversations || [];
   } catch(e){ return; } // offline / transient — keep prior render
   // Decrypt previews for client-encrypted conversations (server can't read them).
+  // Cache by peer+timestamp so the 60s poll doesn't re-run crypto on unchanged rows.
   for(const c of convos){
     if(c && c.last_e2ee && c.last_preview){
+      const ck = 'p' + c.peerId + ':' + c.last_at;
+      const hit = _e2eeCache.get(ck);
+      if(hit !== undefined){ c.last_preview = hit; continue; }
       if(E2EE && !E2EE.unavailable && E2EE.ready()){
-        try { c.last_preview = await E2EE.decrypt(c.peerId, c.last_preview); }
+        try { c.last_preview = await E2EE.decrypt(c.peerId, c.last_preview); _e2eeCache.set(ck, c.last_preview); }
         catch(e){ c.last_preview = '\uD83D\uDD12 Encrypted message'; }
       } else { c.last_preview = '\uD83D\uDD12 Encrypted message'; }
     }
@@ -1169,7 +1188,7 @@ async function openThread(id){
   _msgPeerId = id;
   _msgRoomId = null;
   _msgView = 'thread';
-  _msgSig = ''; _msgRenderedPeer = null; // force a fresh render
+  _msgSig = ''; _msgRenderedPeer = null; _msgLastMsgs = []; // force a fresh render
   _hidePeerTyping();
   _openTypingChannel(_convoKey(id)); // ephemeral typing-presence channel for this conversation
   closeNewMessagePicker();
@@ -1182,7 +1201,7 @@ async function openThread(id){
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
     if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'thread') loadMessages();
-  }, 12000); // Realtime is primary now; this is a dropped-socket fallback
+  }, 60000); // Realtime is primary; slow heartbeat only covers a silently dead socket
 }
 
 async function renderActivePeer(){
@@ -1214,7 +1233,7 @@ async function openRoomThread(roomId){
   _msgRoomId = roomId;
   _msgPeerId = null;
   _msgView = 'thread';
-  _msgSig = ''; _msgRenderedPeer = null; // force a fresh render
+  _msgSig = ''; _msgRenderedPeer = null; _msgLastMsgs = []; // force a fresh render
   _hidePeerTyping();
   _openTypingChannel('room-' + roomId); // one shared typing channel for the room
   closeNewMessagePicker();
@@ -1238,7 +1257,7 @@ async function openRoomThread(roomId){
   if(_msgPollTimer) clearInterval(_msgPollTimer);
   _msgPollTimer = setInterval(() => {
     if(document.getElementById('page-messages').classList.contains('active') && _msgView === 'thread') loadMessages();
-  }, 12000); // Realtime is primary; this is a dropped-socket fallback
+  }, 60000); // Realtime is primary; slow heartbeat only covers a silently dead socket
 }
 
 // PCM-page shortcut into the fellowship room.
@@ -1371,15 +1390,20 @@ function _msgFitViewport(e){ // MSGVIEWPORT-FIX-MARKER
   const kbOpen = (window.innerHeight - vv.height) > 150;
   if(kbOpen){
     // Keyboard up: float the thread over the keys, mirroring the visual-viewport
-    // rectangle so the compose bar sits flush above the keyboard.
-    wrap.classList.add('msg-pinned');
-    wrap.style.position = 'fixed';
-    wrap.style.left = '0'; wrap.style.right = '0';
-    wrap.style.top = vv.offsetTop + 'px';
-    wrap.style.bottom = 'auto';
-    wrap.style.height = vv.height + 'px';
-    wrap.style.zIndex = '60';
-  } else {
+    // rectangle so the compose bar sits flush above the keyboard. Skip the style
+    // writes when the geometry is already right — iOS streams dozens of vv
+    // events per keyboard slide and each write forces a layout pass.
+    const _top = vv.offsetTop + 'px', _h = vv.height + 'px';
+    if(!wrap.classList.contains('msg-pinned') || wrap.style.top !== _top || wrap.style.height !== _h){
+      wrap.classList.add('msg-pinned');
+      wrap.style.position = 'fixed';
+      wrap.style.left = '0'; wrap.style.right = '0';
+      wrap.style.top = _top;
+      wrap.style.bottom = 'auto';
+      wrap.style.height = _h;
+      wrap.style.zIndex = '60';
+    }
+  } else if(wrap.classList.contains('msg-pinned')){
     // Keyboard down: give layout back to the native flex+dvh shell (no JS height
     // mirroring) and restore the bottom-nav clearance on the compose bar.
     _msgUnpin();
@@ -1388,10 +1412,23 @@ function _msgFitViewport(e){ // MSGVIEWPORT-FIX-MARKER
   // visualViewport scroll must not fight the user while they read back.
   if((!e || e.type === 'resize') && _msgStick) _scrollMsgBottom();
 }
+// Coalesce the visualViewport event stream (continuous during an iOS keyboard
+// slide) to one layout pass per animation frame; remember if any of the
+// coalesced events was a real resize so the re-pin logic still sees it.
+let _vvRafId = 0, _vvSawResize = false;
+function _msgVVOnEvent(e){
+  if(e && e.type === 'resize') _vvSawResize = true;
+  if(_vvRafId) return;
+  _vvRafId = requestAnimationFrame(() => {
+    _vvRafId = 0;
+    const wasResize = _vvSawResize; _vvSawResize = false;
+    _msgFitViewport(wasResize ? { type: 'resize' } : { type: 'scroll' });
+  });
+}
 function _enableMsgViewport(){
   if(!window.visualViewport) return;
   if(!_msgVVHandler){
-    _msgVVHandler = _msgFitViewport;
+    _msgVVHandler = _msgVVOnEvent;
     window.visualViewport.addEventListener('resize', _msgVVHandler);
     window.visualViewport.addEventListener('scroll', _msgVVHandler);
   }
@@ -1402,11 +1439,32 @@ function _disableMsgViewport(){
     window.visualViewport.removeEventListener('resize', _msgVVHandler);
     window.visualViewport.removeEventListener('scroll', _msgVVHandler);
   }
+  if(_vvRafId){ cancelAnimationFrame(_vvRafId); _vvRafId = 0; }
   _msgVVHandler = null;
   _msgUnpin();
 }
 
+// Coalesce realtime bursts (a message INSERT and its read-flip UPDATE often
+// land within milliseconds) into ONE fetch instead of two racing refreshes.
+function _loadMessagesSoon(){
+  if(_msgLoadSoonT) return;
+  _msgLoadSoonT = setTimeout(() => { _msgLoadSoonT = 0; loadMessages(); }, 120);
+}
+
 async function loadMessages(){
+  // Single-flight: overlapping calls (poll + realtime + send-confirm) would
+  // race fetch/decrypt/render and could paint out of order. Run one at a time;
+  // queue at most one trailing re-run so no signal is ever dropped.
+  if(_msgLoadBusy){ _msgLoadAgain = true; return; }
+  _msgLoadBusy = true;
+  try { await _loadMessagesNow(); }
+  finally {
+    _msgLoadBusy = false;
+    if(_msgLoadAgain){ _msgLoadAgain = false; loadMessages(); }
+  }
+}
+
+async function _loadMessagesNow(){
   if(!_msgPeerId && !_msgRoomId) return;
   const group = !!_msgRoomId;
   // Message bodies are encrypted at rest; only the server (which holds the
@@ -1428,17 +1486,21 @@ async function loadMessages(){
   // message in this thread is with the same peer (_msgPeerId), so the shared
   // key is identical for messages I sent and ones I received. (The group room
   // is server-decrypted — per-peer E2EE can't cover N readers — so no pass.)
+  // Cached by message id: crypto runs once per message per page load, not on
+  // every refresh. Failures aren't cached so a later unlock still retries.
   if(!group) for(const m of msgs){
     if(m && m.e2ee && m.body){
-      try { m.body = await E2EE.decrypt(_msgPeerId, m.body); }
-      catch(e){ m.body = '\uD83D\uDD12 Encrypted — unlock your messages on this device to read this.'; }
+      const ck = 'd' + m.id;
+      const hit = _e2eeCache.get(ck);
+      if(hit !== undefined){ m.body = hit; continue; }
+      try { m.body = await E2EE.decrypt(_msgPeerId, m.body); _e2eeCache.set(ck, m.body); }
+      catch(e){ m.body = '🔒 Encrypted — unlock your messages on this device to read this.'; }
     }
   }
-  // Every fetch returns freshly-signed attachment URLs, so a rebuild (new
-  // message / reaction / "Seen" flip) re-downloaded every image — the visible
-  // flash-and-shudder. Pin each message's first-seen URL for 45 min (signatures
-  // are valid 60): the rebuilt <img> keeps the same URL string, the browser
-  // cache serves it, nothing re-downloads or reflows.
+  // Every fetch returns freshly-signed attachment URLs, so a re-render would
+  // re-download every image. Pin each message's first-seen URL for 45 min
+  // (signatures are valid 60): the <img> keeps the same URL string, the
+  // browser cache serves it, nothing re-downloads or reflows.
   const _attNow = Date.now();
   for(const m of msgs){
     if(!m || !m.attachment_url) continue;
@@ -1447,15 +1509,98 @@ async function loadMessages(){
     if(c && (_attNow - c.at) < 45 * 60 * 1000) m.attachment_url = c.url;
     else _attUrlCache.set(k, { url: m.attachment_url, at: _attNow });
   }
+  // A send may still be in flight: the server list won't contain its row yet,
+  // so re-append optimistic bubbles for THIS thread or they'd blink out here
+  // and back in when the send confirms.
+  const _tkey = group ? 'room:' + _msgRoomId : _msgPeerId;
+  const _stillPending = _msgLastMsgs.filter(m => m.pending && m._tkey === _tkey);
+  _renderThread(_stillPending.length ? msgs.concat(_stillPending) : msgs, group);
+}
 
+// ── Thread rendering (keyed, incremental) ──────────────────────────
+const _CALL_TTL_MS = 10 * 60 * 1000;
+// Tiny string hash for per-row signatures (kept short in data-sig).
+function _sigHash(s){ let h = 0; for(let i = 0; i < s.length; i++){ h = (h * 31 + s.charCodeAt(i)) | 0; } return String(h); }
+// Everything that affects a row's pixels: body (decrypt state), reactions,
+// name label, call-invite expiry, pending state. If this is unchanged the
+// reconciler leaves the DOM node alone entirely.
+function _msgItemSig(m, showName){
+  const b = m.body || '';
+  const expired = /daily\.co\//.test(b) && (Date.now() - new Date(m.created_at).getTime()) > _CALL_TTL_MS;
+  return m.id + '|' + (m.pending ? 'p' : '') + '|' + b.length + ':' + b.slice(0, 32) + '|'
+    + (m.reactions ? JSON.stringify(m.reactions) : '') + '|' + (showName ? 'n' : '') + (expired ? 'x' : '')
+    + '|' + (m.attachment_url ? '@' : '');
+}
+function _msgItemHTML(m, group, showName, sig){
+  const mine = m.sender_id === currentUser.id;
+  const ageMs = Date.now() - new Date(m.created_at).getTime();
+  const isCallInvite = /daily\.co\//.test(m.body);
+  const expired = isCallInvite && ageMs > _CALL_TTL_MS;
+  // Auto-link URLs (explicit scheme, www., and bare domains with a recognized public
+  // suffix). See _linkifyBody — kept as a standalone function so it can be unit-tested.
+  let linked = _linkifyBody(m.body, mine, expired);
+  if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
+  const att = _renderAttachment(m, mine);
+  const hasBody = !!(m.body && m.body.trim());
+  const inner = (hasBody ? linked : '') + (hasBody && att ? '<div style="height:8px"></div>' : '') + att;
+  const _rc = m.reactions ? Object.values(m.reactions) : [];
+  const _rcCounts = {}; _rc.forEach(e => { _rcCounts[e] = (_rcCounts[e] || 0) + 1; });
+  const _rcStr = Object.keys(_rcCounts).map(e => e + (_rcCounts[e] > 1 ? '<span style="font-size:11px;margin-left:1px">' + _rcCounts[e] + '</span>' : '')).join(' ');
+  const _rcHtml = _rcStr ? `<div class="msg-react" style="margin-top:-7px;background:var(--cream);border:1px solid var(--terra-soft);border-radius:12px;padding:0 6px;font-size:14px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.18)">${_rcStr}</div>` : '';
+  const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none${expired?';opacity:.75':''}">${inner}</div>`;
+  const _nameLbl = showName ? `<div style="font-size:12px;font-weight:600;color:var(--walnut-mid);margin:2px 6px 2px">${_esc(m.sender_name || 'Member')}</div>` : '';
+  return `<div class="msg-item" data-mid="${m.id}" data-sig="${sig}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}${m.pending?';opacity:.55':''}">${_nameLbl}${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
+}
+
+// Keyed reconcile: patch only rows whose signature changed, insert new ones,
+// drop stale ones (e.g. an optimistic bubble the server has since confirmed).
+// Untouched rows keep their DOM nodes — no flicker, no image re-decode, and
+// scroll position holds still by itself.
+const _msgTpl = document.createElement('template');
+function _reconcileMsgList(list, items){
+  const want = new Set(items.map(it => it.mid));
+  list.querySelectorAll('.msg-item').forEach(n => { if(!want.has(n.dataset.mid)) n.remove(); });
+  const have = new Map();
+  list.querySelectorAll('.msg-item').forEach(n => have.set(n.dataset.mid, n));
+  let anchor = null; // last correctly-placed row
+  for(const it of items){
+    let node = have.get(it.mid);
+    if(node && node.dataset.sig !== it.sig){
+      _msgTpl.innerHTML = it.html;
+      const fresh = _msgTpl.content.firstElementChild;
+      node.replaceWith(fresh);
+      node = fresh;
+    } else if(!node){
+      _msgTpl.innerHTML = it.html;
+      node = _msgTpl.content.firstElementChild;
+      if(anchor) anchor.after(node); else list.prepend(node);
+    } else if((anchor ? anchor.nextElementSibling : list.firstElementChild) !== node){
+      if(anchor) anchor.after(node); else list.prepend(node);
+    }
+    anchor = node;
+  }
+}
+
+function _renderThread(msgs, group){
   const list = document.getElementById('msg-list');
+  if(!list || !currentUser) return;
+  _msgLastMsgs = msgs || [];
 
-  // Skip the rebuild when nothing changed. The 5s poll would otherwise reflow
-  // the thread and re-download attachment images (signed URLs change each
-  // fetch), which is what made the view flicker and jump.
-  // Include per-message read state so the poll re-renders when the peer reads
-  // my message (the id set is unchanged, only read_at flips) — drives "Seen".
-  const sig = (msgs || []).map(m => m.id + (m.read_at ? 'r' : '') + '|' + (m.reactions ? Object.keys(m.reactions).sort().map(k => k.slice(0,6) + m.reactions[k]).join('') : '')).join(',');
+  let _prevSender = null;
+  const items = _msgLastMsgs.map(m => {
+    const mine = m.sender_id === currentUser.id;
+    // Group threads label who's speaking; only on the first bubble of a run so
+    // consecutive messages from one person read as a block, Messenger-style.
+    const showName = group && !mine && m.sender_id !== _prevSender;
+    _prevSender = m.sender_id;
+    const isig = _sigHash(_msgItemSig(m, showName));
+    return { mid: String(m.id), sig: isig, html: _msgItemHTML(m, group, showName, isig) };
+  });
+
+  // Skip everything when nothing visible changed (the heartbeat poll's common
+  // case). The last message's read/pending state drives the receipt line.
+  const _lastMsg = (!group && _msgLastMsgs.length) ? _msgLastMsgs[_msgLastMsgs.length - 1] : null;
+  const sig = items.map(it => it.mid + ':' + it.sig).join(',') + '|' + (_lastMsg && _lastMsg.read_at ? 'r' : '');
   const renderKey = group ? 'room:' + _msgRoomId : _msgPeerId;
   const peerChanged = _msgRenderedPeer !== renderKey;
   if(sig === _msgSig && !peerChanged){ refreshMessageBadge(); return; }
@@ -1464,52 +1609,34 @@ async function loadMessages(){
   // opened this thread, or the newest message is their own (just sent).
   const nearBottom = (list.scrollHeight - list.scrollTop - list.clientHeight) < 80;
   const prevTop = list.scrollTop;
-  const lastMine = msgs.length && msgs[msgs.length - 1].sender_id === currentUser.id;
+  const lastMine = _msgLastMsgs.length && _msgLastMsgs[_msgLastMsgs.length - 1].sender_id === currentUser.id;
 
-  const CALL_TTL_MS = 10 * 60 * 1000;
-  let _prevSender = null;
-  const _bubbles = (msgs || []).map(m => {
-    const mine = m.sender_id === currentUser.id;
-    // Group threads label who's speaking; only on the first bubble of a run so
-    // consecutive messages from one person read as a block, Messenger-style.
-    const showName = group && !mine && m.sender_id !== _prevSender;
-    _prevSender = m.sender_id;
-    const ageMs = Date.now() - new Date(m.created_at).getTime();
-    const isCallInvite = /daily\.co\//.test(m.body);
-    const expired = isCallInvite && ageMs > CALL_TTL_MS;
-    // Auto-link URLs (explicit scheme, www., and bare domains with a recognized public
-    // suffix). See _linkifyBody — kept as a standalone function so it can be unit-tested.
-    let linked = _linkifyBody(m.body, mine, expired);
-    if(expired) linked += ` <span style="font-size:11px;font-style:italic;opacity:.7">(expired)</span>`;
-    const att = _renderAttachment(m, mine);
-    const hasBody = !!(m.body && m.body.trim());
-    const inner = (hasBody ? linked : '') + (hasBody && att ? '<div style="height:8px"></div>' : '') + att;
-    const _rc = m.reactions ? Object.values(m.reactions) : [];
-    const _rcCounts = {}; _rc.forEach(e => { _rcCounts[e] = (_rcCounts[e] || 0) + 1; });
-    const _rcStr = Object.keys(_rcCounts).map(e => e + (_rcCounts[e] > 1 ? '<span style="font-size:11px;margin-left:1px">' + _rcCounts[e] + '</span>' : '')).join(' ');
-    const _rcHtml = _rcStr ? `<div class="msg-react" style="margin-top:-7px;background:var(--cream);border:1px solid var(--terra-soft);border-radius:12px;padding:0 6px;font-size:14px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.18)">${_rcStr}</div>` : '';
-    const _bub = `<div class="msg-bubble" style="padding:8px 12px;border-radius:16px;background:${mine?'var(--teal)':'var(--terra-soft)'};color:${mine?'var(--cream)':'var(--walnut)'};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none${expired?';opacity:.75':''}">${inner}</div>`;
-    const _nameLbl = showName ? `<div style="font-size:12px;font-weight:600;color:var(--walnut-mid);margin:2px 6px 2px">${_esc(m.sender_name || 'Member')}</div>` : '';
-    return `<div class="msg-item" data-mid="${m.id}" style="align-self:${mine?'flex-end':'flex-start'};max-width:80%;display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">${_nameLbl}${_bub}${_rcHtml}<div class="msg-time" style="display:none;font-size:11px;color:var(--walnut-mid);margin:3px 4px 1px">${_fmtMsgTime(m.created_at)}</div></div>`;
-  }).join('');
+  if(peerChanged) list.innerHTML = ''; // fresh thread — drop the previous one's rows
+  _reconcileMsgList(list, items);
+  _wireMsgInteractions();
 
   // Read receipt: if my message is the newest in the thread, show its delivery
-  // state underneath it (read_at comes from /messages/thread). When the peer is
-  // the last to speak they've clearly seen mine, so no receipt is shown.
-  let _receipt = '';
-  const _lastMsg = (!group && msgs.length) ? msgs[msgs.length - 1] : null;
-  if(_lastMsg && _lastMsg.sender_id === currentUser.id){
-    const _seen = !!_lastMsg.read_at;
-    _receipt = `<div style="align-self:flex-end;font-size:11px;font-style:italic;color:var(--walnut-mid);margin:-2px 2px 2px">${_seen ? 'Seen' : 'Delivered'}</div>`;
+  // state underneath it. When the peer is the last to speak they've clearly
+  // seen mine, so no receipt is shown. One persistent element, text patched in
+  // place — never rebuilt.
+  let receipt = document.getElementById('msg-receipt');
+  if(!receipt){
+    receipt = document.createElement('div');
+    receipt.id = 'msg-receipt';
+    receipt.style.cssText = 'align-self:flex-end;font-size:11px;font-style:italic;color:var(--walnut-mid);margin:-2px 2px 2px';
   }
-  list.innerHTML = _bubbles + _receipt;
-  _wireMsgInteractions();
+  const showReceipt = _lastMsg && _lastMsg.sender_id === currentUser.id;
+  receipt.textContent = showReceipt ? (_lastMsg.pending ? 'Sending…' : (_lastMsg.read_at ? 'Seen' : 'Delivered')) : '';
+  receipt.style.display = showReceipt ? '' : 'none';
+  if(list.lastElementChild !== receipt) list.appendChild(receipt);
 
   if(peerChanged || nearBottom || lastMine) _scrollMsgBottom();
   else { _msgStick = false; list.scrollTop = prevTop; }
 
-  // Image attachments load after innerHTML and push the thread taller; re-pin to
-  // the bottom as each one settles (only while we're still sticking).
+  // Image attachments load after insertion and push the thread taller; re-pin
+  // to the bottom as each one settles (only while we're still sticking).
+  // addEventListener dedupes an identical (type, fn, once) tuple, so re-running
+  // this over surviving rows never stacks listeners.
   list.querySelectorAll('img').forEach(img => {
     if(img.complete) return;
     img.addEventListener('load', _msgPinIfStuck, { once: true });
@@ -1589,15 +1716,24 @@ function _openReactionPopup(item){
   setTimeout(() => document.addEventListener('pointerdown', _reactOutside, true), 0);
 }
 async function reactToMessage(mid, emoji){
+  // Optimistic: paint the reaction on the local copy immediately (the server
+  // stores one reaction per user, keyed by user id — mirror that shape). The
+  // confirm fetch below reconciles; on failure a forced reload repaints truth.
+  const local = _msgLastMsgs.find(m => String(m.id) === String(mid));
+  if(local && !local.pending){
+    local.reactions = Object.assign({}, local.reactions);
+    local.reactions[currentUser.id] = emoji;
+    _renderThread(_msgLastMsgs, !!_msgRoomId);
+  }
+  const _repaintTruth = () => { _msgSig = ''; loadMessages(); };
   try {
     const r = await fetch(_SERVER_URL + (_msgRoomId ? '/room/react' : '/messages/react'), {
       method:'POST', headers: await _authHeaders(),
       body: JSON.stringify({ messageId: mid, emoji })
     });
-    if(!r.ok){ const j = await r.json().catch(() => ({})); alert('Could not add reaction: ' + (j.error || r.status)); return; }
-    _msgSig = ''; // force the next render to include the new reaction
-    loadMessages();
-  } catch(e){ alert('Could not add reaction: ' + e.message); }
+    if(!r.ok){ const j = await r.json().catch(() => ({})); alert('Could not add reaction: ' + (j.error || r.status)); _repaintTruth(); return; }
+    loadMessages(); // confirm — usually a no-op render since we already match
+  } catch(e){ alert('Could not add reaction: ' + e.message); _repaintTruth(); }
 }
 let _msgInteractWired = false;
 let _lpTimer = null, _lpStartXY = null, _lpFired = false, _lpHapticDone = false;
@@ -1666,6 +1802,40 @@ async function sendMessage(){
   }
   input.value = '';
   clearAttachment();
+  _autoGrow(input); // collapse the box back to one line right away
+  _closeEmoji('msg-emoji','msg-emoji-btn');
+
+  // Optimistic bubble: paint the message instantly (dimmed, "Sending\u2026")
+  // and let the server round-trip swap it for the confirmed row — the tap-to-
+  // pixels delay is one frame instead of a network round trip. The attachment
+  // preview reuses the signed URL minted at upload time.
+  const pendingId = 'pending-' + (++_pendingSeq);
+  const tkey = group ? 'room:' + _msgRoomId : _msgPeerId; // thread this send belongs to
+  const pendingMsg = {
+    id: pendingId, pending: true, _tkey: tkey,
+    sender_id: currentUser.id, sender_name: currentUser.name || '',
+    body: text, created_at: new Date().toISOString(), reactions: null, read_at: null,
+    attachment_url: attach?.url || null, attachment_name: attach?.name || null, attachment_type: attach?.type || null
+  };
+  _msgLastMsgs = (_msgLastMsgs || []).concat([pendingMsg]);
+  _renderThread(_msgLastMsgs, group);
+
+  // Failed send: pull the bubble back and restore the draft so nothing is lost.
+  // Only repaint if this thread is still the open one — the user may have
+  // switched away while the request was in flight.
+  const _sameThread = () => ((_msgRoomId ? 'room:' + _msgRoomId : _msgPeerId) === tkey);
+  const _dropPending = () => { _msgLastMsgs = _msgLastMsgs.filter(m => m.id !== pendingId); };
+  const _undoSend = () => {
+    _dropPending();
+    if(_sameThread()){
+      _msgSig = '';
+      _renderThread(_msgLastMsgs, group);
+      input.value = text;
+      _autoGrow(input);
+      if(attach){ _pendingAttachment = attach; _renderAttachChip(); }
+    }
+  };
+
   // End-to-end encrypt the text body to the peer's published key when ours is
   // unlocked. If anything is missing we fall back to legacy server-side
   // encryption so a message is never lost. The group room is always
@@ -1675,36 +1845,44 @@ async function sendMessage(){
     try { _bodyOut = await E2EE.encrypt(_msgPeerId, text); _e2ee = true; }
     catch(e){ _bodyOut = text; _e2ee = false; }
   }
-  const r = await fetch(_SERVER_URL + (group ? '/room/send' : '/messages/send'), {
-    method: 'POST',
-    headers: await _authHeaders(),
-    body: JSON.stringify(group ? {
-      roomId: _msgRoomId, body: text,
-      attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
-    } : {
-      senderId: currentUser.id, recipientId: _msgPeerId, body: _bodyOut, e2ee: _e2ee,
-      attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
-    })
-  });
+  let r;
+  try {
+    r = await fetch(_SERVER_URL + (group ? '/room/send' : '/messages/send'), {
+      method: 'POST',
+      headers: await _authHeaders(),
+      body: JSON.stringify(group ? {
+        roomId: _msgRoomId, body: text,
+        attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
+      } : {
+        senderId: currentUser.id, recipientId: _msgPeerId, body: _bodyOut, e2ee: _e2ee,
+        attachmentPath: attach?.path || null, attachmentName: attach?.name || null, attachmentType: attach?.type || null
+      })
+    });
+  } catch(e){
+    _undoSend();
+    alert('Could not send \u2014 check your connection and try again.');
+    return;
+  }
   if(!r.ok){
     const j = await r.json().catch(() => ({}));
     if(j.error === 'readonly_recipient'){
       // Replied into a one-way "Preparing You" thread (stale/cached client).
       // Don't restore the text — it can't be sent. Lock the thread read-only.
+      _dropPending();
+      if(_sameThread()){ _msgSig = ''; _renderThread(_msgLastMsgs, group); }
       const _c = document.getElementById('msg-compose'); if(_c) _c.style.display = 'none';
       const _n = document.getElementById('msg-readonly-note'); if(_n) _n.style.display = 'block';
       const _cb = document.getElementById('msg-call-btn'); if(_cb) _cb.style.display = 'none';
       alert('This is a one-way message from Preparing You \u2014 you can\u2019t reply to it.');
       return;
     }
-    input.value = text; // restore so they don't lose their message
-    _autoGrow(input);
-    if(attach){ _pendingAttachment = attach; _renderAttachChip(); } // restore attachment too
+    _undoSend();
     alert('Could not send: ' + (j.error || r.status));
     return;
   }
-  _autoGrow(input); // collapse the box back to one line after sending
-  _closeEmoji('msg-emoji','msg-emoji-btn');
+  // Confirmed: retire the optimistic row, then reload so the reconciler swaps
+  // in the server's copy in a single paint (same content — visually seamless).
+  _dropPending();
   await loadMessages();
 }
 
@@ -1869,7 +2047,7 @@ function _renderAttachment(m, mine){
   const name = m.attachment_name || 'attachment';
   const isImg = (m.attachment_type || '').startsWith('image/');
   if(isImg){
-    return `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${_esc(name)}" style="max-width:100%;border-radius:10px;display:block"></a>`;
+    return `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${_esc(name)}" decoding="async" loading="lazy" style="max-width:100%;border-radius:10px;display:block;background:rgba(0,0,0,.06)"></a>`;
   }
   const linkColor = mine ? 'var(--cream)' : 'var(--accent-ink)';
   return `<a href="${url}" target="_blank" rel="noopener" download style="display:inline-flex;align-items:center;gap:6px;color:${linkColor};text-decoration:underline"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>${_esc(name)}</a>`;
@@ -2106,7 +2284,7 @@ function _subscribeMsgRealtime(){
       event: 'UPDATE', schema: 'public', table: 'prep_messages',
       filter: `sender_id=eq.${currentUser.id}`
     }, () => {
-      if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
+      if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) _loadMessagesSoon();
     })
     // A message I received was updated (peer reacted to their own message) —
     // refresh the open thread so the reaction shows without waiting for the poll.
@@ -2114,7 +2292,7 @@ function _subscribeMsgRealtime(){
       event: 'UPDATE', schema: 'public', table: 'prep_messages',
       filter: `recipient_id=eq.${currentUser.id}`
     }, () => {
-      if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
+      if(_msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) _loadMessagesSoon();
     })
     // PCM Fellowship room. RLS only delivers these events to active PCMs, so
     // subscribing unconditionally is safe — everyone else simply hears nothing.
@@ -2125,7 +2303,7 @@ function _subscribeMsgRealtime(){
     .on('postgres_changes', {
       event: 'UPDATE', schema: 'public', table: 'prep_room_messages'
     }, () => {
-      if(_msgRoomId && _msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) loadMessages();
+      if(_msgRoomId && _msgView === 'thread' && document.getElementById('page-messages').classList.contains('active')) _loadMessagesSoon();
     })
     .subscribe();
 }
@@ -2133,7 +2311,7 @@ function _onRealtimeRoomMsg(row){
   if(row.sender_id === currentUser.id) return; // own echo — already rendered on send
   refreshMessageBadge();
   if(!document.getElementById('page-messages').classList.contains('active')) return;
-  if(_msgView === 'thread' && _msgRoomId) loadMessages();
+  if(_msgView === 'thread' && _msgRoomId) _loadMessagesSoon();
   else if(_msgView === 'list') refreshInbox();
 }
 function _onRealtimeMsgInsert(row){
@@ -2142,7 +2320,7 @@ function _onRealtimeMsgInsert(row){
   const onMessages = document.getElementById('page-messages').classList.contains('active');
   if(!onMessages) return;
   if(_msgView === 'thread' && row.sender_id === _msgPeerId){
-    loadMessages();   // the open conversation — fetch the decrypted text now
+    _loadMessagesSoon();   // the open conversation — fetch the decrypted text now
   } else if(_msgView === 'list'){
     refreshInbox();   // inbox — re-sort with the newly arrived message
   }
@@ -5232,3 +5410,4 @@ document.addEventListener('DOMContentLoaded', () => {
     if(dist * 0.5 >= TH) doRefresh(); else setInd(0);
   });
 })();
+
