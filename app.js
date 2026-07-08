@@ -324,13 +324,34 @@ async function doForgotPassword(){
   ok.style.display = 'block';
 }
 
+// A recovery link that couldn't produce a session (expired, already used, or
+// the tokens were dropped in the email→browser handoff) must not dead-end at
+// a set-new-password form that can only fail with the cryptic "Auth session
+// missing" — route to the forgot panel with a plain explanation instead.
+function _resetLinkDead(){
+  _recoveryMode = false;
+  try { history.replaceState({}, '', window.location.pathname); } catch(_){}
+  openForgotPassword();
+  const err = document.getElementById('forgot-error');
+  if(err){
+    err.textContent = 'That reset link has expired or was already used. Enter your email and we’ll send you a fresh one.';
+    err.classList.add('show');
+  }
+}
+
 async function doResetPassword(){
   const pw  = document.getElementById('reset-pw').value;
   const err = document.getElementById('reset-error');
   err.classList.remove('show');
   if(!pw || pw.length < 8){ err.textContent='Password must be at least 8 characters.'; err.classList.add('show'); return; }
+  // Backstop: updateUser needs a live recovery session. If it's not there,
+  // explain and offer a fresh link rather than surfacing "Auth session missing".
+  try { const { data } = await _sb.auth.getSession(); if(!data?.session){ _resetLinkDead(); return; } } catch(_){}
   const { error } = await _sb.auth.updateUser({ password: pw });
-  if(error){ err.textContent = error.message; err.classList.add('show'); return; }
+  if(error){
+    if(/session.*missing|missing.*session/i.test(error.message || '')){ _resetLinkDead(); return; }
+    err.textContent = error.message; err.classList.add('show'); return;
+  }
   // Reset complete. Sign out and return to the login screen so the member signs
   // in fresh with their new password — clearer and more secure than silently
   // entering the app on the recovery session. The E2EE identity is re-keyed
@@ -5280,10 +5301,21 @@ window.addEventListener('load', async ()=>{
   // uses this (?token_hash=…&type=recovery) so the token survives the mobile
   // email→browser handoff that drops URL fragments.
   if(_resetQuery.token_hash && _resetQuery.type === 'recovery'){
-    try { await _sb.auth.verifyOtp({ token_hash: _resetQuery.token_hash, type: 'recovery' }); }
-    catch(e){ console.warn('[recovery] verifyOtp failed', e); }
-    _recoveryMode = true;
+    let _vErr = null;
+    try { const { error } = await _sb.auth.verifyOtp({ token_hash: _resetQuery.token_hash, type: 'recovery' }); _vErr = error; }
+    catch(e){ _vErr = e; }
     history.replaceState({}, '', window.location.pathname);
+    if(_vErr){
+      console.warn('[recovery] verifyOtp failed', _vErr);
+      // The one-time token didn't produce a session (expired, or consumed by a
+      // second click / an email-scanner prefetch). Unless a recovery session
+      // already exists from an earlier click, the reset form can only fail —
+      // send them to request a fresh link instead.
+      let _alive = false;
+      try { const { data } = await _sb.auth.getSession(); _alive = !!data?.session; } catch(_){}
+      if(!_alive){ _resetLinkDead(); return; }
+    }
+    _recoveryMode = true;
     showAuthTab('reset');
     return;
   }
@@ -5293,6 +5325,15 @@ window.addEventListener('load', async ()=>{
   // NEVER auto-enter the app.
   if(_recoveryMode){
     showAuthTab('reset');
+    // supabase-js parses the #access_token fragment asynchronously — confirm a
+    // recovery session actually materialized. A bare ?reset=1 whose fragment
+    // was dropped in the email→browser handoff leaves none, and the form
+    // would only ever answer "Auth session missing".
+    for(let i = 0; i < 6; i++){
+      try { const { data } = await _sb.auth.getSession(); if(data?.session) return; } catch(_){}
+      await new Promise(r => setTimeout(r, 250));
+    }
+    if(_recoveryMode) _resetLinkDead();   // PASSWORD_RECOVERY may have landed meanwhile
     return;
   }
 
