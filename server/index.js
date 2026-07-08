@@ -1429,7 +1429,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.54', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.55', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2224,6 +2224,16 @@ const server = http.createServer(async (req, res) => {
     // the chat handlers — we store role + timestamp only), so there is nothing
     // to decrypt, reveal, or migrate. prep_admin_audit remains for any future
     // audited admin actions.
+
+    if (req.method === 'POST' && req.url === '/pcm/mine') {
+      // Own prep_pcms row (contact details included). Those columns are
+      // SELECT-revoked for the client role, so the volunteer edit form and
+      // the "my PCM details" card read the caller's OWN row through here.
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { data } = await sb.from('prep_pcms').select('*').eq('id', v.uid).maybeSingle()
+      return send(res, 200, { pcm: data || null })
+    }
 
     if (req.method === 'POST' && req.url === '/peers') {
       const v = await verifyToken(req)
