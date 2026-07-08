@@ -653,6 +653,7 @@ function enterApp(){
   _maybeOfferPushPrompt();
   _maybeShowIosInstallHint();
   _maybeShowAndroidInstallHint();
+  _initInstallCard();
 }
 
 // Stamp acceptance of the first-run community guidelines, then enter the app.
@@ -2257,6 +2258,31 @@ function _maybeShowAndroidInstallHint() {
     localStorage.setItem('pp_android_hint_dismissed', '1');
     div.remove();
   };
+}
+
+// ── Add-to-home-screen walkthrough card (home page) ─────────────────
+// The bottom-bar hints above are one-time dismissible nudges; this card is
+// the durable path — 30s walkthrough clips behind iPhone/Android buttons.
+// Hidden once the app is actually running from the home screen.
+function _initInstallCard(){
+  const card = document.getElementById('install-card');
+  if(!card) return;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  card.style.display = standalone ? 'none' : 'block';
+}
+function openInstallClip(platform){
+  const ov = document.getElementById('install-clip-overlay');
+  const v  = document.getElementById('install-clip-video');
+  if(!ov || !v) return;
+  v.src = platform === 'android' ? '/install-android.mp4' : '/install-iphone.mp4';
+  ov.style.display = 'flex';
+  v.play().catch(()=>{});   // some browsers require the user to tap play — fine
+}
+function closeInstallClip(){
+  const ov = document.getElementById('install-clip-overlay');
+  const v  = document.getElementById('install-clip-video');
+  if(v){ v.pause(); v.removeAttribute('src'); v.load(); }
+  if(ov) ov.style.display = 'none';
 }
 
 // ═════════════════════════ NOTIFICATIONS ═════════════════════════

@@ -245,6 +245,18 @@
         <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Replay last townhall</button>
       </div>
     </div>
+    <!-- Add-to-home-screen card — shown only when running in a browser tab
+         (hidden in standalone/installed mode; see _initInstallCard). Each
+         button plays the platform's 30s install walkthrough clip. -->
+    <div class="card" id="install-card" style="display:none">
+      <div class="card-title">Take Preparing You with you</div>
+      <div class="card-text">Add the app to your phone&rsquo;s home screen &mdash; instant, full screen, one tap away. Watch how (30 seconds):</div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="openInstallClip('iphone')" style="flex:1;background:#5b21b6;color:#fff;border:none;border-radius:10px;padding:12px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;cursor:pointer">iPhone users</button>
+        <button onclick="openInstallClip('android')" style="flex:1;background:var(--teal,#14555e);color:var(--cream,#fdf8ef);border:none;border-radius:10px;padding:12px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;cursor:pointer">Android users</button>
+      </div>
+    </div>
+
     <!-- Always-available resource tiles (journey navigation lives in the
          evolving journey tile above and the bottom nav bar). -->
     <!-- Topical Library is a standalone reference; the Five Books now lives in the
@@ -685,6 +697,14 @@
     <p class="gl-err" id="pcm-agree-err">Couldn’t save — please try again.</p>
     <button class="gl-btn" id="pcm-agree-btn" onclick="acceptPcmGuidelines()">Agree &amp; Volunteer</button>
     <button class="gl-cancel" onclick="closePcmAgree()">Not yet</button>
+  </div>
+</div>
+
+<!-- Install-clip player overlay (opened by the home-page install card) -->
+<div id="install-clip-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(15,10,25,.82);align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)closeInstallClip()">
+  <div style="position:relative;width:min(92vw,420px)">
+    <video id="install-clip-video" controls playsinline preload="none" style="width:100%;max-height:82vh;border-radius:14px;background:#000;display:block"></video>
+    <button onclick="closeInstallClip()" aria-label="Close" style="position:absolute;top:-14px;right:-14px;width:38px;height:38px;border-radius:50%;border:none;background:#fff;color:#3a1d63;font-size:20px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)">&times;</button>
   </div>
 </div>
 
