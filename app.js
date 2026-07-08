@@ -805,7 +805,10 @@ async function refreshTownhallCard(){
     document.getElementById('townhall-text').textContent = (st.topic || 'Townhall') + ' — tap to join';
     if(banner) banner.style.display = 'block';
   } else {
-    document.getElementById('townhall-title-text').textContent = (st.title || 'Weekly Townhall');
+    var _thTitle = st.title || 'Weekly Townhall';
+    // Generic default becomes a call-to-action heading; a host's custom title is kept.
+    document.getElementById('townhall-title-text').textContent =
+      (_thTitle === 'Weekly Townhall') ? 'Join the next weekly townhall' : _thTitle;
     document.getElementById('townhall-when').textContent = localTime;
     document.getElementById('townhall-text').textContent = (st.topic || 'Open discussion') + ' — click to join at the scheduled time';
     if(banner) banner.style.display = 'none';
