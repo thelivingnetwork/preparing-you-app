@@ -1429,7 +1429,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.55', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.56', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2821,7 +2821,7 @@ async function runTownhallReminders() {
       const title = th.title || 'Weekly Townhall'
       const text = `🎙 ${title} starts in ${minsAway} minutes` + (th.topic ? ` — ${th.topic}` : '')
 
-      const { data: users } = await sb.from('prep_users').select('id, name, email, timezone')
+      const { data: users } = await sb.from('prep_users').select('id, name, email, timezone').eq('is_system', false)   // never email the system account (no-reply@ bounces)
       const list = users || []
 
       // 1) Inbox message from "Preparing You" — lands in Messages so the
@@ -2878,7 +2878,7 @@ async function runTownhallAnnouncements() {
       const title = th.title || 'Weekly Townhall'
       const text = `🎙 New townhall set: ${title}` + (th.topic ? ` — ${th.topic}` : '')
 
-      const { data: users } = await sb.from('prep_users').select('id, name, email, timezone')
+      const { data: users } = await sb.from('prep_users').select('id, name, email, timezone').eq('is_system', false)   // never email the system account (no-reply@ bounces)
       const list = users || []
 
       // 1) Inbox message from "Preparing You" — lands in Messages so the
