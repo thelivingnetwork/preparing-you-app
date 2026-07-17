@@ -4695,12 +4695,6 @@ async function buildPcmPage(){
     const avMap = new Map((avs || []).map(r => [r.id, r.avatar_url]));
     _pcmList.forEach(p => { p.avatar_url = avMap.get(p.id) || null; });
   }
-  // Tag matched-vs-available status (only needed when a PCM browses peers).
-  if(_pcmAmIPcm && _pcmList.length){
-    const { data: matchedRows } = await _sb.from('prep_users').select('pcm_id').not('pcm_id', 'is', null);
-    const matched = new Set((matchedRows || []).map(r => r.pcm_id));
-    _pcmList.forEach(p => { p._matched = matched.has(p.id); });
-  }
   const myCountry = _regionCountry(currentUser.region || '').toLowerCase();
   const inRegion = _pcmList.filter(p => myCountry && _regionCountry(p.region || '').toLowerCase() === myCountry);
   const outOfRegion = _pcmList.filter(p => !(myCountry && _regionCountry(p.region || '').toLowerCase() === myCountry));
@@ -4934,10 +4928,9 @@ function _pcmRow(p){
   // after they withdrew from their previous PCM). Conflating "is a PCM" with
   // "doesn't need to choose one" hid the button from such users.
   const isEstablishedPcm = _pcmAmIPcm && !!currentUser.pcm_id;
-  const badge = _pcmAmIPcm
-    ? '<span class="pcm-status ' + (p._matched ? 'matched' : 'available') + '">'
-        + (p._matched ? 'Matched' : 'Available') + '</span>'
-    : '';
+  // No matched/available badge: "Matched" read as "can't accept more
+  // elections" when a PCM can accept any number (removed 2026-07-17).
+  const badge = '';
   const actions = isEstablishedPcm
     ? '<div class="pcm-peer-actions">'
         + '<button class="link-btn" onclick="messagePcm(\'' + p.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Message</button>'
