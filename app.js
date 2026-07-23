@@ -786,7 +786,9 @@ function openTlnHandoff(){
 // key). Cached per session only — membership can end (account deletion), so
 // the verdict must not be persisted on the device.
 const TLN_SB_URL  = 'https://ahtdvcqyxxjdqrkxsovw.supabase.co';
-const TLN_SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFodGR2Y3F5eHhqZHFya3hzb3Z3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTcwODcsImV4cCI6MjA5MTY3MzA4N30.NHv2uVAvPNWFmVYPL1xqwhOwpw-RdYWFt4X-XQF-Gdg';
+// LN project publishable key (replaces the legacy anon JWT, disabled 2026-07-23).
+// This is the LN/TLN project only — PY's own project key above is unaffected.
+const TLN_SB_ANON = 'sb_publishable_2GJiwkYB4Vyvb1CN2vhsFQ_Vmd60pyN';
 let _tlnSealedCache = null;   // null = unknown this session
 async function tlnIsSealedMember(){
   if(!currentUser) return false;
