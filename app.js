@@ -4265,7 +4265,9 @@ let _libSearchTimer = null;
 let _libSearchSeq = 0;       // guards against out-of-order async responses
 let _libAllTitles = null;    // full wiki title list (loaded live, cached for the session)
 let _libTitlesLoading = false;
-const _WIKI_API = 'https://preparingyou.com/wiki/api.php';
+// NB: /wiki/ is the ARTICLE path — /wiki/api.php resolves to an article named
+// "Api.php" and 404s. The script path (where api.php actually lives) is /w/.
+const _WIKI_API = 'https://preparingyou.com/w/api.php';
 
 // Pull every article title from the wiki (paginated, live). Gives true
 // title-substring search across all ~7,800 articles. Cached in localStorage

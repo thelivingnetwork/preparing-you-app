@@ -560,7 +560,7 @@ function stripHtml(html) {
 
 async function searchPreparingYou(query, limit = 10) {
   const mkUrl = (srsearch, n) =>
-    `https://preparingyou.com/wiki/api.php?action=query&list=search&srsearch=${encodeURIComponent(srsearch)}&srwhat=text&srlimit=${n}&srprop=snippet|size&format=json&formatversion=2`
+    `https://preparingyou.com/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(srsearch)}&srwhat=text&srlimit=${n}&srprop=snippet|size&format=json&formatversion=2`
   const parse = raw => (JSON.parse(raw).query?.search || []).map(a => ({
     title: a.title,
     snippet: stripHtml(a.snippet || ''),
@@ -619,7 +619,7 @@ async function fetchChurchArticle(url) {
   }
   if (host === 'preparingyou.com') {
     const title = decodeURIComponent(u.pathname.replace(/^\/wiki\//, '').replace(/_/g, ' '))
-    const apiUrl = `https://preparingyou.com/wiki/api.php?action=query&prop=extracts&titles=${encodeURIComponent(title)}&explaintext=1&exintro=0&format=json&formatversion=2`
+    const apiUrl = `https://preparingyou.com/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(title)}&explaintext=1&exintro=0&format=json&formatversion=2`
     const j = JSON.parse(await fetchInsecure(apiUrl))
     const page = (j.query?.pages || [])[0]
     if (!page || page.missing !== undefined) throw new Error(`Article not found: ${title}`)
@@ -1429,7 +1429,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.56', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.57', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
