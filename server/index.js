@@ -1499,7 +1499,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.58', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.59', enc: !!_MSG_KEY })
+    }
+
+    // Deep health check — actually exercises the dependencies rather than just
+    // proving the process is alive. Returns 503 when any probe fails so an
+    // uptime monitor pointed here alerts on a broken dependency, not only on a
+    // dead server. Unauthenticated on purpose (monitors can't hold a token) and
+    // it leaks nothing beyond up/down plus a short detail string.
+    if (req.method === 'GET' && req.url.split('?')[0] === '/health/deep') {
+      const probes = await runProbes()
+      const ok = Object.values(probes).every(p => p.ok)
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.59', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3113,6 +3124,98 @@ async function runTownhallAutoclose() {
 // overlapping the next one — and stops the in-process timer from racing a
 // /cron/tick HTTP trigger (both run in this one process).
 let _tickRunning = false
+// ─── Dependency probes, alerting ─────────────────────────────────────────
+// Context: on 31 Jul a wrong wiki API path broke the Vault AND Paul's article
+// research for every user, and surfaced only when a member reported it days
+// later. Nothing watched the things this server depends on. These probes make
+// a failure visible — /health/deep gives an uptime monitor something real to
+// check, and the cron tick emails when a dependency dies or errors spike.
+const ALERT_EMAIL       = process.env.ALERT_EMAIL || 'tofnotifications@gmail.com'
+const ALERT_COOLDOWN_MS = 60 * 60 * 1000   // at most one email per kind per hour
+const PROBE_EVERY_MS    = 5 * 60 * 1000    // cron ticks every minute; probe less often
+const ERROR_SPIKE_MIN   = parseInt(process.env.ERROR_SPIKE_MIN || '25', 10)
+const _alertSent = new Map()               // kind -> last-sent ms
+let _lastProbeAt = 0
+
+function _fetchTimeout(url, ms = 8000, opts = {}) {
+  const ac = new AbortController()
+  const t  = setTimeout(() => ac.abort(), ms)
+  return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(t))
+}
+
+// Each probe resolves { ok, detail } and never throws.
+async function probeSupabase() {
+  try {
+    const { error } = await sb.from('prep_users').select('id', { count: 'exact', head: true }).limit(1)
+    return error ? { ok: false, detail: error.message } : { ok: true, detail: 'reachable' }
+  } catch (e) { return { ok: false, detail: (e && e.message) || 'threw' } }
+}
+
+// Exercises the exact call the Vault and Paul depend on, so a repeat of the
+// /wiki/ vs /w/ path break is caught by the probe rather than by a member.
+async function probeWiki() {
+  try {
+    const r = await _fetchTimeout(
+      'https://preparingyou.com/w/api.php?action=query&list=search&srsearch=covenant&srlimit=1&format=json&formatversion=2')
+    if (!r.ok) return { ok: false, detail: 'HTTP ' + r.status }
+    const j = await r.json()
+    const hits = j && j.query && j.query.searchinfo ? j.query.searchinfo.totalhits : null
+    return hits && hits > 0
+      ? { ok: true, detail: hits + ' hits' }
+      : { ok: false, detail: 'no results — API shape may have changed' }
+  } catch (e) { return { ok: false, detail: (e && e.message) || 'threw' } }
+}
+
+async function runProbes() {
+  const [supabase, wiki] = await Promise.all([probeSupabase(), probeWiki()])
+  return { supabase, wiki }
+}
+
+async function alertOnce(kind, subject, bodyHtml) {
+  const now = Date.now()
+  if (now - (_alertSent.get(kind) || 0) < ALERT_COOLDOWN_MS) return false
+  _alertSent.set(kind, now)
+  try {
+    await sendEmail(ALERT_EMAIL, subject, emailWrap('Preparing You — alert', bodyHtml))
+    console.warn('[alert]', kind, '->', ALERT_EMAIL)
+    return true
+  } catch (e) {
+    console.error('[alert] send failed', e && e.message)
+    return false
+  }
+}
+
+// Called from the cron tick. Wrapped by the caller so it can never take the
+// townhall jobs down with it.
+async function runHealthWatch() {
+  if (Date.now() - _lastProbeAt < PROBE_EVERY_MS) return
+  _lastProbeAt = Date.now()
+
+  const probes = await runProbes()
+  for (const [name, r] of Object.entries(probes)) {
+    if (!r.ok) {
+      await alertOnce('dep:' + name,
+        `[Preparing You] ${name} is failing`,
+        `<p>The <b>${name}</b> dependency check failed.</p><p>Detail: ${_clip(r.detail, 200)}</p>` +
+        `<p>Checked from the Render server. Further alerts for this dependency are suppressed for an hour.</p>`)
+    }
+  }
+
+  // Error spike: a burst in the client error sink usually means a deploy broke
+  // something for everyone rather than one user hitting one bad path.
+  try {
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+    const { count } = await sb.from('prep_client_errors')
+      .select('id', { count: 'exact', head: true }).gte('created_at', since)
+    if ((count || 0) >= ERROR_SPIKE_MIN) {
+      await alertOnce('errors',
+        `[Preparing You] ${count} client errors in 15 minutes`,
+        `<p><b>${count}</b> errors landed in prep_client_errors in the last 15 minutes ` +
+        `(threshold ${ERROR_SPIKE_MIN}).</p><p>Worth checking the table for the common message.</p>`)
+    }
+  } catch (e) { console.warn('[healthwatch] error-count query failed', e && e.message) }
+}
+
 async function runCronTick(source) {
   if (_tickRunning) return { skipped: true }
   _tickRunning = true
@@ -3122,6 +3225,9 @@ async function runCronTick(source) {
     await runTownhallAnnouncements()
     await runTownhallAutoclose()
     await runTownhallRecurrence()
+    // Watchdog runs last and swallows its own failures — alerting must never
+    // be able to stop the townhall jobs.
+    try { await runHealthWatch() } catch (e) { console.warn('[healthwatch]', e && e.message) }
     return { ok: true }
   } catch (e) {
     console.error(`[cron-tick:${source || 'timer'}]`, e)
