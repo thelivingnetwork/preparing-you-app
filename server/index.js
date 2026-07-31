@@ -188,6 +188,74 @@ function readJson(req) {
   })
 }
 
+// ─── Rate limiting ──────────────────────────────────────────────────────
+// Fixed-window counters kept in memory. Render runs this as a single instance
+// so a shared store isn't needed; counters reset on deploy, which is fine —
+// this is abuse control, not a billing quota. Paul's durable spend limit is
+// still PAUL_DAILY_CAP counted in the database.
+const _rlHits = new Map()   // "path|identity" -> { n, resetAt }
+
+// Prefer the caller's bearer token so members behind one NAT aren't pooled
+// together, and so rotating IP doesn't shake off the limit. The token is
+// hashed — it is never stored or logged.
+function _rlIdentity(req) {
+  const auth = req.headers && req.headers.authorization
+  if (auth && auth.startsWith('Bearer ')) {
+    return 't:' + crypto.createHash('sha256').update(auth.slice(7)).digest('hex').slice(0, 24)
+  }
+  const fwd = (req.headers && req.headers['x-forwarded-for']) || ''
+  return 'i:' + (fwd.split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || 'unknown')
+}
+
+// [path pattern, max requests, window ms]. Tightest limits go on the routes
+// that cost money (Anthropic, Whisper, TTS, Daily tokens) or send mail.
+const _RATE_RULES = [
+  [/^\/paul\/(chat|chat\/stream|transcribe|speak)$/, 20, 5 * 60 * 1000],
+  [/^\/messages\/send$/,                             30,     60 * 1000],
+  [/^\/call\/start$/,                                10, 5 * 60 * 1000],
+  [/^\/(welcome|tln\/invite)$/,                       5, 10 * 60 * 1000],
+  [/^\/push\/subscribe$/,                            10, 5 * 60 * 1000],
+  // Unauthenticated by design, so the most exposed surface on the server.
+  [/^\/client-error$/,                               30,     60 * 1000]
+]
+const _RATE_DEFAULT_MAX    = 120          // catch-all for every other POST
+const _RATE_DEFAULT_WINDOW = 60 * 1000
+// /health is polled by uptime monitors; /cron/tick fires every minute from
+// pg_cron and carries its own shared secret.
+const _RATE_EXEMPT = new Set(['/health', '/cron/tick'])
+
+// Returns true if the request was rejected (429 already sent).
+function rateLimited(req, res) {
+  if (req.method !== 'POST') return false
+  const path = (req.url || '').split('?')[0]
+  if (_RATE_EXEMPT.has(path)) return false
+
+  const rule = _RATE_RULES.find(r => r[0].test(path))
+  const limit    = rule ? rule[1] : _RATE_DEFAULT_MAX
+  const windowMs = rule ? rule[2] : _RATE_DEFAULT_WINDOW
+
+  const key = path + '|' + _rlIdentity(req)
+  const now = Date.now()
+  let e = _rlHits.get(key)
+  if (!e || now >= e.resetAt) { e = { n: 0, resetAt: now + windowMs }; _rlHits.set(key, e) }
+  e.n++
+  if (e.n > limit) {
+    const retry = Math.max(1, Math.ceil((e.resetAt - now) / 1000))
+    res.setHeader('Retry-After', String(retry))
+    send(res, 429, { error: 'rate_limited', retry_after: retry })
+    return true
+  }
+  return false
+}
+
+// Bound memory — drop expired windows every 5 minutes. unref() so this timer
+// never holds the process open on shutdown.
+const _rlSweep = setInterval(() => {
+  const now = Date.now()
+  for (const [k, v] of _rlHits) if (now >= v.resetAt) _rlHits.delete(k)
+}, 5 * 60 * 1000)
+if (_rlSweep.unref) _rlSweep.unref()
+
 // ─── Error log ──────────────────────────────────────────────────────────
 // Fire-and-forget insert into prep_client_errors. Never throws and never
 // blocks the caller — logging must not be able to break a request. Fields
@@ -1342,6 +1410,8 @@ let _featuredCache = { at: 0, data: null }   // Keys of the Kingdom latest episo
 const server = http.createServer(async (req, res) => {
   cors(res, req)
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+  // Single choke point — every POST is checked before it reaches a handler.
+  if (rateLimited(req, res)) return
 
   try {
     // Client error sink — unauthenticated by design (errors happen before/
@@ -1429,7 +1499,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.57', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.58', enc: !!_MSG_KEY })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
