@@ -1498,8 +1498,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, v)
     }
 
-    if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.60', enc: !!_MSG_KEY })
+    if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.61', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1507,10 +1507,12 @@ const server = http.createServer(async (req, res) => {
     // uptime monitor pointed here alerts on a broken dependency, not only on a
     // dead server. Unauthenticated on purpose (monitors can't hold a token) and
     // it leaks nothing beyond up/down plus a short detail string.
-    if (req.method === 'GET' && req.url.split('?')[0] === '/health/deep') {
+    // HEAD accepted too: uptime monitors probe with HEAD, and Node suppresses
+    // the body on HEAD responses automatically.
+    if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.60', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.61', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
