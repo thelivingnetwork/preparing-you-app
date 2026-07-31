@@ -1499,7 +1499,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.59', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.60', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1510,7 +1510,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.59', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.60', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3171,18 +3171,44 @@ async function runProbes() {
   return { supabase, wiki }
 }
 
-async function alertOnce(kind, subject, bodyHtml) {
+// Push the alert to every admin's devices. Uses notify(), so each alert also
+// lands in the in-app bell list and — because page:'home' is already inside
+// _BADGE_NOTIF_PAGES — lights the home-screen icon badge. Deliberately reusing
+// an allow-listed page means no client change and no badge-math change.
+async function alertAdmins(shortText) {
+  try {
+    const { data: admins } = await sb.from('prep_admins').select('user_id')
+    if (!admins || !admins.length) { console.warn('[alert] no admins to push to'); return 0 }
+    let sent = 0
+    for (const a of admins) {
+      if (!a.user_id) continue
+      await notify(a.user_id, '⚠️', shortText, { type: 'page', page: 'home' })
+      sent++
+    }
+    console.warn('[alert] pushed to', sent, 'admin(s)')
+    return sent
+  } catch (e) {
+    console.warn('[alert] admin push failed', e && e.message)
+    return 0
+  }
+}
+
+// Email + push, both throttled by the same per-kind cooldown so an outage
+// can't produce an hourly stream of duplicates on the phone.
+async function alertOnce(kind, subject, bodyHtml, shortText) {
   const now = Date.now()
   if (now - (_alertSent.get(kind) || 0) < ALERT_COOLDOWN_MS) return false
   _alertSent.set(kind, now)
+  // Push first — it's the channel that actually reaches a phone, and it should
+  // not be skipped if the mail provider is the thing that's broken.
+  await alertAdmins(shortText || subject)
   try {
     await sendEmail(ALERT_EMAIL, subject, emailWrap('Preparing You — alert', bodyHtml))
     console.warn('[alert]', kind, '->', ALERT_EMAIL)
-    return true
   } catch (e) {
-    console.error('[alert] send failed', e && e.message)
-    return false
+    console.error('[alert] email failed (push already sent)', e && e.message)
   }
+  return true
 }
 
 // Called from the cron tick. Wrapped by the caller so it can never take the
@@ -3197,7 +3223,8 @@ async function runHealthWatch() {
       await alertOnce('dep:' + name,
         `[Preparing You] ${name} is failing`,
         `<p>The <b>${name}</b> dependency check failed.</p><p>Detail: ${_clip(r.detail, 200)}</p>` +
-        `<p>Checked from the Render server. Further alerts for this dependency are suppressed for an hour.</p>`)
+        `<p>Checked from the Render server. Further alerts for this dependency are suppressed for an hour.</p>`,
+        `${name} is failing — ${_clip(r.detail, 80)}`)
     }
   }
 
@@ -3211,7 +3238,8 @@ async function runHealthWatch() {
       await alertOnce('errors',
         `[Preparing You] ${count} client errors in 15 minutes`,
         `<p><b>${count}</b> errors landed in prep_client_errors in the last 15 minutes ` +
-        `(threshold ${ERROR_SPIKE_MIN}).</p><p>Worth checking the table for the common message.</p>`)
+        `(threshold ${ERROR_SPIKE_MIN}).</p><p>Worth checking the table for the common message.</p>`,
+        `${count} client errors in 15 min — something may be broken for everyone`)
     }
   } catch (e) { console.warn('[healthwatch] error-count query failed', e && e.message) }
 }
