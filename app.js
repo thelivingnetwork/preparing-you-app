@@ -693,12 +693,21 @@ async function acceptGuidelines(){
 // so they start it themselves and can enter the app without watching.
 // The "seen" flag is per-device (localStorage) — no schema change needed, and
 // the worst case is a returning member on a new phone can skip it in one tap.
-const _INTRO_SEEN_KEY = 'py_intro_seen_v1';
+// Scoped PER ACCOUNT, not per device. A global key meant a second member
+// signing up on the same phone silently skipped the gate — found when a test
+// account was deleted and its email reused on the same device (2026-08-03).
+function _introSeenKey(){
+  const uid = (currentUser && currentUser.id) ? currentUser.id : 'anon';
+  return 'py_intro_seen_v1:' + uid;
+}
 let _introMaxTime = 0;          // seconds — anti-skip ceiling, same idea as the gateway videos
 
 function showIntroGate(){
   let seen = false;
-  try { seen = localStorage.getItem(_INTRO_SEEN_KEY) === '1'; } catch(_){}
+  try {
+    localStorage.removeItem('py_intro_seen_v1');   // retire the old unscoped key
+    seen = localStorage.getItem(_introSeenKey()) === '1';
+  } catch(_){}
   const gate = document.getElementById('intro-gate');
   if(seen || !gate){ enterApp(); return; }
   document.getElementById('guidelines-gate').style.display = 'none';
@@ -741,7 +750,7 @@ function dismissIntro(){
   const vid  = document.getElementById('intro-video');
   // Stop playback before hiding — a hidden <video> keeps playing audio otherwise.
   if(vid){ try { vid.pause(); vid.currentTime = 0; } catch(_){} }
-  try { localStorage.setItem(_INTRO_SEEN_KEY, '1'); } catch(_){}
+  try { localStorage.setItem(_introSeenKey(), '1'); } catch(_){}
   if(gate) gate.style.display = 'none';
   enterApp();
 }
