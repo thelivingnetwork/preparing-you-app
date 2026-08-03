@@ -680,11 +680,75 @@ async function acceptGuidelines(){
       if(error) throw new Error(error.message);
     }
     currentUser.guidelines_accepted_at = now;
-    enterApp();
+    showIntroGate();
   } catch(e){
     if(btn){ btn.disabled = false; btn.textContent = 'Accept & Enter'; }
     if(err) err.style.display = 'block';
   }
+}
+
+// ── First-run welcome video ────────────────────────────────────────────────
+// Shown once, straight after the guidelines are accepted. Deliberately NOT
+// autoplayed: a new member may be signing in somewhere they can't have sound,
+// so they start it themselves and can enter the app without watching.
+// The "seen" flag is per-device (localStorage) — no schema change needed, and
+// the worst case is a returning member on a new phone can skip it in one tap.
+const _INTRO_SEEN_KEY = 'py_intro_seen_v1';
+let _introMaxTime = 0;          // seconds — anti-skip ceiling, same idea as the gateway videos
+
+function showIntroGate(){
+  let seen = false;
+  try { seen = localStorage.getItem(_INTRO_SEEN_KEY) === '1'; } catch(_){}
+  const gate = document.getElementById('intro-gate');
+  if(seen || !gate){ enterApp(); return; }
+  document.getElementById('guidelines-gate').style.display = 'none';
+  document.getElementById('screen-landing').classList.remove('active');
+  document.getElementById('screen-app').classList.remove('active');
+
+  // This is a gate: Enter stays locked until the video has actually played
+  // through, and seeking past the unwatched portion snaps back.
+  _introMaxTime = 0;
+  const btn = document.getElementById('intro-enter-btn');
+  const vid = document.getElementById('intro-video');
+  if(btn){ btn.disabled = true; btn.textContent = 'Watch to continue'; }
+  // Force captions on. The <track default> attribute is honoured inconsistently
+  // (iOS Safari in particular), and since watching is compulsory a member with
+  // no sound must be able to follow it regardless.
+  if(vid && vid.textTracks){
+    const applyCaptions = () => {
+      for(const t of vid.textTracks){ if(t.kind === 'captions') t.mode = 'showing'; }
+    };
+    applyCaptions();
+    vid.addEventListener('loadedmetadata', applyCaptions, { once: true });
+  }
+  if(vid && !vid._introWired){
+    vid._introWired = true;
+    vid.addEventListener('timeupdate', () => {
+      if(vid.currentTime > _introMaxTime + 0.5){
+        vid.currentTime = _introMaxTime;      // tried to skip ahead — snap back
+      } else if(vid.currentTime > _introMaxTime){
+        _introMaxTime = vid.currentTime;      // advance the ceiling as they watch
+      }
+    });
+    vid.addEventListener('ended', () => {
+      _introMaxTime = Infinity;               // finished — free to re-scrub
+      const b = document.getElementById('intro-enter-btn');
+      if(b){ b.disabled = false; b.textContent = 'Enter the app'; }
+    });
+  }
+  gate.style.display = 'flex';
+}
+
+function dismissIntro(){
+  const btn = document.getElementById('intro-enter-btn');
+  if(btn && btn.disabled) return;             // gate not yet satisfied
+  const gate = document.getElementById('intro-gate');
+  const vid  = document.getElementById('intro-video');
+  // Stop playback before hiding — a hidden <video> keeps playing audio otherwise.
+  if(vid){ try { vid.pause(); vid.currentTime = 0; } catch(_){} }
+  try { localStorage.setItem(_INTRO_SEEN_KEY, '1'); } catch(_){}
+  if(gate) gate.style.display = 'none';
+  enterApp();
 }
 
 // Share the app via the device's native share sheet, falling back to copying

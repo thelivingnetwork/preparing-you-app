@@ -653,6 +653,28 @@
   </div>
 </div>
 
+<!-- First-run welcome. Shown once, immediately after the guidelines are
+     accepted. The video deliberately does NOT autoplay — a new member may be
+     signing in somewhere they can't have sound — so they choose when it starts,
+     and can enter the app without watching at all. -->
+<div id="intro-gate">
+  <div class="intro-card">
+    <h1>Welcome to Preparing You</h1>
+    <p class="intro-sub">A short tour of how to get started — about 45 seconds.</p>
+    <video id="intro-video" controls playsinline preload="metadata"
+           controlsList="nodownload noplaybackrate noremoteplayback" disablepictureinpicture
+           poster="/videos/intro-welcome-poster.jpg"
+           src="/videos/intro-welcome.mp4">
+      <!-- Captions default ON: this gate is compulsory, so a member with no
+           speaker, or on mute, must still be able to follow it. -->
+      <track kind="captions" srclang="en" label="English" default
+             src="/videos/intro-welcome.vtt">
+    </video>
+    <p class="intro-note">Please watch this through before you begin.</p>
+    <button class="gl-btn" id="intro-enter-btn" onclick="dismissIntro()" disabled>Watch to continue</button>
+  </div>
+</div>
+
 <div id="pcm-agree-gate">
   <div class="gl-card">
     <div class="gl-seal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
