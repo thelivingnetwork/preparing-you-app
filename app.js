@@ -711,15 +711,10 @@ function showIntroGate(){
   const btn = document.getElementById('intro-enter-btn');
   const vid = document.getElementById('intro-video');
   if(btn){ btn.disabled = true; btn.textContent = 'Watch to continue'; }
-  // Force captions on. The <track default> attribute is honoured inconsistently
-  // (iOS Safari in particular), and since watching is compulsory a member with
-  // no sound must be able to follow it regardless.
+  // Captions are burned into the video file, so any text track must stay OFF —
+  // showing both rendered them twice, overlapping (seen on iOS, 2026-08-03).
   if(vid && vid.textTracks){
-    const applyCaptions = () => {
-      for(const t of vid.textTracks){ if(t.kind === 'captions') t.mode = 'showing'; }
-    };
-    applyCaptions();
-    vid.addEventListener('loadedmetadata', applyCaptions, { once: true });
+    for(const t of vid.textTracks) t.mode = 'disabled';
   }
   if(vid && !vid._introWired){
     vid._introWired = true;

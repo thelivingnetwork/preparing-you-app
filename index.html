@@ -658,18 +658,15 @@
      signing in somewhere they can't have sound — so they choose when it starts,
      and can enter the app without watching at all. -->
 <div id="intro-gate">
-  <div class="intro-card">
-    <h1>Welcome to Preparing You</h1>
-    <p class="intro-sub">A short tour of how to get started — about 45 seconds.</p>
-    <video id="intro-video" controls playsinline preload="metadata"
-           controlsList="nodownload noplaybackrate noremoteplayback" disablepictureinpicture
-           poster="/videos/intro-welcome-poster.jpg"
-           src="/videos/intro-welcome.mp4">
-      <!-- Captions default ON: this gate is compulsory, so a member with no
-           speaker, or on mute, must still be able to follow it. -->
-      <track kind="captions" srclang="en" label="English" default
-             src="/videos/intro-welcome.vtt">
-    </video>
+  <!-- Full-screen: the video IS the experience, so it fills the viewport rather
+       than sitting in a card. Captions are burned into the file, so there is
+       deliberately NO <track> here — shipping both rendered them twice, one
+       over the other. -->
+  <video id="intro-video" controls playsinline preload="metadata"
+         controlsList="nodownload noplaybackrate noremoteplayback" disablepictureinpicture
+         poster="/videos/intro-welcome-poster.jpg"
+         src="/videos/intro-welcome.mp4"></video>
+  <div class="intro-bar">
     <p class="intro-note">Please watch this through before you begin.</p>
     <button class="gl-btn" id="intro-enter-btn" onclick="dismissIntro()" disabled>Watch to continue</button>
   </div>
