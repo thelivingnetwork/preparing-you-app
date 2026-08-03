@@ -215,9 +215,21 @@ const _RATE_RULES = [
   [/^\/call\/start$/,                                10, 5 * 60 * 1000],
   [/^\/(welcome|tln\/invite)$/,                       5, 10 * 60 * 1000],
   [/^\/push\/subscribe$/,                            10, 5 * 60 * 1000],
+  // PCM pairing churn. Each of these emails a real minister, so the cost of
+  // abuse is someone else's inbox, not CPU. The DB's one-active-election index
+  // already blocks parallel elections; these cap the elect/withdraw/elect
+  // cycle. Day-length windows reset on deploy — acceptable for abuse control.
+  [/^\/elect$/,                                       5, 24 * 60 * 60 * 1000],
+  [/^\/pcm\/withdraw$/,                               5, 24 * 60 * 60 * 1000],
+  [/^\/pcm\/nudge$/,                                  3, 24 * 60 * 60 * 1000],
   // Unauthenticated by design, so the most exposed surface on the server.
   [/^\/client-error$/,                               30,     60 * 1000]
 ]
+
+// Longest message body we accept. Generous for pastoral conversation, but
+// stops a single send from becoming an unscrollable wall on the recipient's
+// phone (or a large row replicated to every realtime subscriber).
+const MAX_MSG_CHARS = 5000
 const _RATE_DEFAULT_MAX    = 120          // catch-all for every other POST
 const _RATE_DEFAULT_WINDOW = 60 * 1000
 // /health is polled by uptime monitors; /cron/tick fires every minute from
@@ -1499,7 +1511,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.61', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.62', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1512,7 +1524,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.61', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.62', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -1680,6 +1692,38 @@ const server = http.createServer(async (req, res) => {
         sse('error', { error: e.message })
       }
       return res.end()
+    }
+
+    // Record that a member finished one of the three introduction videos.
+    // This used to be a direct client UPDATE on prep_users, which meant the
+    // member owned the very columns that gate PCM selection — anyone could
+    // stamp all three and skip the journey. The columns are now revoked from
+    // the authenticated role and stamped here instead.
+    if (req.method === 'POST' && req.url === '/gateway/complete') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { step } = await readJson(req)
+      const n = Number(step)
+      if (!Number.isInteger(n) || n < 1 || n > 3) {
+        return send(res, 400, { error: 'step must be 1, 2 or 3' })
+      }
+      const cols = ['gateway_v1_at', 'gateway_v2_at', 'gateway_v3_at']
+      const { data: u } = await sb.from('prep_users')
+        .select('gateway_v1_at, gateway_v2_at, gateway_v3_at').eq('id', v.uid).maybeSingle()
+      if (!u) return send(res, 404, { error: 'no_user' })
+      // Already recorded — idempotent, and never re-stamp (the timestamp is a
+      // record of when they first finished, not of the last request).
+      if (u[cols[n - 1]]) return send(res, 200, { ok: true, already: true })
+      // In order: each video unlocks the next, matching the UI.
+      for (let i = 0; i < n - 1; i++) {
+        if (!u[cols[i]]) return send(res, 403, { error: 'out_of_order', need: i + 1 })
+      }
+      const now = new Date().toISOString()
+      const patch = { [cols[n - 1]]: now }
+      if (n === 3) patch.gateway_watched_at = now   // legacy aggregate
+      const { error } = await sb.from('prep_users').update(patch).eq('id', v.uid)
+      if (error) return send(res, 500, { error: error.message })
+      return send(res, 200, { ok: true, patch })
     }
 
     if (req.method === 'POST' && req.url === '/elect') {
@@ -1927,6 +1971,11 @@ const server = http.createServer(async (req, res) => {
       const attachVal = attachmentPath || attachmentUrl || null
       if (!recipientId || !_UUID_RE.test(recipientId) || (!trimmedBody && !attachVal)) {
         return send(res, 400, { error: 'recipientId and a body or attachment required' })
+      }
+      // Measured before encryption — E2EE ciphertext is ~1.4x the plaintext, so
+      // capping the stored value would move the real limit around unpredictably.
+      if (!isE2ee && trimmedBody.length > MAX_MSG_CHARS) {
+        return send(res, 413, { error: 'message_too_long', max: MAX_MSG_CHARS })
       }
       // One-way system accounts ("Preparing You") never receive replies. The
       // member app hides the reply box, but enforce it here too so a stale or
@@ -2225,6 +2274,9 @@ const server = http.createServer(async (req, res) => {
       const trimmedBody = (msgBody || '').trim()
       const attachVal = attachmentPath || null
       if (!trimmedBody && !attachVal) return send(res, 400, { error: 'a body or attachment is required' })
+      if (trimmedBody.length > MAX_MSG_CHARS) {
+        return send(res, 413, { error: 'message_too_long', max: MAX_MSG_CHARS })
+      }
       const { error: insErr } = await sb.from('prep_room_messages').insert({
         room_id: PCM_ROOM_ID, sender_id: meId,
         body: encryptBody(trimmedBody || null),

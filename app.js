@@ -1979,6 +1979,17 @@ async function sendMessage(){
       return;
     }
     _undoSend();
+    if(j.error === 'message_too_long'){
+      // Restore the draft (via _undoSend above) so nothing is lost — they can
+      // split it. maxlength on the textarea stops typing past the cap, but a
+      // paste on some engines still gets through.
+      alert('That message is too long — please shorten it to ' + (j.max || 5000) + ' characters or send it in parts.');
+      return;
+    }
+    if(j.error === 'rate_limited'){
+      alert('You’ve sent a lot of messages just now. Please wait a moment and try again.');
+      return;
+    }
     alert('Could not send: ' + (j.error || r.status));
     return;
   }
@@ -4255,12 +4266,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const v = _gatewayCurrent;
     _clearAudioPos('gateway', v.idx); // finished — no resume needed next time
     if(currentUser[v.key]) return; // already recorded
+    // Stamped SERVER-side. These columns gate PCM selection, so the member
+    // must not be able to write them directly — the authenticated role has
+    // UPDATE revoked on them.
     const now = new Date().toISOString();
     const patch = { [v.key]: now };
-    // If this was the last one, also stamp the legacy aggregate
     if(v.idx === GATEWAY_VIDEOS.length) patch.gateway_watched_at = now;
-    const { error } = await _sb.from('prep_users').update(patch).eq('id', currentUser.id);
-    if(!error){
+    let ok = false;
+    try {
+      const r = await fetch(_SERVER_URL + '/gateway/complete', {
+        method: 'POST', headers: await _authHeaders(),
+        body: JSON.stringify({ step: v.idx })
+      });
+      ok = r.ok;
+    } catch(e){ ok = false; }
+    if(ok){
       Object.assign(currentUser, patch);
       buildGatewayPage();
     }
@@ -5194,10 +5214,17 @@ async function changePcm(){
     done = r.ok;
   }catch(e){ done = false; }
   if(!done){
+    // The server is the only path that can clear pcm_id now (the column is
+    // revoked from the authenticated role, so a member can't attach themselves
+    // to a minister who never accepted them). Withdrawing the election still
+    // works client-side, but tell them the pairing didn't clear rather than
+    // showing a success we can't deliver.
     await _sb.from('prep_pcm_elections')
       .update({ status: 'withdrawn', responded_at: new Date().toISOString() })
       .eq('elector_id', currentUser.id).in('status', ['pending','accepted']);
-    await _sb.from('prep_users').update({ pcm_id: null }).eq('id', currentUser.id);
+    alert('Could not reach the server to finish withdrawing. Please try again shortly.');
+    buildPcmPage();
+    return;
   }
   currentUser.pcm_id = null;
   buildPcmPage();
