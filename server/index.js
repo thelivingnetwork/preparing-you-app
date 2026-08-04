@@ -1219,6 +1219,7 @@ async function pushToUser(userId, { icon, text, action }) {
     unread: unread || 0
   })
   const stale = []
+  let delivered = 0
   await Promise.all(subs.map(async s => {
     try {
       await webpush.sendNotification(
@@ -1227,13 +1228,22 @@ async function pushToUser(userId, { icon, text, action }) {
         { TTL: 60 * 60 * 24 }
       )
       // Successful delivery — reset fail counter.
+      delivered++
       await sb.from('prep_push_subscriptions')
         .update({ fail_count: 0, last_seen: new Date().toISOString() }).eq('id', s.id)
     } catch (err) {
-      if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+      if (err && (err.statusCode === 404 || err.statusCode === 410 || err.statusCode === 403)) {
         // Increment fail counter; only prune after 3 consecutive failures.
         // iOS can transiently return 410 when the service worker updates —
         // the client re-registers on next app open, so don't delete immediately.
+        //
+        // 403 added 2026-08-04. A push service returns it when our VAPID key
+        // does not match the applicationServerKey the subscription was created
+        // with. Previously that fell to the else-branch and was only logged, so
+        // the row was never pruned — it kept looking "active", which also
+        // suppressed the email fallback in notifyMessageRecipient. The member
+        // then received nothing at all, silently. Same 3-strike rule: a real
+        // mismatch fails every time, so pruning still happens quickly.
         const { data: row } = await sb.from('prep_push_subscriptions')
           .select('fail_count').eq('id', s.id).maybeSingle()
         const fails = (row?.fail_count || 0) + 1
@@ -1248,7 +1258,11 @@ async function pushToUser(userId, { icon, text, action }) {
     }
   }))
   if (stale.length) await sb.from('prep_push_subscriptions').delete().in('id', stale)
-  return subs.length
+  // Return sends that actually SUCCEEDED, not sends attempted. Callers use this
+  // to decide whether an email fallback is needed, and a subscription that
+  // exists but rejects every push is exactly the case where the member has
+  // heard nothing and most needs the email.
+  return delivered
 }
 
 // Alert the recipient of a new person-to-person message. Web push is the
@@ -1511,7 +1525,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.62', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.63', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1524,7 +1538,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.62', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.63', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"

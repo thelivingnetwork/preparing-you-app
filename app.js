@@ -2245,11 +2245,33 @@ function _urlB64ToUint8(b64) {
   return out;
 }
 
+// Does an existing subscription belong to the VAPID key we currently sign with?
+// A subscription is bound to the applicationServerKey it was created with; if the
+// server's key ever differs, the push service rejects every send with 403 and the
+// member silently receives nothing. Comparing the bytes lets the client heal
+// itself on next open instead of needing site data cleared by hand.
+function _subMatchesVapid(sub) {
+  try {
+    const got = sub && sub.options && sub.options.applicationServerKey;
+    if (!got) return true;               // browser doesn't expose it — assume ok
+    const a = new Uint8Array(got);
+    const b = _urlB64ToUint8(_VAPID_PUBLIC);
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  } catch (_) { return true; }           // never block subscribing on this check
+}
+
 async function _subscribeToPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
   if (!currentUser) return null;
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
+  if (sub && !_subMatchesVapid(sub)) {
+    // Stale key — drop it and re-subscribe against the current one.
+    try { await sub.unsubscribe(); } catch (_) {}
+    sub = null;
+  }
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
