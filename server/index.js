@@ -1525,7 +1525,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.63', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.64', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1538,7 +1538,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.63', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.64', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3204,6 +3204,10 @@ const PROBE_EVERY_MS    = 5 * 60 * 1000    // cron ticks every minute; probe les
 const ERROR_SPIKE_MIN   = parseInt(process.env.ERROR_SPIKE_MIN || '25', 10)
 const _alertSent = new Map()               // kind -> last-sent ms
 let _lastProbeAt = 0
+// Consecutive failing probes required before alerting. The per-kind cooldown
+// governs how OFTEN we alert; this governs whether a blip alerts at all.
+const PROBE_FAIL_THRESHOLD = 2
+const _probeFails = new Map()   // probe name -> consecutive failures
 
 function _fetchTimeout(url, ms = 8000, opts = {}) {
   const ac = new AbortController()
@@ -3288,11 +3292,24 @@ async function runHealthWatch() {
   const probes = await runProbes()
   for (const [name, r] of Object.entries(probes)) {
     if (!r.ok) {
+      // Confirm before waking anyone. Alerting on the first failed poll meant
+      // any transient blip reached a phone at any hour — the treasury worker
+      // sent three such pages overnight on 2026-08-04, all recovered unattended.
+      // Two consecutive failures is a real outage, not a hiccup.
+      const n = (_probeFails.get(name) || 0) + 1
+      _probeFails.set(name, n)
+      console.warn(`[watchdog] ${name} failing (${n}/${PROBE_FAIL_THRESHOLD}) — ${_clip(r.detail, 120)}`)
+      if (n < PROBE_FAIL_THRESHOLD) continue
       await alertOnce('dep:' + name,
         `[Preparing You] ${name} is failing`,
-        `<p>The <b>${name}</b> dependency check failed.</p><p>Detail: ${_clip(r.detail, 200)}</p>` +
+        `<p>The <b>${name}</b> dependency check has failed <b>${n}</b> times in a row.</p>` +
+        `<p>Detail: ${_clip(r.detail, 200)}</p>` +
         `<p>Checked from the Render server. Further alerts for this dependency are suppressed for an hour.</p>`,
         `${name} is failing — ${_clip(r.detail, 80)}`)
+    } else {
+      const had = _probeFails.get(name) || 0
+      if (had) console.log(`[watchdog] ${name} recovered after ${had} failing check(s)`)
+      _probeFails.set(name, 0)
     }
   }
 
