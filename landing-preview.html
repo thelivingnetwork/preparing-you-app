@@ -206,6 +206,26 @@
   }
   .step p{margin:0;font-size:15.5px;color:var(--ink-mid)}
 
+  /* ── Free library ─────────────────────────────────────────── */
+  .section.alt{background:var(--surface)}
+  .books{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  @media (max-width:900px){.books{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:560px){.books{grid-template-columns:repeat(2,1fr)}}
+  .book{
+    background:var(--parch);border:1px solid var(--line);border-radius:12px;
+    padding:18px 14px 14px;position:relative;display:flex;flex-direction:column;gap:10px;min-height:150px;
+  }
+  .book::before{content:"";position:absolute;top:0;left:14px;right:14px;height:4px;
+    border-radius:0 0 4px 4px;background:var(--accent)}
+  .book:nth-child(even)::before{background:var(--gold)}
+  .book b{font-size:15.5px;line-height:1.3;color:var(--brand-ink);font-weight:650}
+  .book .fmt{margin-top:auto}
+  .book .fmt span{display:block}
+  .book .kind{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-ink);font-weight:750}
+  .book .hrs{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+  .lib-cta{text-align:center;margin-top:30px}
+  .gift{margin-top:14px;font-size:13.5px;color:var(--ink-soft)}
+
   /* ── Paul band ────────────────────────────────────────────── */
   .paul-band{background:var(--purple-deep);padding:76px 0}
   .paul-grid{display:grid;grid-template-columns:1.04fr .96fr;gap:52px;align-items:center}
@@ -333,9 +353,9 @@
     </a>
     <nav aria-label="Main">
       <a class="link" href="#film">The film</a>
+      <a class="link" href="#library">Free books</a>
       <a class="link" href="#paul">Meet Paul</a>
       <a class="link" href="#app">Inside the app</a>
-      <a class="link" href="#support">Support</a>
       <span class="socs">
         <a class="soc" href="https://x.com/PreparingUcom" target="_blank" rel="noopener" aria-label="Preparing You on X">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg>
@@ -377,8 +397,8 @@
         </div>
         <div class="welcome-card">
           <p class="eyebrow">Welcome</p>
-          <p>Leave your email and we'll send the film, your first chapters,
-             and your own way into the app.</p>
+          <p>Leave your email and we'll send the film, your first free book,
+             and your own way into the app — where all five e-books and audiobooks are waiting.</p>
           <form class="field-row" data-capture name="welcome" method="POST" data-netlify="true">
             <input type="hidden" name="form-name" value="welcome">
             <label class="sr" for="em1" style="position:absolute;left:-9999px">Email address</label>
@@ -435,8 +455,36 @@
         <div class="step">
           <div class="num serif">3.</div>
           <h3>Enter</h3>
-          <p>Open the app, read at your pace, and choose a Personal Contact Minister to walk with you.</p>
+          <p>Open the app, read the free books at your pace, and choose a Personal Contact Minister to walk with you.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Free library ── -->
+  <section class="section alt" id="library">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Free e-books &amp; audiobooks</p>
+        <h2 class="serif">Five books. Yours free.</h2>
+        <p class="sub">Sign up and the whole library is a gift — every book readable in the app,
+          and every one recorded as a complete audiobook. Nearly forty hours of listening.</p>
+      </div>
+      <div class="books">
+        <div class="book"><b class="serif">The Covenants of the gods</b>
+          <span class="fmt"><span class="kind">E-book + audiobook</span><span class="hrs">≈ 9 hours</span></span></div>
+        <div class="book"><b class="serif">Thy Kingdom Comes</b>
+          <span class="fmt"><span class="kind">E-book + audiobook</span><span class="hrs">≈ 10 hours</span></span></div>
+        <div class="book"><b class="serif">The Higher Liberty</b>
+          <span class="fmt"><span class="kind">E-book + audiobook</span><span class="hrs">≈ 5½ hours</span></span></div>
+        <div class="book"><b class="serif">Contracts, Covenants and Constitutions</b>
+          <span class="fmt"><span class="kind">E-book + audiobook</span><span class="hrs">≈ 5 hours</span></span></div>
+        <div class="book"><b class="serif">The Free Church Report</b>
+          <span class="fmt"><span class="kind">E-book + audiobook</span><span class="hrs">≈ 9½ hours</span></span></div>
+      </div>
+      <div class="lib-cta">
+        <a class="btn btn-primary" href="https://preparingyou.netlify.app" target="_blank" rel="noopener">Sign up free — get all five</a>
+        <p class="gift">No purchase, no card. The books are a gift — read them, hear them, share what they change.</p>
       </div>
     </div>
   </section>
@@ -523,7 +571,7 @@
   <section class="final">
     <div class="wrap">
       <h2 class="serif">Begin tonight.</h2>
-      <p>The film, your first chapters, and your own way in — in your inbox in a minute.</p>
+      <p>The film, a free book to start, and your own way in — in your inbox in a minute.</p>
       <form data-capture>
         <label for="em2" style="position:absolute;left:-9999px">Email address</label>
         <input id="em2" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
