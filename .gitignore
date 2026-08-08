@@ -6,6 +6,7 @@ node_modules/
 data/
 *.log
 *.pdf
+!the-higher-liberty.pdf   # the free-book giveaway on the landing preview
 books-source/
 .netlify/
 
