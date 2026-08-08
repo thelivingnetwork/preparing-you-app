@@ -159,6 +159,14 @@
   .field-row input:focus{outline:none;border-color:var(--accent)}
   .fine{font-size:13px;color:var(--ink-soft);margin:10px 0 0}
 
+  /* delivered-book confirmation, replaces the form on success */
+  .captured{display:flex;flex-direction:column;gap:11px;align-items:flex-start}
+  .captured p{margin:0;font-size:15.5px;color:var(--ink-mid)}
+  .captured p b{color:var(--brand-ink)}
+  .final .captured{align-items:center;text-align:center}
+  .final .captured p{color:#e2d7ef}
+  .final .captured p b{color:#fff}
+
   /* film cards */
   .film-stack{display:flex;flex-direction:column;gap:12px}
   .film-card{
@@ -397,14 +405,14 @@
           <a class="btn btn-primary" href="https://preparingyou.netlify.app" target="_blank" rel="noopener">Open the app</a>
         </div>
         <div class="welcome-card">
-          <p class="eyebrow">Welcome</p>
-          <p>Leave your email and we'll send the film, your first free book,
-             and your own way into the app — where all five e-books and audiobooks are waiting.</p>
+          <p class="eyebrow">Free book</p>
+          <p>Leave your email and <b>The Higher Liberty</b> is yours right now — the whole book,
+             free, as a PDF. The other four are waiting inside the app.</p>
           <form class="field-row" data-capture name="welcome" method="POST" data-netlify="true">
             <input type="hidden" name="form-name" value="welcome">
             <label class="sr" for="em1" style="position:absolute;left:-9999px">Email address</label>
             <input id="em1" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
-            <button class="btn btn-primary" type="submit">Send my first steps</button>
+            <button class="btn btn-primary" type="submit">Send my free book</button>
           </form>
           <p class="fine">A handful of emails to begin — never shared, unsubscribe anytime.</p>
         </div>
@@ -578,11 +586,11 @@
   <section class="final">
     <div class="wrap">
       <h2 class="serif">Begin tonight.</h2>
-      <p>The film, a free book to start, and your own way in — in your inbox in a minute.</p>
+      <p>Take <i>The Higher Liberty</i> with you — free, in full, the moment you leave your email.</p>
       <form data-capture>
         <label for="em2" style="position:absolute;left:-9999px">Email address</label>
         <input id="em2" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
-        <button class="btn btn-gold" type="submit">Send the film</button>
+        <button class="btn btn-gold" type="submit">Send my free book</button>
       </form>
       <p class="fine">Never shared. Unsubscribe anytime.</p>
     </div>
@@ -691,19 +699,37 @@
     });
   });
 
-  /* email capture — posts to Netlify Forms */
+  /* email capture — records the address, then hands over the book immediately */
+  var BOOK_URL='the-higher-liberty.pdf', BOOK_NAME='The Higher Liberty.pdf';
+
+  function deliverBook(f){
+    var a=document.createElement('a');
+    a.href=BOOK_URL;a.download=BOOK_NAME;a.rel='noopener';
+    document.body.appendChild(a);a.click();a.remove();
+
+    var done=document.createElement('div');
+    done.className='captured';
+    done.innerHTML='<p><b>Your book is on its way down.</b> If the download did not start, '
+      +'use the button below.</p>';
+    var link=document.createElement('a');
+    link.className='btn '+(f.closest('.final')?'btn-gold':'btn-primary');
+    link.href=BOOK_URL;link.setAttribute('download',BOOK_NAME);
+    link.textContent='Download The Higher Liberty';
+    done.appendChild(link);
+    f.parentNode.replaceChild(done,f);
+    var fine=done.parentNode.querySelector('.fine');
+    if(fine)fine.textContent='176 pages, free to keep and free to share.';
+  }
+
   document.querySelectorAll('form[data-capture]').forEach(function(f){
     f.addEventListener('submit',function(e){
       e.preventDefault();
       var input=f.querySelector('input[type=email]');
       if(!input.value||input.value.indexOf('@')<1){input.focus();return;}
+      var give=function(){deliverBook(f);};
       fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
         body:'form-name=welcome&email='+encodeURIComponent(input.value)})
-      .then(function(r){
-        if(r.ok){toast('Welcome — your first steps are on the way.');input.value='';}
-        else{toast('Hmm — that did not go through. Please try again.');}
-      })
-      .catch(function(){toast('Hmm — that did not go through. Please try again.');});
+        .then(give).catch(give);   // the book is promised either way — never withhold it on our error
     });
   });
 
