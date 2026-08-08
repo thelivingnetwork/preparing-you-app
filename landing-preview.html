@@ -259,7 +259,7 @@
   .chat-head img{width:32px;height:32px;border-radius:50%}
   .chat-head b{color:var(--brand-ink);font-size:15px}
   .chat-head span{color:var(--ink-soft);font-size:13px}
-  .chat-log{padding:18px 16px 6px;min-height:230px;display:flex;flex-direction:column;gap:10px}
+  .chat-log{padding:18px 16px 6px;min-height:170px;display:flex;flex-direction:column;gap:10px}
   .bubble{max-width:85%;padding:10px 14px;border-radius:14px;font-size:15px;line-height:1.5}
   .bubble.you{align-self:flex-end;background:var(--tint);color:var(--ink);border-bottom-right-radius:4px}
   .bubble.paul{align-self:flex-start;background:var(--parch);border:1px solid var(--line);
@@ -269,10 +269,11 @@
   .dots i{width:6px;height:6px;border-radius:50%;background:var(--ink-soft);animation:blink 1s infinite}
   .dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
   @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px 14px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;padding:10px 16px 14px}
   .chip{
     background:var(--tint);border:1px solid transparent;color:var(--brand-ink);
-    font-family:inherit;font-size:13.5px;font-weight:600;padding:8px 14px;border-radius:999px;cursor:pointer;
+    font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:999px;cursor:pointer;
+    line-height:1.2;
   }
   .chip:hover{border-color:var(--accent)}
   .chat-in{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);align-items:center}
@@ -526,8 +527,13 @@
           <div class="chat-log" id="chatlog" aria-live="polite"></div>
           <div class="chips" id="chips">
             <button class="chip" data-q="What is Preparing You?">What is Preparing You?</button>
+            <button class="chip" data-q="Is Preparing You a church?">Is Preparing You a church?</button>
+            <button class="chip" data-q="Do I need to be Christian?">Do I need to be Christian?</button>
+            <button class="chip" data-q="Does it cost anything?">Does it cost anything?</button>
+            <button class="chip" data-q="What is The Living Network?">What is The Living Network?</button>
+            <button class="chip" data-q="What is a Personal Contact Minister?">What is a Personal Contact Minister?</button>
+            <button class="chip" data-q="Do I have to agree with everything before joining?">Do I have to agree with everything?</button>
             <button class="chip" data-q="Who are you, Paul?">Who are you, Paul?</button>
-            <button class="chip" data-q="What does it cost?">What does it cost?</button>
           </div>
           <div class="chat-in">
             <label for="chatinput" style="position:absolute;left:-9999px">Ask Paul a question</label>
@@ -776,17 +782,24 @@
   var reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var ANSWERS={
     'What is Preparing You?':'It is a place to begin — a threshold, not a wall. You watch the story, read what the early Church actually practiced, and when you are ready, a Personal Contact Minister walks with you into a living network of fellowship.',
-    'Who are you, Paul?':'A study companion in the pattern of Paul the apostle. I have read the five books in the library and the Scriptures they rest on — ask me plainly, and I will show you where it is written.',
-    'What does it cost?':'Nothing. The gospel is not for sale. This work is carried by the freewill offerings of people who want it to reach you — as it was in the beginning.'
+    'Is Preparing You a church?':'No. It is a preparation — a doorway that stands before one. There is no building here, no pulpit, no roll to sign. What you will find is the teaching, and people willing to walk beside you while you weigh it.',
+    'Do I need to be Christian?':'No. Come as you are, and bring your questions with you. What is here is the teaching of Christ and the practice of the early Church, set out plainly so you can examine it for yourself. No one is asked to profess anything in order to read.',
+    'Does it cost anything?':'Nothing. The gospel is not for sale. The books, the audiobooks, the app — all free. This work is carried by the freewill offerings of people who want it to reach you, as it was in the beginning.',
+    'What is The Living Network?':'A fellowship of families and neighbours who care for one another directly — freely given, freely received, with no compulsion and no one ruling over another. It is charity practised rather than described. Preparing You is its threshold.',
+    'What is a Personal Contact Minister?':'A person, not a title over you. When you are ready you choose one, and if they accept, they walk with you — answering what you ask, knowing your name, staying with you as you go. You may step away or choose another at any time.',
+    'Do I have to agree with everything before joining?':'No. You are asked to examine, not to swear. Bring your disagreements and set them on the table — prove all things, and hold fast that which is good. There is no statement of belief to sign here.',
+    'Who are you, Paul?':'A study companion in the pattern of Paul the apostle. I have read the five books in the library and the Scriptures they rest on — ask me plainly, and I will show you where it is written.'
   };
-  var FALLBACK='A good question for the live Paul — open the app and ask me there. On this page I only carry my three sample answers.';
+  var FALLBACK='A good question for the live Paul — open the app and ask me there. On this page I carry only my sample answers.';
   function bubble(cls,html){
     var d=document.createElement('div');d.className='bubble '+cls;d.innerHTML=html;
     log.appendChild(d);log.scrollTop=log.scrollHeight;return d;
   }
   var busy=false;
   function ask(q){
-    if(busy)return;busy=true;
+    if(busy)return;
+    greet();   // the greeting must lead — the observer may not have fired yet
+    busy=true;
     bubble('you',q.replace(/</g,'&lt;'));
     var a=ANSWERS[q]||FALLBACK;
     if(reduced){bubble('paul',a);busy=false;return;}
