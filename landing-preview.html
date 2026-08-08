@@ -134,10 +134,10 @@
   .foot-soc .soc:hover{background:var(--accent);color:#fff}
 
   /* ── Hero ─────────────────────────────────────────────────── */
-  .hero{padding:72px 0 60px}
-  .hero-grid{display:grid;grid-template-columns:1.06fr .94fr;gap:56px;align-items:start}
+  .hero{padding:30px 0 52px}
+  .hero-grid{display:grid;grid-template-columns:1.12fr .88fr;gap:44px;align-items:start}
   @media (max-width:960px){.hero-grid{grid-template-columns:1fr;gap:40px}}
-  .hero-head{margin-bottom:36px}
+  .hero-head{margin-bottom:18px}
   .hero h1{font-size:clamp(20px,4vw,44px);line-height:1.1;font-weight:650;letter-spacing:-.01em}
   .hero-sub{font-size:clamp(26px,5.6vw,64px);line-height:1.08;font-weight:650;
     letter-spacing:-.01em;color:var(--brand-ink);margin:8px 0 0}
@@ -160,7 +160,7 @@
   .fine{font-size:13px;color:var(--ink-soft);margin:10px 0 0}
 
   /* film cards */
-  .film-stack{display:flex;flex-direction:column;gap:18px}
+  .film-stack{display:flex;flex-direction:column;gap:12px}
   .film-card{
     position:relative;border-radius:20px;overflow:hidden;background:var(--surface);
     border:1px solid var(--line);box-shadow:var(--shadow);
@@ -179,19 +179,15 @@
   }
   .play-btn:hover{transform:scale(1.06)}
   .play-btn svg{width:26px;height:28px;margin-left:5px}
-  .film-cap{display:flex;flex-direction:column;gap:2px;padding:14px 18px;border-top:1px solid var(--line)}
-  .film-cap b{color:var(--brand-ink);font-size:15.5px}
-  .film-cap span{color:var(--ink-mid);font-size:14px}
-
-  /* verse divider */
-  .verse{padding:26px 0 8px;text-align:center}
-  .verse p{
-    margin:0 auto;max-width:38em;color:var(--ink-mid);font-size:17.5px;font-style:italic;
+  /* caption sits over the poster so both cards clear the fold */
+  .film-cap{
+    position:absolute;left:0;right:0;bottom:0;z-index:1;
+    display:flex;flex-direction:column;gap:1px;padding:30px 16px 12px;
+    background:linear-gradient(to top,rgba(22,9,36,.9) 30%,rgba(22,9,36,0));
+    pointer-events:none;
   }
-  .verse .ref{display:block;margin-top:6px;font-style:normal;font-size:12px;font-weight:700;
-    letter-spacing:.16em;color:var(--gold-ink);text-transform:uppercase}
-  .verse::before{content:"";display:block;width:54px;height:3px;border-radius:2px;
-    background:var(--gold);margin:0 auto 22px}
+  .film-cap b{color:#fff;font-size:15.5px;font-weight:650;line-height:1.25}
+  .film-cap span{color:rgba(246,240,252,.8);font-size:13.5px}
 
   /* ── Steps ────────────────────────────────────────────────── */
   .section{padding:64px 0}
@@ -426,10 +422,10 @@
             <button class="play-btn" data-play aria-label="Play the Preparing You film">
               <svg viewBox="0 0 26 28" aria-hidden="true"><path d="M0 0l26 14L0 28z" fill="#4f2170"/></svg>
             </button>
-          </span>
-          <span class="film-cap">
-            <b>Welcome to Preparing You</b>
-            <span>The invitation, in ninety seconds.</span>
+            <span class="film-cap">
+              <b>Welcome to Preparing You</b>
+              <span>The invitation, in ninety seconds.</span>
+            </span>
           </span>
         </div>
         <div class="film-card" data-yt="neXobdM2DGo">
@@ -439,22 +435,15 @@
             <button class="play-btn" data-play aria-label="Play A Message to Modern Man">
               <svg viewBox="0 0 26 28" aria-hidden="true"><path d="M0 0l26 14L0 28z" fill="#4f2170"/></svg>
             </button>
-          </span>
-          <span class="film-cap">
-            <b>A Message to Modern Man</b>
-            <span>The full teaching, when you're ready to go deeper.</span>
+            <span class="film-cap">
+              <b>A Message to Modern Man</b>
+              <span>The full teaching, when you're ready to go deeper.</span>
+            </span>
           </span>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- ── Verse ── -->
-  <div class="verse wrap">
-    <p>“Prepare ye the way of the Lord, make his paths straight.”
-      <span class="ref">Mark 1 : 3</span>
-    </p>
-  </div>
 
   <!-- ── Steps ── -->
   <section class="section">
