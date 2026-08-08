@@ -6,7 +6,8 @@ node_modules/
 data/
 *.log
 *.pdf
-!the-higher-liberty.pdf   # the free-book giveaway on the landing preview
+# exception: the free-book giveaway served by the landing preview
+!the-higher-liberty.pdf
 books-source/
 .netlify/
 
