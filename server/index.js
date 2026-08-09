@@ -1104,6 +1104,22 @@ async function sendEmail(to, subject, html) {
   return sendEmailJS('Friend', dest, subject, _htmlToText(html))
 }
 
+// Subscriber mail only. Passes the HTML through UNFLATTENED so "Unsubscribe"
+// arrives as a clickable word instead of a naked URL — which is what every
+// mailing list does, and what recipients expect at the bottom of a list email.
+//
+// This depends on the EmailJS template rendering {{message}} as HTML. If a test
+// send shows literal <a href=...> tags, the template needs {{{message}}} (triple
+// braces = unescaped) in the EmailJS dashboard. The markup below is written so
+// that even in that failure case the URL is still readable and copyable.
+//
+// Deliberately NOT used for member transactional mail: that path works today
+// and is not worth risking on a rendering assumption.
+async function sendEmailRich(to, subject, html) {
+  const dest = Array.isArray(to) ? to[0] : to
+  return sendEmailJS('Friend', dest, subject, html)
+}
+
 // Admin-authored text goes into an HTML email; escape it so a stray < or &
 // can't break the markup (or smuggle a tag into someone's inbox).
 function _escapeHtml(s) {
@@ -1130,6 +1146,13 @@ const SELF_URL     = (process.env.SELF_URL || 'https://preparing-you-server.onre
 const PUBLIC_SITE  = (process.env.PUBLIC_SITE_URL || 'https://preparingyou.netlify.app').replace(/\/+$/, '')
 const BOOK_PDF_URL = PUBLIC_SITE + '/the-higher-liberty.pdf'
 
+// The one thing recipients look for at the bottom of a list email: a single
+// clickable word, not a URL to copy. Underlined and spaced so it reads as a
+// control rather than body text.
+function unsubLink(url) {
+  return `<a href="${url}" style="color:#6f5641;text-decoration:underline;font-weight:600">Unsubscribe</a>`
+}
+
 // The free-book letter sent by /subscribe. Built with emailWrap so it wears the
 // same shell as every other email the app sends; sendEmail flattens it to text
 // for the EmailJS template, where anchors survive as "label: url".
@@ -1143,9 +1166,7 @@ function bookLetter(unsubUrl) {
      <p>Prepare ye the way of the Lord.<br>&mdash; Preparing You</p>
      <p style="font-size:13px;color:#6f5641;border-top:1px solid #e8dec3;padding-top:14px;margin-top:22px">
        You are receiving this because you asked for the book at preparingu.com.
-       ${unsubUrl
-         ? `<a href="${unsubUrl}">Remove my address</a> and we will not write again.`
-         : 'To be removed, reply to this email with the word UNSUBSCRIBE.'}
+       ${unsubUrl ? unsubLink(unsubUrl) : 'To be removed, reply to this email with the word UNSUBSCRIBE.'}
      </p>`,
     'Download the book', BOOK_PDF_URL)
 }
@@ -1535,7 +1556,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const unsub = token ? `${SELF_URL}/unsubscribe?token=${encodeURIComponent(token)}` : null
-      const r = await sendEmail(email, 'Your copy of The Higher Liberty', bookLetter(unsub))
+      const r = await sendEmailRich(email, 'Your copy of The Higher Liberty', bookLetter(unsub))
       if (!r || r.ok === false) return send(res, 502, { error: 'send_failed' })
       try {
         await sb.from('prep_subscribers').update({ last_sent_at: new Date().toISOString() })
@@ -1636,7 +1657,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.65', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.66', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1649,7 +1670,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.65', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.66', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2862,10 +2883,10 @@ const server = http.createServer(async (req, res) => {
             `<p>${_escapeHtml(text).replace(/\n/g, '<br>')}</p>
              <p style="font-size:13px;color:#6f5641;border-top:1px solid #e8dec3;padding-top:14px;margin-top:22px">
                You are receiving this because you asked for the free book at preparingu.com.
-               <a href="${unsub}">Remove my address</a> and we will not write again.
+               <br>${unsubLink(unsub)}
              </p>`,
             'Open Preparing You', PUBLIC_SITE)
-          const r = await sendEmail(s.email, subject || 'A message from Preparing You', html)
+          const r = await sendEmailRich(s.email, subject || 'A message from Preparing You', html)
           if (r && r.ok !== false) {
             sent++
             await sb.from('prep_subscribers')
