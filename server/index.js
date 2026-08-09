@@ -214,6 +214,9 @@ const _RATE_RULES = [
   [/^\/messages\/send$/,                             30,     60 * 1000],
   [/^\/call\/start$/,                                10, 5 * 60 * 1000],
   [/^\/(welcome|tln\/invite)$/,                       5, 10 * 60 * 1000],
+  // Public landing-page signup. Each hit sends a real email, so this is a
+  // spend limit as much as an abuse limit.
+  [/^\/subscribe$/,                                   5, 10 * 60 * 1000],
   [/^\/push\/subscribe$/,                            10, 5 * 60 * 1000],
   // PCM pairing churn. Each of these emails a real minister, so the cost of
   // abuse is someone else's inbox, not CPU. The DB's one-active-election index
@@ -1101,6 +1104,14 @@ async function sendEmail(to, subject, html) {
   return sendEmailJS('Friend', dest, subject, _htmlToText(html))
 }
 
+// Admin-authored text goes into an HTML email; escape it so a stray < or &
+// can't break the markup (or smuggle a tag into someone's inbox).
+function _escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 function emailWrap(title, body, ctaText, ctaUrl) {
   return `<!doctype html><html><body style="margin:0;background:#faf6e9;font-family:Georgia,serif;color:#3a2818">
     <div style="max-width:520px;margin:0 auto;padding:32px 24px">
@@ -1111,6 +1122,32 @@ function emailWrap(title, body, ctaText, ctaUrl) {
       </div>
       <p style="font-size:12px;color:#6f5641;font-style:italic;margin-top:18px;text-align:center">Preparing You — a gateway into The Living Network</p>
     </div></body></html>`
+}
+
+// Public URLs that appear inside outgoing email. Overridable per-environment so
+// the unsubscribe link still resolves if the service or the site ever moves.
+const SELF_URL     = (process.env.SELF_URL || 'https://preparing-you-server.onrender.com').replace(/\/+$/, '')
+const PUBLIC_SITE  = (process.env.PUBLIC_SITE_URL || 'https://preparingyou.netlify.app').replace(/\/+$/, '')
+const BOOK_PDF_URL = PUBLIC_SITE + '/the-higher-liberty.pdf'
+
+// The free-book letter sent by /subscribe. Built with emailWrap so it wears the
+// same shell as every other email the app sends; sendEmail flattens it to text
+// for the EmailJS template, where anchors survive as "label: url".
+function bookLetter(unsubUrl) {
+  return emailWrap('Your copy of The Higher Liberty',
+    `<p>Peace to you,</p>
+     <p>Here is <i>The Higher Liberty</i> — the whole book, 176 pages, yours to keep and free to share.</p>
+     <p>When you are ready, the other four books are waiting inside the app, each with a full
+        audiobook, along with Paul, who can answer any question you bring him:
+        <a href="${PUBLIC_SITE}">${PUBLIC_SITE}</a></p>
+     <p>Prepare ye the way of the Lord.<br>&mdash; Preparing You</p>
+     <p style="font-size:13px;color:#6f5641;border-top:1px solid #e8dec3;padding-top:14px;margin-top:22px">
+       You are receiving this because you asked for the book at preparingu.com.
+       ${unsubUrl
+         ? `<a href="${unsubUrl}">Remove my address</a> and we will not write again.`
+         : 'To be removed, reply to this email with the word UNSUBSCRIBE.'}
+     </p>`,
+    'Download the book', BOOK_PDF_URL)
 }
 
 // ─── Daily.co room helpers ──────────────────────────────────────────────
@@ -1459,6 +1496,80 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(204); res.end(); return
     }
 
+    // ── Landing-page signup: record the address and send the free book ──────
+    // Unauthenticated by design (these people have no account yet — that is the
+    // whole point). Rate-limited above. The reply is deliberately identical
+    // whether or not the address was already on the list, so the endpoint can't
+    // be used to test who has signed up.
+    if (req.method === 'POST' && req.url === '/subscribe') {
+      let b = {}
+      try { b = await readJson(req) } catch (_) {}
+      const email = String(b.email || '').trim()
+      if (!email || !/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email) || email.length > 254) {
+        return send(res, 400, { error: 'invalid_email' })
+      }
+      const source = String(b.source || 'landing').slice(0, 40)
+
+      // Upsert on the normalised key so a repeat request re-sends the book
+      // rather than erroring, and never creates a duplicate row.
+      let token = null
+      try {
+        const { data: existing } = await sb.from('prep_subscribers')
+          .select('token, unsubscribed_at').eq('email_key', email.toLowerCase()).maybeSingle()
+        if (existing) {
+          token = existing.token
+          // Asking for the book again is a clear opt back in.
+          if (existing.unsubscribed_at) {
+            await sb.from('prep_subscribers').update({ unsubscribed_at: null })
+              .eq('email_key', email.toLowerCase())
+          }
+        } else {
+          const { data: created } = await sb.from('prep_subscribers')
+            .insert({ email, source }).select('token').maybeSingle()
+          token = created?.token || null
+        }
+      } catch (e) {
+        logError('subscribe', { message: (e && e.message) || String(e) })
+        // Fall through: the book still goes out. Losing the address is a worse
+        // failure for us than for them, and they asked for a book.
+      }
+
+      const unsub = token ? `${SELF_URL}/unsubscribe?token=${encodeURIComponent(token)}` : null
+      const r = await sendEmail(email, 'Your copy of The Higher Liberty', bookLetter(unsub))
+      if (!r || r.ok === false) return send(res, 502, { error: 'send_failed' })
+      try {
+        await sb.from('prep_subscribers').update({ last_sent_at: new Date().toISOString() })
+          .eq('email_key', email.toLowerCase())
+      } catch (_) {}
+      return send(res, 200, { ok: true })
+    }
+
+    // One-click unsubscribe from the link in that email. GET so it works
+    // straight from a mail client; returns a small page, not JSON.
+    if (req.method === 'GET' && (req.url || '').startsWith('/unsubscribe')) {
+      const token = new URL(req.url, 'http://x').searchParams.get('token') || ''
+      let ok = false
+      if (/^[a-f0-9]{16,64}$/.test(token)) {
+        const { data } = await sb.from('prep_subscribers')
+          .update({ unsubscribed_at: new Date().toISOString() })
+          .eq('token', token).select('id')
+        ok = !!(data && data.length)
+      }
+      const body = ok
+        ? '<h1>You have been removed.</h1><p>We will not write to you again. The book stays yours.</p>'
+        : '<h1>That link has expired.</h1><p>Write to tofnotifications@gmail.com and we will remove you by hand.</p>'
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end('<!doctype html><meta charset="utf-8">'
+        + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        + '<title>Preparing You</title>'
+        + '<style>body{background:#faf6e9;color:#3a2818;font-family:-apple-system,'
+        + 'BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'
+        + 'display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}'
+        + 'h1{color:#4f2170;font-size:22px;margin:0 0 8px}p{color:#6f5641;margin:0;max-width:34em}</style>'
+        + body)
+      return
+    }
+
     // Durable cron trigger. pg_cron (via pg_net) POSTs here every minute so the
     // townhall jobs keep firing even if the in-process timer dies. Guarded by a
     // shared secret set on both sides (CRON_SECRET on Render + the pg_cron job
@@ -1525,7 +1636,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.64', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.65', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1538,7 +1649,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.64', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.65', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2712,6 +2823,60 @@ const server = http.createServer(async (req, res) => {
       }
 
       return send(res, 200, { ok: true, recipients: list.length, emailQueued: alsoEmail })
+    }
+
+    // ── Message the subscriber list ────────────────────────────────────────
+    // Subscribers have no account, so there is no inbox or push to deliver to —
+    // email is the only channel. Recipients are resolved here rather than taken
+    // from the client, and the same NOT-EXISTS rule the admin view uses is
+    // applied again server-side: anyone who has since joined the app is quietly
+    // skipped, so a stale admin screen can never email a member as a stranger.
+    if (req.method === 'POST' && req.url === '/admin/subscriber-broadcast') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status, { error: a.error })
+
+      const body = await readJson(req)
+      const subject = (body.subject || '').trim()
+      const text = (body.text || '').trim()
+      if (!text) return send(res, 400, { error: 'text_required' })
+      if (text.length > 5000) return send(res, 400, { error: 'text_too_long' })
+
+      const { data: subs } = await sb.from('prep_subscribers')
+        .select('email, email_key, token').is('unsubscribed_at', null)
+      const all = subs || []
+      if (!all.length) return send(res, 400, { error: 'no_recipients' })
+
+      const { data: members } = await sb.from('prep_users').select('email')
+      const joined = new Set((members || [])
+        .map(m => String(m.email || '').trim().toLowerCase()).filter(Boolean))
+      const list = all.filter(s => !joined.has(s.email_key))
+      if (!list.length) return send(res, 400, { error: 'no_recipients' })
+
+      // Fire-and-forget, sequential with a delay, exactly as /admin/broadcast
+      // does — a long list must not hold the admin's request open.
+      ;(async () => {
+        let sent = 0
+        for (const s of list) {
+          const unsub = `${SELF_URL}/unsubscribe?token=${encodeURIComponent(s.token)}`
+          const html = emailWrap(subject || 'A message from Preparing You',
+            `<p>${_escapeHtml(text).replace(/\n/g, '<br>')}</p>
+             <p style="font-size:13px;color:#6f5641;border-top:1px solid #e8dec3;padding-top:14px;margin-top:22px">
+               You are receiving this because you asked for the free book at preparingu.com.
+               <a href="${unsub}">Remove my address</a> and we will not write again.
+             </p>`,
+            'Open Preparing You', PUBLIC_SITE)
+          const r = await sendEmail(s.email, subject || 'A message from Preparing You', html)
+          if (r && r.ok !== false) {
+            sent++
+            await sb.from('prep_subscribers')
+              .update({ last_sent_at: new Date().toISOString() }).eq('email_key', s.email_key)
+          } else console.warn('[subscribers] email failed for one recipient:', r)
+          await new Promise(r => setTimeout(r, 200))
+        }
+        console.log(`[subscribers] emailed ${sent}/${list.length}`)
+      })().catch(e => console.error('[subscribers] fanout', e))
+
+      return send(res, 200, { ok: true, recipients: list.length, skipped: all.length - list.length })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/reminders/run') {
