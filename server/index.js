@@ -1157,19 +1157,23 @@ function unsubLink(url) {
 // same shell as every other email the app sends; sendEmail flattens it to text
 // for the EmailJS template, where anchors survive as "label: url".
 function bookLetter(unsubUrl) {
+  // The download sits directly under the opening line — it is the whole reason
+  // for the email, and emailWrap's trailing CTA slot buried it below the
+  // unsubscribe notice. Anchor labels must never be the URL itself: _htmlToText
+  // renders "label: url", so a URL label prints the address twice.
   return emailWrap('Your copy of Contracts, Covenants and Constitutions',
     `<p>Peace to you,</p>
      <p>Here is <i>Contracts, Covenants and Constitutions</i> — the whole book, 158 pages,
         yours to keep and free to share.</p>
+     <p><a href="${BOOK_PDF_URL}" style="color:#4f2170;font-weight:600">Download the book</a></p>
      <p>When you are ready, the other four books are waiting inside the app, each with a full
         audiobook, along with Paul, who can answer any question you bring him:
-        <a href="${PUBLIC_SITE}">${PUBLIC_SITE}</a></p>
+        <a href="${PUBLIC_SITE}">Open Preparing You</a></p>
      <p>Prepare ye the way of the Lord.<br>&mdash; Preparing You</p>
      <p style="font-size:13px;color:#6f5641;border-top:1px solid #e8dec3;padding-top:14px;margin-top:22px">
        You are receiving this because you asked for the book at preparingu.com.
        ${unsubUrl ? unsubLink(unsubUrl) : 'To be removed, reply to this email with the word UNSUBSCRIBE.'}
-     </p>`,
-    'Download the book', BOOK_PDF_URL)
+     </p>`)
 }
 
 // ─── Daily.co room helpers ──────────────────────────────────────────────
@@ -1658,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.68', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.69', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1671,7 +1675,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.68', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.69', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
