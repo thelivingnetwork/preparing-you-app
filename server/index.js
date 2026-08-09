@@ -1556,7 +1556,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const unsub = token ? `${SELF_URL}/unsubscribe?token=${encodeURIComponent(token)}` : null
-      const r = await sendEmailRich(email, 'Your copy of The Higher Liberty', bookLetter(unsub))
+      const r = await sendEmail(email, 'Your copy of The Higher Liberty', bookLetter(unsub))
       if (!r || r.ok === false) return send(res, 502, { error: 'send_failed' })
       try {
         await sb.from('prep_subscribers').update({ last_sent_at: new Date().toISOString() })
@@ -1657,7 +1657,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.66', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.67', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1670,7 +1670,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.66', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.67', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2886,7 +2886,7 @@ const server = http.createServer(async (req, res) => {
                <br>${unsubLink(unsub)}
              </p>`,
             'Open Preparing You', PUBLIC_SITE)
-          const r = await sendEmailRich(s.email, subject || 'A message from Preparing You', html)
+          const r = await sendEmail(s.email, subject || 'A message from Preparing You', html)
           if (r && r.ok !== false) {
             sent++
             await sb.from('prep_subscribers')
