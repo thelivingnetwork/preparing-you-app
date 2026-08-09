@@ -147,6 +147,8 @@
   }
   .welcome-card .eyebrow{color:var(--brand-ink);margin-bottom:8px}
   .welcome-card p{margin:0 0 14px;font-size:15.5px;color:var(--ink-mid)}
+  .welcome-card .book-hook{color:var(--ink);font-size:16.5px;line-height:1.5}
+  .welcome-card .book-hook i{color:var(--brand-ink);font-style:italic;font-weight:600}
   .field-row{display:flex;gap:10px;flex-wrap:wrap}
   .field-row input{
     flex:1;min-width:200px;background:var(--surface);border:1px solid var(--line);
@@ -387,8 +389,11 @@
         </div>
         <div class="welcome-card">
           <p class="eyebrow">Free book</p>
-          <p>Leave your email and we'll send <b>The Higher Liberty</b> straight to your inbox —
-             the whole book, free, as a PDF. The other four are waiting inside the app.</p>
+          <p class="book-hook">Every life runs on agreements — most of them never read.
+             <i>Contracts, Covenants and Constitutions</i> asks which ones bind you,
+             and which ones set you free.</p>
+          <p>Leave your email and we'll send it straight to your inbox — the whole book,
+             free, as a PDF. The other four are waiting inside the app.</p>
           <form class="field-row" data-capture>
             <p class="hp" aria-hidden="true"><label>Leave this field empty<input name="bot-field" tabindex="-1" autocomplete="off"></label></p>
             <label class="sr" for="em1" style="position:absolute;left:-9999px">Email address</label>
@@ -580,7 +585,8 @@
   <section class="final">
     <div class="wrap">
       <h2 class="serif">Begin tonight.</h2>
-      <p>Take <i>The Higher Liberty</i> with you — free, in full, sent to your inbox tonight.</p>
+      <p>Take <i>Contracts, Covenants and Constitutions</i> with you — free, in full,
+         sent to your inbox tonight.</p>
       <form data-capture>
         <label for="em2" style="position:absolute;left:-9999px">Email address</label>
         <input id="em2" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
@@ -691,7 +697,7 @@
      link tied to that subscriber's row. */
   var SERVER='https://preparing-you-server.onrender.com';
   var SITE='https://preparingyou.netlify.app';
-  var BOOK_URL=SITE+'/the-higher-liberty.pdf';
+  var BOOK_URL=SITE+'/contracts-covenants-constitutions.pdf';
 
   function emailTheBook(address){
     return fetch(SERVER+'/subscribe',{
@@ -706,11 +712,11 @@
   function showSent(f,address){
     var done=document.createElement('div');
     done.className='captured';
-    done.innerHTML='<p><b>Check your inbox.</b> The Higher Liberty is on its way to '
+    done.innerHTML='<p><b>Check your inbox.</b> Your free book is on its way to '
       +address.replace(/[<&]/g,'')+'. If it is not there in a minute or two, look in your spam folder.</p>';
     f.parentNode.replaceChild(done,f);
     var fine=done.parentNode.querySelector('.fine');
-    if(fine)fine.textContent='176 pages, free to keep and free to share.';
+    if(fine)fine.textContent='158 pages, free to keep and free to share.';
   }
 
   /* If the send fails the reader still gets the book — they kept their side of it. */
@@ -720,8 +726,8 @@
     done.innerHTML='<p><b>The email would not go through.</b> Take the book straight from here instead.</p>';
     var link=document.createElement('a');
     link.className='btn '+(f.closest('.final')?'btn-gold':'btn-primary');
-    link.href=BOOK_URL;link.setAttribute('download','The Higher Liberty.pdf');
-    link.textContent='Download The Higher Liberty';
+    link.href=BOOK_URL;link.setAttribute('download','Contracts, Covenants and Constitutions.pdf');
+    link.textContent='Download the book';
     done.appendChild(link);
     f.parentNode.replaceChild(done,f);
   }

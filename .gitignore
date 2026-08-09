@@ -8,6 +8,7 @@ data/
 *.pdf
 # exception: the free-book giveaway served by the landing preview
 !the-higher-liberty.pdf
+!contracts-covenants-constitutions.pdf
 books-source/
 .netlify/
 

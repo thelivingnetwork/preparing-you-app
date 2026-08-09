@@ -1144,7 +1144,7 @@ function emailWrap(title, body, ctaText, ctaUrl) {
 // the unsubscribe link still resolves if the service or the site ever moves.
 const SELF_URL     = (process.env.SELF_URL || 'https://preparing-you-server.onrender.com').replace(/\/+$/, '')
 const PUBLIC_SITE  = (process.env.PUBLIC_SITE_URL || 'https://preparingyou.netlify.app').replace(/\/+$/, '')
-const BOOK_PDF_URL = PUBLIC_SITE + '/the-higher-liberty.pdf'
+const BOOK_PDF_URL = PUBLIC_SITE + '/contracts-covenants-constitutions.pdf'
 
 // The one thing recipients look for at the bottom of a list email: a single
 // clickable word, not a URL to copy. Underlined and spaced so it reads as a
@@ -1157,9 +1157,10 @@ function unsubLink(url) {
 // same shell as every other email the app sends; sendEmail flattens it to text
 // for the EmailJS template, where anchors survive as "label: url".
 function bookLetter(unsubUrl) {
-  return emailWrap('Your copy of The Higher Liberty',
+  return emailWrap('Your copy of Contracts, Covenants and Constitutions',
     `<p>Peace to you,</p>
-     <p>Here is <i>The Higher Liberty</i> — the whole book, 176 pages, yours to keep and free to share.</p>
+     <p>Here is <i>Contracts, Covenants and Constitutions</i> — the whole book, 158 pages,
+        yours to keep and free to share.</p>
      <p>When you are ready, the other four books are waiting inside the app, each with a full
         audiobook, along with Paul, who can answer any question you bring him:
         <a href="${PUBLIC_SITE}">${PUBLIC_SITE}</a></p>
@@ -1556,7 +1557,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const unsub = token ? `${SELF_URL}/unsubscribe?token=${encodeURIComponent(token)}` : null
-      const r = await sendEmail(email, 'Your copy of The Higher Liberty', bookLetter(unsub))
+      const r = await sendEmail(email, 'Your copy of Contracts, Covenants and Constitutions', bookLetter(unsub))
       if (!r || r.ok === false) return send(res, 502, { error: 'send_failed' })
       try {
         await sb.from('prep_subscribers').update({ last_sent_at: new Date().toISOString() })
@@ -1657,7 +1658,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.67', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.68', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1670,7 +1671,7 @@ const server = http.createServer(async (req, res) => {
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
       const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.67', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.68', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
