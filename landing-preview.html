@@ -13,7 +13,6 @@
 <meta property="og:image" content="https://preparingyou.netlify.app/landing-og.jpg">
 <meta property="og:url" content="https://preparingyou.netlify.app/landing-preview.html">
 <meta name="twitter:card" content="summary_large_image">
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body style="margin:0">
 <style>
@@ -390,8 +389,7 @@
           <p class="eyebrow">Free book</p>
           <p>Leave your email and we'll send <b>The Higher Liberty</b> straight to your inbox —
              the whole book, free, as a PDF. The other four are waiting inside the app.</p>
-          <form class="field-row" data-capture name="welcome" method="POST" data-netlify="true" data-netlify-honeypot="bot-field">
-            <input type="hidden" name="form-name" value="welcome">
+          <form class="field-row" data-capture>
             <p class="hp" aria-hidden="true"><label>Leave this field empty<input name="bot-field" tabindex="-1" autocomplete="off"></label></p>
             <label class="sr" for="em1" style="position:absolute;left:-9999px">Email address</label>
             <input id="em1" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
@@ -688,43 +686,20 @@
     });
   });
 
-  /* email capture — records the address, then emails the book to the reader */
+  /* email capture — the server records the subscriber and sends the book, so
+     this page carries no keys and the letter can include a real unsubscribe
+     link tied to that subscriber's row. */
+  var SERVER='https://preparing-you-server.onrender.com';
   var SITE='https://preparingyou.netlify.app';
   var BOOK_URL=SITE+'/the-higher-liberty.pdf';
-  var EJS_PUB='UXOmF9EejeF3j4EEZ', EJS_SVC='service_l43x4ow', EJS_TMPL='template_xob8ydi';
-
-  var BOOK_LETTER=[
-    'Peace to you,',
-    '',
-    'Here is The Higher Liberty — the whole book, 176 pages, yours to keep and free to share.',
-    '',
-    'Download it here:',
-    BOOK_URL,
-    '',
-    'When you are ready, the other four books are waiting inside the app, each with a full',
-    'audiobook, along with Paul, who can answer any question you bring him:',
-    SITE,
-    '',
-    'Prepare ye the way of the Lord.',
-    '',
-    '— Preparing You',
-    '',
-    '',
-    '- - -',
-    'You are receiving this once, because you asked for the book at preparingu.com.',
-    'We have not added you to any mailing list.',
-    'To have your address removed from our records, reply to this email with the',
-    'word UNSUBSCRIBE, or write to tofnotifications@gmail.com.'
-  ].join('\n');
 
   function emailTheBook(address){
-    if(typeof emailjs==='undefined')return Promise.reject(new Error('email sdk unavailable'));
-    try{emailjs.init({publicKey:EJS_PUB});}catch(e){}
-    return emailjs.send(EJS_SVC,EJS_TMPL,{
-      to_name:'Friend', email:address, minister_name:'Preparing You',
-      subject:'Your copy of The Higher Liberty', message:BOOK_LETTER,
-      from_name:'Preparing You', company_name:'Preparing You',
-      company_email:'tofnotifications@gmail.com', reply_to:'tofnotifications@gmail.com'
+    return fetch(SERVER+'/subscribe',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:address,source:'landing'})
+    }).then(function(r){
+      if(!r.ok)throw new Error('subscribe failed: '+r.status);
+      return r.json();
     });
   }
 
@@ -757,12 +732,11 @@
       var input=f.querySelector('input[type=email]');
       var address=input.value.trim();
       if(!address||address.indexOf('@')<1){input.focus();return;}
+      /* honeypot: a real person never fills this in */
+      var hp=f.querySelector('input[name=bot-field]');
+      if(hp&&hp.value){showSent(f,address);return;}
       var btn=f.querySelector('button[type=submit]');
       if(btn){btn.disabled=true;btn.textContent='Sending…';}
-
-      /* record the address for the list; never let this block the book */
-      fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:'form-name=welcome&bot-field=&email='+encodeURIComponent(address)}).catch(function(){});
 
       emailTheBook(address)
         .then(function(){showSent(f,address);})
