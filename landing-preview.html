@@ -157,6 +157,10 @@
   .field-row input:focus{outline:none;border-color:var(--accent)}
   .fine{font-size:13px;color:var(--ink-soft);margin:10px 0 0}
   .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  /* our own validation note — the browser's native bubble is suppressed
+     (novalidate) because it pops over the card and reads like an error alarm */
+  .field-msg{margin:9px 0 0;font-size:13.5px;color:#b4531f}
+  .final .field-msg{color:#f3d0a8}
 
   /* delivered-book confirmation, replaces the form on success */
   .captured{display:flex;flex-direction:column;gap:11px;align-items:flex-start}
@@ -394,7 +398,7 @@
              and which ones set you free.</p>
           <p>Leave your email and we'll send it straight to your inbox — the whole book,
              free, as a PDF. The other four are waiting inside the app.</p>
-          <form class="field-row" data-capture>
+          <form class="field-row" data-capture novalidate>
             <p class="hp" aria-hidden="true"><label>Leave this field empty<input name="bot-field" tabindex="-1" autocomplete="off"></label></p>
             <label class="sr" for="em1" style="position:absolute;left:-9999px">Email address</label>
             <input id="em1" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
@@ -587,7 +591,7 @@
       <h2 class="serif">Begin tonight.</h2>
       <p>Take <i>Contracts, Covenants and Constitutions</i> with you — free, in full,
          sent to your inbox tonight.</p>
-      <form data-capture>
+      <form data-capture novalidate>
         <label for="em2" style="position:absolute;left:-9999px">Email address</label>
         <input id="em2" name="email" type="email" required placeholder="your@email.com" autocomplete="email">
         <button class="btn btn-gold" type="submit">Send my free book</button>
@@ -732,12 +736,31 @@
     f.parentNode.replaceChild(done,f);
   }
 
+  /* Replaces the browser's native validation bubble, which pops over the card
+     and shouts. Message clears as soon as they start correcting it. */
+  function fieldMsg(f,text){
+    var m=f.parentNode.querySelector('.field-msg');
+    if(!text){ if(m)m.remove(); return; }
+    if(!m){
+      m=document.createElement('p');m.className='field-msg';
+      m.setAttribute('role','status');
+      f.parentNode.insertBefore(m,f.nextSibling);
+    }
+    m.textContent=text;
+  }
+  document.querySelectorAll('form[data-capture] input[type=email]').forEach(function(i){
+    i.addEventListener('input',function(){fieldMsg(i.closest('form'),null);});
+  });
+
   document.querySelectorAll('form[data-capture]').forEach(function(f){
     f.addEventListener('submit',function(e){
       e.preventDefault();
       var input=f.querySelector('input[type=email]');
       var address=input.value.trim();
-      if(!address||address.indexOf('@')<1){input.focus();return;}
+      if(!address||!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(address)){
+        fieldMsg(f,'That does not look like a full email address.');input.focus();return;
+      }
+      fieldMsg(f,null);
       /* honeypot: a real person never fills this in */
       var hp=f.querySelector('input[name=bot-field]');
       if(hp&&hp.value){showSent(f,address);return;}
