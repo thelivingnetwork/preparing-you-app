@@ -173,6 +173,10 @@
 
   /* film cards */
   .film-stack{display:flex;flex-direction:column;gap:12px}
+  /* CTA lives under the film: watch, then begin */
+  .film-cta{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:10px}
+  .film-cta .cta-row{margin-bottom:8px;justify-content:center}
+  .film-cta .cta-note{margin:0;text-align:center}
   /* the long teaching stands alone, wider than the hero clip */
   .teaching-card{max-width:780px;margin:0 auto}
   .film-card{
@@ -390,10 +394,6 @@
       <div>
         <p class="lede">A guided path to examine the Kingdom of God, the teachings of Christ,
           liberty, responsibility, and the way the early Church operated.</p>
-        <div class="cta-row">
-          <a class="btn btn-primary" href="https://preparingyou.netlify.app" target="_blank" rel="noopener">Begin here</a>
-        </div>
-        <p class="cta-note">Free to explore. No subscription. No obligation.</p>
         <div class="welcome-card">
           <p class="eyebrow">Free book</p>
           <p class="book-hook">Every life runs on agreements — most of them never read.<br>
@@ -423,6 +423,12 @@
               <span>The invitation, in ninety seconds.</span>
             </span>
           </span>
+        </div>
+        <div class="film-cta">
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://preparingyou.netlify.app" target="_blank" rel="noopener">Begin here</a>
+          </div>
+          <p class="cta-note">Free to explore. No subscription. No obligation.</p>
         </div>
       </div>
     </div>
