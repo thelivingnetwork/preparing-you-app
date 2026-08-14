@@ -26,7 +26,7 @@ const SEED_SESSION = `
 test.describe('password-reset routing', () => {
   test('?reset=1 with a live recovery session lands on the reset-password panel', async ({ page }) => {
     await page.addInitScript(SEED_SESSION);
-    await page.goto('/?reset=1');
+    await page.goto('/app/?reset=1');
     await expect(page.locator('#panel-reset')).toBeVisible();
     await expect(page.locator('#reset-pw')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Set new password' })).toBeVisible();
@@ -34,13 +34,13 @@ test.describe('password-reset routing', () => {
 
   test('the recovery-marker query is recognised', async ({ page }) => {
     await page.addInitScript(SEED_SESSION);
-    await page.goto('/?reset=1');
+    await page.goto('/app/?reset=1');
     const recovery = await page.evaluate(() => _recoveryMode === true);
     expect(recovery, '_recoveryMode should be true for a reset link').toBe(true);
   });
 
   test('?reset=1 WITHOUT a session routes to forgot-password with an expired-link message', async ({ page }) => {
-    await page.goto('/?reset=1');
+    await page.goto('/app/?reset=1');
     // The app polls ~1.5s for the session to materialize before giving up.
     await expect(page.locator('#panel-forgot')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('#forgot-error')).toContainText(/expired|already used/i);
@@ -48,7 +48,7 @@ test.describe('password-reset routing', () => {
   });
 
   test('submitting the reset form with no session explains instead of "Auth session missing"', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app/');
     await page.evaluate(() => { _recoveryMode = true; showAuthTab('reset'); });
     await page.locator('#reset-pw').fill('brand-new-password-1');
     await page.getByRole('button', { name: 'Set new password' }).click();

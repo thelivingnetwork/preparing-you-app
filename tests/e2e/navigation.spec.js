@@ -1,7 +1,7 @@
 const { test, expect } = require('./_setup');
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/app/');
 });
 
 test('switches between Sign In and Join tabs', async ({ page }) => {

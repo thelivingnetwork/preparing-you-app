@@ -5,7 +5,7 @@ test.describe('boot & landing', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
 
-    await page.goto('/');
+    await page.goto('/app/');
 
     await expect(page).toHaveTitle(/Preparing You/);
     await expect(page.locator('#screen-landing')).toHaveClass(/active/);
@@ -24,7 +24,7 @@ test.describe('boot & landing', () => {
   // A single 5,874-line inline script means one bad edit can wipe out every
   // function below it. This asserts the critical globals survived parsing.
   test('core globals are defined', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app/');
     // Bare `typeof` (not `window.X`): top-level `const`/`let` like E2EE live in
     // the global lexical scope, not as window properties.
     const probe = await page.evaluate(() => ({

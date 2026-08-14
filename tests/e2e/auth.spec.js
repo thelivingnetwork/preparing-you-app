@@ -10,7 +10,7 @@ test.describe('sign in', () => {
       })
     );
 
-    await page.goto('/');
+    await page.goto('/app/');
     await page.locator('#si-email').fill('nobody@example.com');
     await page.locator('#si-pw').fill('wrong-password');
     await page.getByRole('button', { name: 'Continue' }).click();
@@ -28,7 +28,7 @@ test.describe('sign in', () => {
   // in the app. This is the exact gate that silently caught out an earlier mock.
   // The REAL doSignIn + supabase error handling is exercised by the test above.
   test('first-run gate: new member is gated, onboarded member enters the app', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app/');
 
     // No guidelines_accepted_at → held at the guidelines gate, NOT the app.
     await page.evaluate(() => {

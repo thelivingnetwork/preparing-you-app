@@ -6,7 +6,7 @@ const { test, expect } = require('./_setup');
 // A PCM electing up the multiplication chain must still be able to choose.
 test.describe('PCM directory row actions', () => {
   test('a PCM with no current PCM still gets a Choose button', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app/');
     const html = await page.evaluate(() => {
       _pcmAmIPcm = true;                       // the viewer is a PCM…
       currentUser = { id: 'me', pcm_id: null }; // …but has no PCM of their own (withdrawn)
@@ -17,7 +17,7 @@ test.describe('PCM directory row actions', () => {
   });
 
   test('an established PCM (already paired) browses peers, no Choose button', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app/');
     const html = await page.evaluate(() => {
       _pcmAmIPcm = true;
       currentUser = { id: 'me', pcm_id: 'someone-else' }; // already has a PCM
@@ -28,7 +28,7 @@ test.describe('PCM directory row actions', () => {
   });
 
   test('a regular member gets a Choose button', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/app/');
     const html = await page.evaluate(() => {
       _pcmAmIPcm = false;
       currentUser = { id: 'me', pcm_id: null };
