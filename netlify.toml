@@ -50,3 +50,15 @@
   for = "/styles.css"
   [headers.values]
     Cache-Control = "no-cache"
+
+# The app shell now lives at /app/ (the root is the landing page). Same
+# revalidation rule: a deploy must show up immediately.
+[[headers]]
+  for = "/app/"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/app/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

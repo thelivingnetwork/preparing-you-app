@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Preparing You · The Living Network</title>
+  <meta name="theme-color" content="#4f2170">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Preparing You">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="Prepare your heart, mind, and household for entry into The Living Network.">
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Living Network">
+  <meta property="og:title" content="Preparing You · The Living Network">
+  <meta property="og:description" content="A quiet place to begin your preparation — books, ministers, townhalls, and your guide Paul.">
+  <meta property="og:url" content="https://preparingyou.app">
+  <meta property="og:image" content="https://preparingyou.app/icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Preparing You · The Living Network">
+  <meta name="twitter:description" content="A quiet place to begin your preparation — books, ministers, townhalls, and your guide Paul.">
+  <meta name="twitter:image" content="https://preparingyou.app/icon-512.png">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash of light UI.
+    // Manual toggle only — we intentionally don't read prefers-color-scheme.
+    try { if (localStorage.getItem('pp_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  </script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ═════════════════════════ LANDING / AUTH ═════════════════════════ -->
+<div id="screen-landing" class="screen active">
+  <div class="landing">
+    <img class="landing-ark" src="/ark-mark.png" alt="Preparing You">
+    <h1 class="landing-title">Preparing You</h1>
+    <div class="landing-sub">An introduction to The Living Network</div>
+    <div class="landing-quote">"Prepare ye the way of the Lord, make his paths straight." — Mark 1:3</div>
+
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signin" onclick="showAuthTab('signin')">Sign In</button>
+        <button class="auth-tab" id="tab-join" onclick="showAuthTab('join')">Join</button>
+      </div>
+
+      <div id="panel-signin">
+        <div id="signin-error" class="auth-error">Invalid email or password.</div>
+        <div id="signin-success" style="display:none;background:rgba(45,122,79,.1);border:1px solid rgba(45,122,79,.3);color:var(--success,#2d7a4f);padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic">Password updated — please sign in with your new password.</div>
+        <label class="form-label">Email address</label>
+        <input class="form-input" id="si-email" type="email" placeholder="your@email.com">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="si-pw" type="password" placeholder="••••••••">
+        <button class="btn-primary" onclick="doSignIn()">Continue</button>
+        <div style="text-align:center;margin-top:12px"><a onclick="openForgotPassword()" style="font-size:12px;color:var(--walnut-mid);font-style:italic;cursor:pointer;text-decoration:underline">Forgot your password?</a></div>
+      </div>
+
+      <div id="panel-forgot" style="display:none">
+        <div id="forgot-error" class="auth-error"></div>
+        <div id="forgot-success" style="display:none;background:rgba(45,122,79,.1);border:1px solid rgba(45,122,79,.3);color:var(--success,#2d7a4f);padding:9px 13px;border-radius:6px;font-size:13px;margin-bottom:10px;font-style:italic">Check your email for a reset link.</div>
+        <p style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin:0 0 8px">Enter your email and we'll send a reset link.</p>
+        <label class="form-label">Email address</label>
+        <input class="form-input" id="forgot-email" type="email" placeholder="your@email.com">
+        <button class="btn-primary" onclick="doForgotPassword()">Send reset link</button>
+        <div style="text-align:center;margin-top:12px"><a onclick="showAuthTab('signin')" style="font-size:12px;color:var(--walnut-mid);font-style:italic;cursor:pointer;text-decoration:underline">← Back to sign in</a></div>
+      </div>
+
+      <div id="panel-reset" style="display:none">
+        <div id="reset-error" class="auth-error"></div>
+        <p style="font-size:13px;color:var(--walnut-mid);font-style:italic;margin:0 0 8px">Choose a new password.</p>
+        <label class="form-label">New password</label>
+        <input class="form-input" id="reset-pw" type="password" placeholder="At least 8 characters">
+        <button class="btn-primary" onclick="doResetPassword()">Set new password</button>
+      </div>
+
+      <div id="panel-join" style="display:none">
+        <div id="join-error" class="auth-error">Could not create account.</div>
+        <label class="form-label">Your name</label>
+        <input class="form-input" id="j-name" type="text" placeholder="Your full name">
+        <label class="form-label">Email address</label>
+        <input class="form-input" id="j-email" type="email" placeholder="your@email.com">
+        <div class="row2">
+          <div>
+            <label class="form-label">Country</label>
+            <select class="form-input" id="j-country"></select>
+          </div>
+          <div>
+            <label class="form-label">State / Province</label>
+            <input class="form-input" id="j-state" type="text" placeholder="e.g. Victoria">
+          </div>
+        </div>
+        <p class="field-hint">Helps us connect you with a PCM near you — and shows where each PCM is based.</p>
+        <label class="form-label">Choose a password</label>
+        <div class="pw-wrap">
+          <input class="form-input" id="j-pw" type="password" placeholder="At least 8 characters" oninput="_joinPwCheck()">
+          <button class="pw-eye" type="button" aria-label="Show password" onclick="_togglePwReveal('j-pw',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <label class="form-label">Confirm password</label>
+        <div class="pw-wrap">
+          <input class="form-input" id="j-pw2" type="password" placeholder="Re-enter your password" oninput="_joinPwCheck()">
+          <button class="pw-eye" type="button" aria-label="Show password" onclick="_togglePwReveal('j-pw2',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <div class="pw-match" id="j-pw-match"></div>
+        <button class="btn-primary" onclick="doJoin()">Begin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════ APP ═════════════════════════ -->
+<div id="screen-app" class="screen">
+  <div id="ptr-indicator" style="position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:90;transform:translateY(-60px)">
+    <div id="ptr-spin" style="margin-top:12px;width:36px;height:36px;border-radius:50%;background:var(--surface);box-shadow:0 2px 10px rgba(20,48,52,.3);display:flex;align-items:center;justify-content:center">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--teal)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    </div>
+  </div>
+  <div class="hdr">
+    <img class="hdr-ark" src="/ark-mark.png" alt="Home" role="button" tabindex="0" aria-label="Go to home screen" title="Home" style="cursor:pointer" onclick="showPage('home')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showPage('home')}">
+    <div style="flex:1;min-width:0"></div>
+    <button class="hdr-paul" onclick="openPaul()" aria-label="Ask Paul" title="Ask Paul">
+      <img class="hdr-paul-av" src="/paul.jpg?v=3" alt="" aria-hidden="true" width="40" height="40">
+      <span>ASK PAUL</span>
+    </button>
+    <button class="hdr-theme" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="ic-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2 5.9 5.9M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8 5.9 18.1M18.1 5.9l1.7-1.7"/></svg>
+    </button>
+    <button class="hdr-profile" id="hdr-profile-btn" onclick="openProfile()" aria-label="Profile" title="My profile">—</button>
+  </div>
+
+  <!-- Profile drawer -->
+  <div id="profile-overlay" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.55)" onclick="if(event.target===this) closeProfile()">
+    <div style="position:absolute;top:0;right:0;width:min(100%,420px);max-height:100vh;background:var(--surface);display:flex;flex-direction:column;border-left:1px solid var(--line)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--teal);color:var(--cream)">
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600">My Profile</div>
+        <button onclick="closeProfile()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:0 6px;line-height:1">×</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:20px 18px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
+          <button type="button" onclick="document.getElementById('avatar-file').click()" title="Change photo" aria-label="Change profile photo" style="position:relative;border:none;background:none;padding:0;cursor:pointer;border-radius:50%;flex-shrink:0">
+            <div class="pcm-av" id="profile-av" style="width:56px;height:56px;font-size:18px;overflow:hidden"></div>
+            <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+          </button>
+          <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="onAvatarSelected(this)">
+          <div style="min-width:0">
+            <div id="profile-name-display" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--walnut);font-weight:600"></div>
+            <div id="profile-email-display" style="font-size:12px;color:var(--walnut-mid);overflow:hidden;text-overflow:ellipsis"></div>
+            <button type="button" id="avatar-remove-btn" onclick="removeAvatar()" style="display:none;margin-top:4px;background:none;border:none;color:var(--terra);font-size:11px;cursor:pointer;padding:0">Remove photo</button>
+          </div>
+        </div>
+        <label class="prof-label">Name</label>
+        <input id="prof-name" class="prof-input" type="text" autocomplete="name">
+        <label class="prof-label">Country</label>
+        <select id="prof-country" class="prof-input"></select>
+        <label class="prof-label">State / Province</label>
+        <input id="prof-state" class="prof-input" type="text" autocomplete="off">
+        <label class="prof-label">Email</label>
+        <input id="prof-email" class="prof-input" type="email" disabled style="opacity:.6;cursor:not-allowed">
+        <div style="font-size:11px;color:var(--walnut-mid);margin:-6px 2px 16px">Email is your sign-in and can't be changed here.</div>
+        <div id="profile-msg" style="display:none;font-size:13px;margin:0 2px 12px"></div>
+        <button id="profile-save-btn" class="pcm-pick" style="width:100%;padding:12px;font-size:12px" onclick="saveProfile()">Save changes</button>
+        <button class="link-btn" style="width:100%;margin-top:14px;color:var(--terra)" onclick="closeProfile();signOut()">Sign out</button>
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);text-align:center">
+          <button type="button" onclick="openDeleteAccount()" style="background:none;border:none;color:var(--walnut-mid);font-size:12px;cursor:pointer;padding:4px 8px;text-decoration:underline">Delete my account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete-account confirmation (type DELETE to enable) -->
+  <div id="del-acct-overlay" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(20,48,52,.6);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this) closeDeleteAccount()">
+    <div style="width:min(100%,400px);background:var(--surface);border-radius:14px;border:1px solid var(--line);max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(20,48,52,.35)">
+      <div style="padding:18px 18px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;color:var(--terra);display:flex;align-items:center;gap:8px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Delete account
+      </div>
+      <div style="padding:12px 18px 0;font-size:14px;color:var(--walnut);line-height:1.6">
+        <p style="margin:0 0 10px">This permanently deletes your account and <strong>cannot be undone</strong>. It removes:</p>
+        <ul style="margin:0 0 12px;padding-left:20px;color:var(--walnut-mid);font-size:13px;line-height:1.7">
+          <li>Your profile, photo and journey progress</li>
+          <li>All your messages and conversations</li>
+          <li>Your encryption keys and notifications</li>
+        </ul>
+        <p style="margin:0 0 12px;font-size:13px;color:var(--walnut-mid)">Type <strong>DELETE</strong> below to confirm.</p>
+        <input id="del-acct-input" class="prof-input" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="DELETE" oninput="_onDelAcctInput()" style="text-align:center;letter-spacing:.15em;font-weight:700;margin-bottom:0">
+        <div id="del-acct-msg" style="display:none;font-size:13px;margin:10px 2px 0;color:var(--terra)"></div>
+      </div>
+      <div style="padding:16px 18px;display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" onclick="closeDeleteAccount()" style="padding:10px 16px;border:1px solid var(--line);background:transparent;color:var(--walnut);border-radius:9px;font:inherit;font-size:13px;font-weight:600;cursor:pointer">Cancel</button>
+        <button type="button" id="del-acct-confirm" disabled onclick="confirmDeleteAccount()" style="padding:10px 18px;border:none;background:var(--terra);color:#fff;border-radius:9px;font:inherit;font-size:13px;font-weight:700;cursor:not-allowed;opacity:.5">Delete forever</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile photo framing editor -->
+  <div id="cropper-overlay" style="display:none;position:fixed;inset:0;z-index:90;background:rgba(20,48,52,.75);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this) closeCropper()">
+    <div style="background:var(--surface);border-radius:16px;padding:18px;width:min(100%,360px);box-shadow:0 12px 44px rgba(0,0,0,.45)">
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;color:var(--brand-ink);text-align:center">Position your photo</div>
+      <div style="font-size:12px;color:var(--walnut-mid);text-align:center;margin:2px 0 14px">Drag to move · pinch or slide to zoom</div>
+      <div id="crop-stage" style="position:relative;width:280px;height:280px;max-width:100%;margin:0 auto;border-radius:50%;overflow:hidden;background:#111;touch-action:none;cursor:grab;box-shadow:0 0 0 3px var(--teal)">
+        <canvas id="crop-canvas" width="280" height="280" style="display:block;width:280px;height:280px"></canvas>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 2px 4px">
+        <span aria-hidden="true" style="color:var(--walnut-mid);font-size:13px">−</span>
+        <input id="crop-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom" oninput="_cropZoomInput(this)" style="flex:1;accent-color:var(--teal)">
+        <span aria-hidden="true" style="color:var(--walnut-mid);font-size:17px">＋</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button type="button" onclick="closeCropper()" class="pcm-pick" style="flex:1;background:var(--surface);color:var(--walnut);border:1px solid var(--line)">Cancel</button>
+        <button type="button" onclick="saveCropper()" class="pcm-pick" style="flex:1;background:var(--teal);color:#fff">Use photo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pages -->
+  <div class="page active" id="page-home">
+    <!-- Journey tile — a single evolving card that guides the user through
+         each stage: watch videos → choose a PCM → listen to the Five Books
+         (in order) → join The Living Network → become a PCM. Rendered by
+         renderJourneyTile(). -->
+    <div class="card" id="journey-tile">
+      <div class="card-title">Welcome</div>
+      <div class="card-text">Begin by watching the introduction videos. Once they are finished, you will be invited to choose a Personal Contact Minister to walk this preparation with you.</div>
+    </div>
+
+    <!-- Townhall card -->
+    <div class="card" id="townhall-card" style="display:none;border-color:var(--terra);background:var(--terra-soft);cursor:pointer" onclick="onTownhallCardClick()">
+      <div class="card-title" style="color:var(--accent-ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px 10px;min-width:0">
+        <span style="min-width:0;display:inline-flex;align-items:center;gap:8px;color:#c0392b">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+          <span id="townhall-title-text" style="min-width:0">Join the next weekly townhall</span>
+        </span>
+        <span id="townhall-when" style="font-size:12px;font-weight:500;color:var(--walnut-mid);text-transform:none">—</span>
+      </div>
+      <div class="card-text" id="townhall-text">Join the call.</div>
+      <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
+        <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/></svg>End Townhall</button>
+      </div>
+      <div id="townhall-replay" style="margin-top:10px;display:none;text-align:right">
+        <button style="background:var(--teal);color:var(--cream);border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer" onclick="event.stopPropagation();replayLastTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></svg>Replay last townhall</button>
+      </div>
+    </div>
+    <!-- Add-to-home-screen card — shown only when running in a browser tab
+         (hidden in standalone/installed mode; see _initInstallCard). Each
+         button plays the platform's 30s install walkthrough clip. -->
+    <div class="card" id="install-card" style="display:none">
+      <div class="card-title">Take Preparing You with you</div>
+      <div class="card-text">Add the app to your phone&rsquo;s home screen &mdash; instant, full screen, one tap away. Watch how (30 seconds):</div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="openInstallClip('iphone')" style="flex:1;background:#5b21b6;color:#fff;border:none;border-radius:10px;padding:12px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;cursor:pointer">iPhone users</button>
+        <button onclick="openInstallClip('android')" style="flex:1;background:var(--teal,#14555e);color:var(--cream,#fdf8ef);border:none;border-radius:10px;padding:12px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;cursor:pointer">Android users</button>
+      </div>
+    </div>
+
+    <!-- Always-available resource tiles (journey navigation lives in the
+         evolving journey tile above and the bottom nav bar). -->
+    <!-- Topical Library is a standalone reference; the Five Books now lives in the
+         guided journey (stage 3) and the bottom nav, so it's not duplicated here. -->
+    <!-- Local Almanac card — weather / sunrise-sunset / moon for the member area,
+         derived from their stored timezone (no location prompt). Filled by
+         renderAlmanac(); stays hidden until data loads. Replaced the old Vault
+         tile (the Vault is already reachable from the bottom nav). -->
+    <div class="card" id="almanac-card" style="display:none"></div>
+  </div>
+
+  <div class="page" id="page-video">
+    <div class="card">
+      <div class="card-title">Introduction Videos</div>
+      <div class="card-text">Three short films, watched in order. Each must play to the end before the next unlocks.</div>
+    </div>
+    <div id="gateway-list"></div>
+    <div id="gateway-player-wrap" style="display:none;margin-top:14px">
+      <div class="card-title" id="gateway-player-title" style="margin-bottom:8px"></div>
+      <video id="gateway-player" controls controlsList="nodownload noplaybackrate" disablepictureinpicture playsinline style="width:100%;border-radius:12px;background:#000;display:block"></video>
+      <div style="margin-top:6px;font-size:12px;color:var(--walnut-mid);font-style:italic">Seeking past unwatched portions is disabled. The video unlocks the next step when it reaches the end.</div>
+    </div>
+  </div>
+
+  <div class="page" id="page-pcm">
+    <div id="pcm-content">
+    <div class="card" id="pcm-intro">
+      <div class="card-title">Personal Contact Minister</div>
+      <div class="card-text" id="pcm-intro-text">A PCM volunteers their time to walk this preparation alongside you. Choose someone in or near your region.</div>
+    </div>
+
+    <!-- Current chosen PCM (only visible once selected) -->
+    <div class="card" id="pcm-current" style="display:none">
+      <div class="card-title" style="color:var(--success)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Your Personal Contact Minister</div>
+      <div id="pcm-current-body"></div>
+    </div>
+
+    <!-- Pending outbound election (elector waiting) -->
+    <div class="card" id="pcm-pending" style="display:none;border-color:var(--gold);background:var(--gold-soft)">
+      <div class="card-title" style="color:var(--gold)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Awaiting Acceptance</div>
+      <div class="card-text">You have chosen <strong data-pending-name>—</strong>. They have been emailed and will respond shortly.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <button class="link-btn" id="pcm-nudge-btn" onclick="nudgePcm()">Nudge</button>
+        <button class="link-btn" onclick="changePcm()">Withdraw choice</button>
+      </div>
+    </div>
+
+    <!-- Inbound elections (PCM viewing requests) -->
+    <div class="card" id="pcm-inbound" style="display:none;border-color:var(--terra)">
+      <div class="card-title" style="color:var(--accent-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg>Elections Awaiting Your Response</div>
+      <div data-inbound-list></div>
+    </div>
+
+    <!-- Electors I have accepted — ready for sign-off into TLN -->
+    <div class="card" id="pcm-electors" style="display:none">
+      <div class="card-title" style="color:var(--brand-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>Your Electors</div>
+      <div data-electors-list></div>
+    </div>
+
+    <!-- Volunteer status (only visible once user is a PCM themselves) -->
+    <div class="card" id="pcm-mine" style="display:none;border-color:var(--gold)">
+      <div class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg>You Are a PCM</div>
+      <div id="pcm-mine-body"></div>
+      <div style="text-align:right;margin-top:8px">
+        <button class="link-btn" onclick="openPcmVolunteer()">Edit contact details</button>
+      </div>
+    </div>
+
+    <!-- List of available PCMs -->
+    <div id="pcm-list-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 4px 8px">
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.10em;color:var(--brand-ink);text-transform:uppercase" id="pcm-list-hdr">Available Ministers</div>
+        <button class="link-btn" onclick="openPcmVolunteer()" id="pcm-volunteer-btn">+ Volunteer as PCM</button>
+      </div>
+      <div id="pcm-list"></div>
+    </div>
+    </div><!-- /#pcm-content -->
+  </div>
+
+  <!-- Volunteer modal -->
+  <div id="pcm-modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span class="modal-title">Volunteer as a PCM</span>
+        <button class="modal-close" onclick="closePcmVolunteer()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="card-text" style="font-size:13px;margin-bottom:12px">
+          A PCM walks alongside applicants as they prepare to enter The Living Network. Share whichever contact channels you're comfortable with — at minimum, your email.
+        </div>
+        <label class="form-label" style="color:var(--walnut-mid)">Country (where applicants will see you)</label>
+        <select class="form-input" id="pcm-country" style="background:var(--surface);color:var(--walnut);border-color:var(--line)"></select>
+        <label class="form-label" style="color:var(--walnut-mid)">State / Province (optional)</label>
+        <input class="form-input" id="pcm-state" type="text" placeholder="e.g. Victoria" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Email *</label>
+        <input class="form-input" id="pcm-email" type="email" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Phone (optional)</label>
+        <input class="form-input" id="pcm-phone" type="tel" placeholder="+61 ..." style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Telegram handle (optional)</label>
+        <input class="form-input" id="pcm-telegram" type="text" placeholder="@yourhandle" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <label class="form-label" style="color:var(--walnut-mid)">Messenger (optional)</label>
+        <input class="form-input" id="pcm-messenger" type="text" placeholder="Facebook profile or @handle" style="background:var(--surface);color:var(--walnut);border-color:var(--line)">
+        <button class="btn-primary" onclick="savePcmVolunteer()" style="margin-top:14px">Save</button>
+        <button class="btn-secondary" id="pcm-stop-btn" onclick="stopBeingPcm()" style="display:none;margin-top:8px">Stop being a PCM</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Choose-a-PCM explainer video (in-app popup) -->
+  <div id="pcm-video-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closePcmVideo()">
+    <div class="modal-box" style="max-width:680px">
+      <div class="modal-head">
+        <span class="modal-title">Choosing a PCM</span>
+        <button class="modal-close" onclick="closePcmVideo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body" style="padding:12px">
+        <video id="pcm-video-player" controls controlsList="nodownload" disablepictureinpicture playsinline preload="metadata" style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      </div>
+    </div>
+  </div>
+
+  <!-- Introduction videos (in-app popup, re-watchable from the Vault) -->
+  <div id="intro-video-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this) closeIntroVideo()">
+    <div class="modal-box" style="max-width:680px">
+      <div class="modal-head">
+        <span class="modal-title" id="intro-video-title">Introduction</span>
+        <button class="modal-close" onclick="closeIntroVideo()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body" style="padding:12px">
+        <video id="intro-video-player" controls controlsList="nodownload" disablepictureinpicture playsinline preload="metadata" style="width:100%;border-radius:10px;background:#000;display:block"></video>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-library">
+    <div id="library-content">
+    <div class="card">
+      <div class="card-title">Audio, Video &amp; Literature Vault</div>
+      <div class="card-text">Browse curated teachings — switch between literature, video and audio below, or search to reach every article on preparingyou.com. Use Paul to ask questions about what you read.</div>
+    </div>
+    <input class="lib-search" id="lib-search" type="search" placeholder="Search…" oninput="filterLibrary(this.value)">
+    <div class="lib-tabs" id="lib-tabs">
+      <button class="lib-tab active" id="lib-tab-literature" onclick="setLibTab('literature')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Literature</button>
+      <button class="lib-tab" id="lib-tab-video" onclick="setLibTab('video')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>Video</button>
+      <button class="lib-tab" id="lib-tab-audio" onclick="setLibTab('audio')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-2a8 8 0 0116 0v2"/><rect x="2.5" y="13.5" width="5" height="7" rx="2"/><rect x="16.5" y="13.5" width="5" height="7" rx="2"/></svg>Audio</button>
+    </div>
+    <!-- Featured players (YouTube channel / Spotify show). Live outside
+         #lib-content and are populated once, so the iframes are never torn
+         down or reloaded when the search box filters the list. -->
+    <div id="lib-feature" style="display:none">
+      <div id="lib-feat-video" style="display:none"></div>
+      <div id="lib-feat-audio" style="display:none"></div>
+    </div>
+    <div class="lib-letter-bar" id="lib-letter-bar"></div>
+    <div id="lib-content"><div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Loading library…</div></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-books">
+    <div id="books-content">
+    <div class="card">
+      <div class="card-title">The Five Books</div>
+      <div class="card-text">Read each book in full and listen to a 15-minute audio overview — a podcast-style discussion drawn from the source. Paul can answer any question that comes up.</div>
+    </div>
+    <div id="books-list"><div class="empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M2 4h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2H2z"/><path d="M22 4h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2H22z"/></svg></span>Loading…</div></div>
+
+    <div id="book-listen-wrap" style="display:none;margin-top:14px">
+      <div class="card-title" id="book-listen-title" style="margin-bottom:8px"></div>
+      <audio id="book-listen-player" controls style="width:100%"></audio>
+      <div style="text-align:right;margin-top:8px"><button class="link-btn" onclick="closeBookListen()">Close player</button></div>
+    </div>
+
+    <div id="book-audiobook-wrap" style="display:none;margin-top:14px">
+      <div class="card-title" id="book-audiobook-title" style="margin-bottom:8px"></div>
+      <audio id="book-audiobook-player" controls style="width:100%"></audio>
+      <div style="text-align:right;margin-top:8px"><button class="link-btn" onclick="closeBookAudiobook()">Close player</button></div>
+    </div>
+    </div><!-- /#books-content -->
+  </div>
+
+  <!-- COMPOSER-UX: emoji picker + grow-with-text styles (shared by Messages & Paul) -->
+  <style>
+  .emoji-btn{margin:0;padding:9px 8px;width:auto;border:none;background:none;color:var(--walnut);cursor:pointer;line-height:0;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .emoji-btn.active{color:var(--terra)}
+  .emoji-panel{display:none;border:1px solid var(--line);border-radius:12px;background:var(--surface);max-height:208px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:4px 8px 8px;margin:0;flex-shrink:0}
+  .emoji-panel.open{display:block}
+  .emoji-cat{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--walnut-mid);margin:8px 4px 3px;opacity:.85}
+  .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+  .emoji-grid button{font-size:23px;line-height:1;background:none;border:none;border-radius:8px;padding:6px 0;cursor:pointer;width:100%;margin:0;-webkit-tap-highlight-color:transparent}
+  .emoji-grid button:active{background:var(--terra-soft)}
+  @media (max-width:360px){.emoji-grid{grid-template-columns:repeat(7,1fr)}.emoji-grid button{font-size:21px}}
+  </style>
+
+  <div class="page" id="page-messages">
+    <div id="msg-empty" class="empty" style="display:none"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>You'll be able to message your PCM here once your choice is accepted.</div>
+
+    <!-- Conversation list (Messenger-style inbox) -->
+    <div id="msg-inbox" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 12px">
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:600;color:var(--brand-ink)">Messages</div>
+        <button onclick="openNewMessagePicker()" title="New message" aria-label="New message" style="margin:0;padding:0;width:40px;height:40px;flex-shrink:0;border:none;border-radius:50%;background:linear-gradient(180deg,var(--terra),var(--teal));color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(55,23,81,.22)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div id="msg-convo-list"></div>
+      <div id="msg-inbox-empty" class="empty" style="display:none"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>No conversations yet. Tap the + to reach out to your PCM.</div>
+    </div>
+
+    <!-- Individual thread -->
+    <div id="msg-thread-wrap" style="display:none">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--teal);color:var(--cream)">
+          <button class="link-btn" onclick="showMsgList()" aria-label="Back to messages" title="Back" style="color:var(--cream);background:none;border:none;font-size:36px;line-height:1;padding:0 8px 0 0;margin:0;width:auto;cursor:pointer">‹</button>
+          <div class="pcm-av" id="msg-peer-av" style="background:var(--surface);color:var(--brand-ink)">?</div>
+          <div style="flex:1"><div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px" id="msg-peer-name">—</div><div style="font-size:11px;font-style:italic;opacity:.85" id="msg-peer-role">—</div></div>
+          <button class="link-btn" style="color:var(--cream);border:1px solid var(--cream);padding:6px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;width:auto" id="msg-call-btn" onclick="startPcmCall()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Call</button>
+        </div>
+        <div id="msg-list" style="padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
+        <div id="msg-typing" style="display:none;padding:2px 16px 6px;font-size:12px;font-style:italic;color:var(--walnut-mid)"></div>
+        <div id="msg-attach-chip" style="display:none;padding:0 16px;margin:8px 0 0;align-items:center;gap:8px"></div>
+        <div class="emoji-panel" id="msg-emoji" style="margin:8px 12px 0"></div>
+        <div id="msg-compose" style="padding:12px 16px calc(12px + 52px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:8px;align-items:flex-end">
+          <input type="file" id="msg-file" accept="image/*,application/pdf,.doc,.docx,.txt" style="display:none" onchange="onAttachSelected(this)">
+          <button id="msg-attach-btn" title="Attach a file" aria-label="Attach a file" style="margin:0;padding:9px 8px;width:auto;border:none;background:none;color:var(--walnut);cursor:pointer;flex-shrink:0;line-height:0;display:flex;align-items:center;justify-content:center" onclick="document.getElementById('msg-file').click()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+          <button type="button" id="msg-emoji-btn" class="emoji-btn" title="Emoji" aria-label="Emoji" onclick="toggleEmoji('msg-emoji','msg-input',this)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg></button>
+          <textarea id="msg-input" rows="1" data-maxh="140" maxlength="5000" placeholder="Message…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;resize:none;overflow-y:hidden" oninput="_autoGrow(this);_msgPinIfStuck();_onMsgTyping()" onfocus="_closeEmoji('msg-emoji','msg-emoji-btn')" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+          <button class="btn-primary" style="margin:0;padding:9px 16px;width:auto" onclick="sendMessage()">Send</button>
+        </div>
+        <div id="msg-readonly-note" style="display:none;padding:14px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--line);text-align:center;font-size:13px;font-style:italic;color:var(--walnut-mid)">This is a one-way message — you can't reply.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- New-message picker (choose someone to start a fresh thread). Fixed to the
+       viewport — kept OUTSIDE #page-messages so the chat-lock overflow:hidden
+       subtree can't trap its scroll. -->
+  <div id="msg-newpicker" style="display:none;position:fixed;inset:0;z-index:210;background:rgba(55,23,81,.28);backdrop-filter:blur(2px);flex-direction:column;justify-content:flex-end" onclick="if(event.target===this)closeNewMessagePicker()">
+    <div style="background:var(--surface);border-radius:18px 18px 0 0;max-height:72vh;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(55,23,81,.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);flex-shrink:0">
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;color:var(--brand-ink)">New message</div>
+        <button class="link-btn" onclick="closeNewMessagePicker()" style="padding:4px 8px;width:auto">Close</button>
+      </div>
+      <div id="msg-newpicker-list" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:6px 12px calc(16px + env(safe-area-inset-bottom))"></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-join-tln">
+    <div id="join-tln-content">
+    <div class="card">
+      <div class="card-title">Join The Living Network</div>
+      <div class="card-text" id="join-tln-text">When your PCM signs off on your readiness, a personal link will appear here that takes you straight into The Living Network.</div>
+    </div>
+    <div id="join-tln-cta" style="display:none">
+      <div class="card" style="border-color:var(--terra);background:var(--terra-soft);text-align:center">
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;color:var(--brand-ink);margin-bottom:6px">You have been invited.</div>
+        <div style="font-size:13px;color:var(--walnut-mid);margin-bottom:14px" id="join-tln-when">—</div>
+        <button id="join-tln-btn" class="btn-primary" style="margin:0;padding:11px 22px;width:auto" onclick="openTlnHandoff()">Enter The Living Network →</button>
+      </div>
+    </div>
+    <div class="empty" id="join-tln-empty"><span class="ico"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></span>Awaiting PCM sign-off.</div>
+    </div><!-- /#join-tln-content -->
+  </div>
+
+  <!-- Sticky "Call is Live" banner — shown across all pages while townhall is live -->
+  <div id="live-banner" onclick="joinTownhall()" style="display:none;position:fixed;left:0;right:0;top:0;z-index:90;background:linear-gradient(90deg,var(--terra),var(--terra-deep));color:#fff;padding:10px 16px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:.04em;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)">
+    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff;margin-right:8px;animation:livepulse 1.4s infinite"></span>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>Townhall is live — tap to join
+  </div>
+  <style>@keyframes livepulse{0%,100%{opacity:1}50%{opacity:.3}}</style>
+
+
+  <!-- Paul drawer -->
+  <div id="paul-drawer" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(20,48,52,.6);backdrop-filter:blur(2px)" onclick="if(event.target===this) closePaul()">
+    <div id="paul-panel" style="position:absolute;right:0;top:0;bottom:0;width:min(100%,460px);background:var(--surface);display:flex;flex-direction:column;border-left:1px solid var(--line)">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--teal);color:var(--cream)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="paul-hero-av" aria-hidden="true">
+            <img src="/paul.jpg?v=3" alt="" width="44" height="44">
+          </span>
+          <div>
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:600">Paul, <span style="color:var(--gold)">AI Apostle</span></div>
+            <div style="font-size:13px;font-style:italic;opacity:.9">Here to walk with you</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <select id="paul-lang" onchange="_paulLangChanged()" title="Language" style="background:var(--surface);color:var(--walnut);border:1px solid var(--teal-deep);border-radius:6px;padding:4px 6px;font-family:inherit;font-size:12px;cursor:pointer">
+            <option value="English">Auto-detect</option>
+            <option value="Spanish">Español</option>
+            <option value="French">Français</option>
+            <option value="Portuguese">Português</option>
+            <option value="German">Deutsch</option>
+            <option value="Italian">Italiano</option>
+            <option value="Russian">Русский</option>
+            <option value="Chinese (Simplified)">中文</option>
+            <option value="Arabic">العربية</option>
+            <option value="Armenian">Հայերեն</option>
+            <option value="Hindi">हिन्दी</option>
+            <option value="Swahili">Kiswahili</option>
+            <option value="Filipino">Filipino</option>
+          </select>
+          <button onclick="closePaul()" style="background:none;border:none;color:var(--cream);font-size:22px;cursor:pointer;padding:4px 8px">×</button>
+        </div>
+      </div>
+      <div id="paul-messages" style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px"></div>
+      <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;flex-shrink:0">
+        <div id="paul-status" style="display:none;align-items:center;gap:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:var(--teal-deep)">
+          <span id="paul-status-dot" style="width:9px;height:9px;border-radius:50%;background:var(--terra);flex-shrink:0"></span>
+          <span id="paul-status-text"></span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="paul-mic" onclick="togglePaulConversation()" title="Talk with Paul" aria-label="Talk with Paul" style="padding:10px 12px;background:var(--teal);color:#fff;border:none;border-radius:8px;line-height:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
+          <textarea id="paul-input" rows="1" data-maxh="120" placeholder="Ask Paul…" autocorrect="on" autocapitalize="sentences" spellcheck="true" enterkeyhint="send" style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--walnut);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;resize:none;max-height:120px;overflow-y:hidden" oninput="_autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPaul()}"></textarea>
+          <button id="paul-send" onclick="sendPaul()" title="Send" aria-label="Send" style="padding:10px 14px;background:var(--terra);color:#fff;border:none;border-radius:8px;cursor:pointer;line-height:0;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="nav" id="bottom-nav">
+    <button class="nav-btn" onclick="showPage('library')"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Vault</button>
+    <button class="nav-btn" onclick="showPage('books')"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>Books</button>
+    <button class="nav-btn" onclick="showPage('pcm')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>PCM<span id="nav-pcm-badge" class="nav-badge" style="display:none"></span></button>
+    <button class="nav-btn" onclick="showPage('messages')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages<span id="nav-msg-badge" class="nav-badge" style="display:none"></span></button>
+    <button class="nav-btn" onclick="shareApp()"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Share</button>
+  </div>
+</div>
+
+<!-- NAVCLEARANCE-MARKER: anchor page bottom-padding to the nav's real height so
+     content (e.g. the Vault home tile) never tucks under the fixed bottom nav,
+     on any device/safe-area. getBoundingClientRect() already includes the nav's
+     env(safe-area-inset-bottom) padding, so we add only a fixed visual gap. -->
+<script>
+(function(){
+  function syncNavClearance(){
+    var nav = document.getElementById('bottom-nav');
+    if(!nav) return;
+    var h = Math.round(nav.getBoundingClientRect().height);
+    if(!h) return; // nav hidden (e.g. landing screen) — keep CSS fallback
+    document.documentElement.style.setProperty('--nav-clearance', (h + 28) + 'px');
+  }
+  window.addEventListener('load', syncNavClearance);
+  window.addEventListener('resize', syncNavClearance);
+  window.addEventListener('orientationchange', function(){ setTimeout(syncNavClearance, 200); });
+  if(window.ResizeObserver){
+    var nav = document.getElementById('bottom-nav');
+    if(nav) new ResizeObserver(syncNavClearance).observe(nav);
+  }
+  // Run once now in case load already fired, and again shortly after to catch
+  // late layout (web fonts, safe-area settling on iOS standalone PWAs).
+  syncNavClearance();
+  setTimeout(syncNavClearance, 300);
+  window.syncNavClearance = syncNavClearance;
+})();
+</script>
+
+<!-- First-run community guidelines gate ("Before You Enter") -->
+<div id="guidelines-gate">
+  <div class="gl-card">
+    <div class="gl-seal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
+    <h1>Before You Enter</h1>
+    <p class="gl-sub">This is a fellowship of charity and free will.<br>By entering, you walk by these few guidelines.</p>
+
+    <div class="gl-list">
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></div>
+        <div><h2>A house of charity, not commerce</h2>
+        <p>No soliciting, selling, advertising, or fundraising. We gather to serve, not to profit.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="currentColor" stroke="none"/></svg></div>
+        <div><h2>Honor one another</h2>
+        <p>Speak with grace. No harassment, slander, or contention — treat every member as family.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div><h2>Your messages are private</h2>
+        <p><b>Private messages are end-to-end encrypted</b> — sealed on your device with a key only you hold, unlocked by your password. We cannot read them, and your information is never sold or shared.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
+        <div><h2>Come of your own free will</h2>
+        <p>Participation is voluntary — no coercion, no obligation. You may step away at any time.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div><h2>Walk in good faith</h2>
+        <p>Be honest, keep confidences, and protect one another.</p></div>
+      </div>
+    </div>
+
+    <p class="gl-agree">Tapping <b>Accept &amp; Enter</b> means you agree to these guidelines.</p>
+    <p class="gl-err" id="gl-err">Couldn’t save — please try again.</p>
+    <button class="gl-btn" id="gl-accept-btn" onclick="acceptGuidelines()">Accept &amp; Enter</button>
+  </div>
+</div>
+
+<!-- First-run welcome. Shown once, immediately after the guidelines are
+     accepted. The video deliberately does NOT autoplay — a new member may be
+     signing in somewhere they can't have sound — so they choose when it starts,
+     and can enter the app without watching at all. -->
+<div id="intro-gate">
+  <!-- Full-screen: the video IS the experience, so it fills the viewport rather
+       than sitting in a card. Captions are burned into the file, so there is
+       deliberately NO <track> here — shipping both rendered them twice, one
+       over the other. -->
+  <video id="intro-video" controls playsinline preload="metadata"
+         controlsList="nodownload noplaybackrate noremoteplayback" disablepictureinpicture
+         poster="/videos/intro-welcome-poster.jpg"
+         src="/videos/intro-welcome.mp4"></video>
+  <div class="intro-bar">
+    <p class="intro-note">Please watch this through before you begin.</p>
+    <button class="gl-btn" id="intro-enter-btn" onclick="dismissIntro()" disabled>Watch to continue</button>
+  </div>
+</div>
+
+<div id="pcm-agree-gate">
+  <div class="gl-card">
+    <div class="gl-seal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
+    <h1>Becoming a Contact Minister</h1>
+    <p class="gl-sub">You have walked the preparation and been welcomed by a minister.<br>Now you may walk it beside others.</p>
+    <p class="gl-quote">The Contact Minister is not a position of power, but of service.</p>
+
+    <div class="gl-list">
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="currentColor" stroke="none"/></svg></div>
+        <div><h2>Service, not authority</h2>
+        <p>A Personal Contact Minister holds <b>no office or power over anyone</b>. You do not rule, command, or judge — you simply serve, walking beside those who come as an equal in the family.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 6.6L20 10l-6.1 1.4L12 18l-1.9-6.6L4 10l6.1-1.4L12 2z" fill="currentColor" stroke="none"/></svg></div>
+        <div><h2>Faith, hope, and charity</h2>
+        <p>You give freely and expect nothing in return. The work is unpaid and uncoerced — offered in <b>charity</b>, kept by faith and hope.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/></svg></div>
+        <div><h2>Greet and welcome</h2>
+        <p>You greet those who arrive, help them feel at home, and confirm they come of their own free will — never pressing, never gatekeeping out of pride.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div><h2>Help them choose their own</h2>
+        <p>When someone is ready, you <b>help them choose their own Contact Minister</b> freely. No one is bound to you; every member chooses for themselves.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div><h2>Connect and protect</h2>
+        <p>You keep members' contact details in confidence — <b>connecting people while protecting what is entrusted to you</b>. Their information is never sold, shared, or used for any purpose but service.</p></div>
+      </div>
+      <div class="gl-item">
+        <div class="gl-ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <div><h2>Walk as a team</h2>
+        <p>You serve alongside other ministers, sharing the work and holding one another accountable in charity and good faith.</p></div>
+      </div>
+    </div>
+
+    <p class="gl-agree">Tapping <b>Agree &amp; Volunteer</b> means you accept this covenant of service and wish to be listed as a Personal Contact Minister.</p>
+    <p class="gl-err" id="pcm-agree-err">Couldn’t save — please try again.</p>
+    <button class="gl-btn" id="pcm-agree-btn" onclick="acceptPcmGuidelines()">Agree &amp; Volunteer</button>
+    <button class="gl-cancel" onclick="closePcmAgree()">Not yet</button>
+  </div>
+</div>
+
+<!-- Install-clip player overlay (opened by the home-page install card) -->
+<div id="install-clip-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(15,10,25,.82);align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)closeInstallClip()">
+  <div style="position:relative;width:min(92vw,420px)">
+    <video id="install-clip-video" controls playsinline preload="none" style="width:100%;max-height:82vh;border-radius:14px;background:#000;display:block"></video>
+    <button onclick="closeInstallClip()" aria-label="Close" style="position:absolute;top:-14px;right:-14px;width:38px;height:38px;border-radius:50%;border:none;background:#fff;color:#3a1d63;font-size:20px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)">&times;</button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

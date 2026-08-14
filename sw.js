@@ -61,7 +61,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data       = event.notification.data || {};
   const targetPage = data.action && data.action.type === 'page' ? data.action.page : null;
-  const url        = new URL('/', self.location.origin);
+  const url        = new URL('/app/', self.location.origin);
   if (targetPage) url.hash = '#page=' + encodeURIComponent(targetPage);
 
   event.waitUntil((async () => {
