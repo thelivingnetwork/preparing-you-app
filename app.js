@@ -131,6 +131,13 @@ let _recoveryMode = (function(){
   } catch(_) { return false; }
 })();
 
+// Deep link from the landing page's "Sign up" button (/app/?join=1): open the
+// Join tab instead of Sign In. Captured synchronously like the recovery flags.
+const _joinQuery = (function(){
+  try { return new URLSearchParams(window.location.search || '').get('join') === '1'; }
+  catch(_) { return false; }
+})();
+
 const _sb = (window.supabase && _SB_URL.startsWith('http'))
   ? window.supabase.createClient(_SB_URL, _SB_ANON, { auth: { persistSession: true, autoRefreshToken: true } })
   : null;
@@ -5450,6 +5457,15 @@ window.addEventListener('load', async ()=>{
     }
     if(_recoveryMode) _resetLinkDead();   // PASSWORD_RECOVERY may have landed meanwhile
     return;
+  }
+
+  // Landing-page "Sign up" deep link — logged-out visitors get the Join tab;
+  // a live session falls through below and enters the app as normal.
+  if(_joinQuery){
+    history.replaceState({}, '', window.location.pathname);
+    let _hasSession = false;
+    try { const { data: _jd } = await _sb.auth.getSession(); _hasSession = !!_jd?.session?.user; } catch(_){}
+    if(!_hasSession) showAuthTab('join');
   }
 
   let { data } = await _sb.auth.getSession();

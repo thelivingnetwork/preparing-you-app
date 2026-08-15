@@ -3,9 +3,15 @@
 <head>
 <meta charset="utf-8">
 <script>
+// Password-recovery links from email land on the site root (Supabase redirect)
+// but the reset flow lives in the app — forward with every parameter intact.
+if (/[?&](reset=1|token_hash=)/.test(location.search) ||
+    (location.hash || '').indexOf('type=recovery') >= 0) {
+  location.replace('/app/' + location.search + location.hash);
+}
 // Installed-PWA opens (start_url "/" from older installs) skip the landing
 // page and go straight into the app — the icon must feel like an app.
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) {
+else if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) {
   location.replace('/app/');
 }
 </script>
@@ -383,17 +389,21 @@ if (matchMedia('(display-mode: standalone)').matches || navigator.standalone ===
       <a class="link" href="#library">Free books</a>
       <a class="link" href="#paul">Meet Paul</a>
       <a class="link" href="#app">Inside the app</a>
-      <a class="btn btn-primary" id="enterBtn" href="/app/">Log in</a>
+      <a class="link" id="loginLink" href="/app/">Log in</a>
+      <a class="btn btn-primary" id="signupBtn" href="/app/?join=1">Sign up</a>
     </nav>
     <script>
     // If a Supabase session is already on this device, the visitor is a
-    // member — the button opens the app directly instead of asking them
-    // to log in. (The app itself still verifies the session.)
+    // member — collapse Log in / Sign up into one button that opens the
+    // app directly. (The app itself still verifies the session.)
     try {
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
         if (/^sb-.+-auth-token$/.test(k) && localStorage.getItem(k)) {
-          document.getElementById('enterBtn').textContent = 'Open the app';
+          document.getElementById('loginLink').style.display = 'none';
+          var b = document.getElementById('signupBtn');
+          b.textContent = 'Open the app';
+          b.href = '/app/';
           break;
         }
       }
@@ -447,7 +457,7 @@ if (matchMedia('(display-mode: standalone)').matches || navigator.standalone ===
         </div>
         <div class="film-cta">
           <div class="cta-row">
-            <a class="btn btn-primary" href="/app/">Begin here</a>
+            <a class="btn btn-primary" href="/app/?join=1">Sign up free</a>
           </div>
           <p class="cta-note">Free to explore. No subscription. No obligation.</p>
         </div>
@@ -504,7 +514,6 @@ if (matchMedia('(display-mode: standalone)').matches || navigator.standalone ===
           <span class="fmt"><span class="kind">E-book + audiobook</span><span class="hrs">≈ 9½ hours</span></span></div>
       </div>
       <div class="lib-cta">
-        <a class="btn btn-primary" href="/app/">Sign up free — get all five</a>
         <p class="gift">No purchase. No subscription. Read or listen free.</p>
       </div>
     </div>
@@ -617,7 +626,6 @@ if (matchMedia('(display-mode: standalone)').matches || navigator.standalone ===
       <div class="app-foot">
         <p>Use it in any browser, or install it on iPhone and Android in under a minute —
            the app walks you through it.</p>
-        <a class="btn btn-primary" href="/app/">Open the web app</a>
         <p class="quiet">Free to use &nbsp;·&nbsp; carried by freewill support</p>
       </div>
     </div>
@@ -671,7 +679,7 @@ if (matchMedia('(display-mode: standalone)').matches || navigator.standalone ===
         <h4>Begin</h4>
         <a href="#film">Videos</a>
         <a href="#paul">Meet Paul</a>
-        <a href="/app/">Begin here</a>
+        <a href="/app/?join=1">Sign up</a>
       </div>
       <div class="foot-col">
         <h4>This site</h4>
