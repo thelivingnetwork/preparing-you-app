@@ -1662,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.70', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.71', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1678,7 +1678,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.70', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.71', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3409,6 +3409,17 @@ function _fetchTimeout(url, ms = 8000, opts = {}) {
   return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(t))
 }
 
+// Bound any promise. fetchInsecure() uses https.get with no timeout of its own,
+// and the probes run inside the cron tick — a hung socket would stall the
+// townhall jobs queued behind them.
+function _withTimeout(promise, ms = 8000) {
+  let t
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`timed out after ${ms}ms`)), ms) })
+  ]).finally(() => clearTimeout(t))
+}
+
 // Each probe resolves { ok, detail } and never throws.
 async function probeSupabase() {
   try {
@@ -3429,8 +3440,13 @@ async function probeSupabase() {
 // So a cert we cannot verify means the probe has no opinion: ok is null, which
 // neither alerts nor fails /health/deep. A genuine outage — DNS, refused
 // connection, timeout, HTTP error, changed API shape — still returns false and
-// still alerts. Fixing the certificate re-arms full verification on its own,
-// with no code change here.
+// still alerts.
+//
+// NOTE: probeWiki now calls through fetchInsecure(), so it no longer performs
+// certificate validation and this null path will not fire for preparingyou.com.
+// It is kept as the safety net for any OTHER probe that reaches a host over
+// verified TLS: an unverifiable certificate must never be reported as an
+// outage. If a future probe uses plain fetch(), it inherits this behaviour.
 const _TLS_ERROR_CODES = new Set([
   'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT',
   'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'SELF_SIGNED_CERT_IN_CHAIN',
@@ -3450,10 +3466,19 @@ function _tlsErrorCode(err) {
 // /wiki/ vs /w/ path break is caught by the probe rather than by a member.
 async function probeWiki() {
   try {
-    const r = await _fetchTimeout(
-      'https://preparingyou.com/w/api.php?action=query&list=search&srsearch=covenant&srlimit=1&format=json&formatversion=2')
-    if (!r.ok) return { ok: false, detail: 'HTTP ' + r.status }
-    const j = await r.json()
+    // Goes through fetchInsecure() — the same helper searchPreparingYou() uses
+    // for every Paul query and Vault lookup — so the probe makes the identical
+    // call to the thing it is watching. A watchdog that cannot reach the host
+    // the way production reaches it is not watching anything.
+    //
+    // This is not a new exposure. preparingyou.com is a third-party host we do
+    // not control, its certificate is issued for the wrong domain, and it
+    // cannot be fixed from here; production already depends on this path. The
+    // probe sends no credentials, requests a public read-only search, and
+    // trusts the response for nothing beyond "the wiki answered".
+    const raw = await _withTimeout(fetchInsecure(
+      'https://preparingyou.com/w/api.php?action=query&list=search&srsearch=covenant&srlimit=1&format=json&formatversion=2'))
+    const j = JSON.parse(raw)
     const hits = j && j.query && j.query.searchinfo ? j.query.searchinfo.totalhits : null
     return hits && hits > 0
       ? { ok: true, detail: hits + ' hits' }
