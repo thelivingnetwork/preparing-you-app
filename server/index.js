@@ -3473,24 +3473,34 @@ async function runProbes() {
   return { supabase, wiki }
 }
 
-// Push the alert to every admin's devices. Uses notify(), so each alert also
-// lands in the in-app bell list and — because page:'home' is already inside
-// _BADGE_NOTIF_PAGES — lights the home-screen icon badge. Deliberately reusing
-// an allow-listed page means no client change and no badge-math change.
+// Deliver the alert to every admin's inbox as an openable message.
+//
+// This used notify(), which only writes a prep_notifications row. That row's
+// text was never rendered anywhere in the client, so an admin got a push banner
+// and a badge and — if they missed the banner — no way to discover what the
+// alert had said. Landing on Home then marked it read and cleared the badge.
+//
+// sendSystemMessage() is the mechanism townhall alerts already moved to, for
+// the same reason (see townhallInboxBroadcast): the alert becomes a real
+// message that can be opened, re-read later, and whose unread badge clears when
+// it is actually read rather than when a page happens to be visited.
+//
+// It also fires its own push, so calling notify() as well would put two banners
+// on the phone for one alert.
 async function alertAdmins(shortText) {
   try {
     const { data: admins } = await sb.from('prep_admins').select('user_id')
-    if (!admins || !admins.length) { console.warn('[alert] no admins to push to'); return 0 }
+    if (!admins || !admins.length) { console.warn('[alert] no admins to notify'); return 0 }
     let sent = 0
     for (const a of admins) {
       if (!a.user_id) continue
-      await notify(a.user_id, '⚠️', shortText, { type: 'page', page: 'home' })
+      await sendSystemMessage(a.user_id, '⚠️ ' + shortText)
       sent++
     }
-    console.warn('[alert] pushed to', sent, 'admin(s)')
+    console.warn('[alert] messaged', sent, 'admin(s)')
     return sent
   } catch (e) {
-    console.warn('[alert] admin push failed', e && e.message)
+    console.warn('[alert] admin alert failed', e && e.message)
     return 0
   }
 }
