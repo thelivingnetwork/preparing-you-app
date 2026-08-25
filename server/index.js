@@ -1662,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.69', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.70', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1674,8 +1674,11 @@ const server = http.createServer(async (req, res) => {
     // the body on HEAD responses automatically.
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url.split('?')[0] === '/health/deep') {
       const probes = await runProbes()
-      const ok = Object.values(probes).every(p => p.ok)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.69', probes })
+      // ok === null means "could not determine" (see probeWiki). Only a definite
+      // false is an outage; an undeterminable probe must not 503 an uptime
+      // monitor, or the monitor becomes noise for the same reason the alert did.
+      const ok = Object.values(probes).every(p => p.ok !== false)
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.70', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3414,6 +3417,35 @@ async function probeSupabase() {
   } catch (e) { return { ok: false, detail: (e && e.message) || 'threw' } }
 }
 
+// A TLS failure says something about the certificate, not about whether the
+// wiki is serving. preparingyou.com presents a cert for CN=hcdevelopment.org
+// with an incomplete chain, so fetch() rejects it with
+// UNABLE_TO_VERIFY_LEAF_SIGNATURE — surfacing as the useless detail "fetch
+// failed" — while the wiki answers normally. The Vault and Paul never noticed,
+// because they reach it through fetchInsecure(). Treating that as an outage
+// pushed an alert to every admin every hour for a failure that did not exist,
+// and an alert that is always firing is one nobody reads.
+//
+// So a cert we cannot verify means the probe has no opinion: ok is null, which
+// neither alerts nor fails /health/deep. A genuine outage — DNS, refused
+// connection, timeout, HTTP error, changed API shape — still returns false and
+// still alerts. Fixing the certificate re-arms full verification on its own,
+// with no code change here.
+const _TLS_ERROR_CODES = new Set([
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'SELF_SIGNED_CERT_IN_CHAIN',
+  'DEPTH_ZERO_SELF_SIGNED_CERT', 'CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID',
+  'ERR_TLS_CERT_ALTNAME_INVALID', 'CERT_UNTRUSTED'
+])
+
+// Node nests the real reason under .cause (sometimes more than one level deep).
+function _tlsErrorCode(err) {
+  for (let e = err, depth = 0; e && depth < 5; e = e.cause, depth++) {
+    if (e.code && _TLS_ERROR_CODES.has(e.code)) return e.code
+  }
+  return null
+}
+
 // Exercises the exact call the Vault and Paul depend on, so a repeat of the
 // /wiki/ vs /w/ path break is caught by the probe rather than by a member.
 async function probeWiki() {
@@ -3426,7 +3458,14 @@ async function probeWiki() {
     return hits && hits > 0
       ? { ok: true, detail: hits + ' hits' }
       : { ok: false, detail: 'no results — API shape may have changed' }
-  } catch (e) { return { ok: false, detail: (e && e.message) || 'threw' } }
+  } catch (e) {
+    const tls = _tlsErrorCode(e)
+    if (tls) {
+      return { ok: null, detail: `certificate not verifiable (${tls}) — availability unknown, ` +
+                                 `not treated as an outage; production reaches the wiki via fetchInsecure()` }
+    }
+    return { ok: false, detail: (e && e.message) || 'threw' }
+  }
 }
 
 async function runProbes() {
@@ -3482,6 +3521,14 @@ async function runHealthWatch() {
 
   const probes = await runProbes()
   for (const [name, r] of Object.entries(probes)) {
+    // ok === null: the probe could not reach a verdict (see probeWiki). Log it
+    // so the condition is visible, but do not count it toward the failure
+    // threshold and do not reset the counter — a real outage that starts while
+    // a probe is unverifiable should still accumulate once it returns false.
+    if (r.ok === null) {
+      console.warn(`[watchdog] ${name} undeterminable — ${_clip(r.detail, 160)}`)
+      continue
+    }
     if (!r.ok) {
       // Confirm before waking anyone. Alerting on the first failed poll meant
       // any transient blip reached a phone at any hour — the treasury worker
