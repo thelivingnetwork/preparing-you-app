@@ -1662,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.71', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.72', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1678,7 +1678,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.71', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.72', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2471,6 +2471,44 @@ const server = http.createServer(async (req, res) => {
     // Admin: message METADATA only (who/when, attachment name) — never the
     // body. Private messages are end-to-end encrypted; the server itself can't
     // read them, so there is no admin path to message text.
+    // Read-only diagnostic: what does Daily actually hold, and is it configured
+    // to tell us about it? prep_townhalls.recording_url is written only by the
+    // /webhooks/daily handler, so an empty column has two very different
+    // causes — the recordings do not exist, or they exist and nothing ever
+    // reported them. Those need opposite responses, and the answer lives in
+    // Daily's API rather than ours. Touches nothing; only reports.
+    if (req.method === 'POST' && req.url === '/admin/daily-diagnostic') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status || 401, { error: a.error })
+      const key = process.env.DAILY_API_KEY
+      if (!key) return send(res, 200, { ok: false, reason: 'DAILY_API_KEY not set on the server' })
+      const hdr = { headers: { Authorization: 'Bearer ' + key } }
+      const out = { ok: true, webhookSecretSet: !!process.env.DAILY_WEBHOOK_SECRET }
+      try {
+        const r = await fetch('https://api.daily.co/v1/recordings?limit=100', hdr)
+        const j = await r.json()
+        if (!r.ok) out.recordingsError = j && (j.error || j.info) || ('HTTP ' + r.status)
+        out.recordings = ((j && j.data) || []).map(x => ({
+          id: x.id, room: x.room_name, startedAt: x.start_ts, seconds: x.duration, status: x.status
+        }))
+      } catch (e) { out.recordingsError = (e && e.message) || 'threw' }
+      try {
+        const r = await fetch('https://api.daily.co/v1/webhooks', hdr)
+        const j = await r.json()
+        const list = (j && (j.data || j)) || []
+        out.webhooks = (Array.isArray(list) ? list : []).map(w => ({
+          url: w.url, state: w.state, events: w.eventTypes || w.event_types
+        }))
+      } catch (e) { out.webhooksError = (e && e.message) || 'threw' }
+      const { data: ths } = await sb.from('prep_townhalls')
+        .select('id, scheduled_at, daily_room, recording_url')
+        .order('scheduled_at', { ascending: false }).limit(100)
+      out.townhalls = (ths || []).map(t => ({
+        id: t.id, when: t.scheduled_at, room: t.daily_room, hasUrl: !!t.recording_url
+      }))
+      return send(res, 200, out)
+    }
+
     if (req.method === 'POST' && req.url === '/admin/messages-meta') {
       const a = await requireAdmin(req)
       if (a.error) return send(res, a.status, { error: a.error })
