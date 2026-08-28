@@ -1662,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.74', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.75', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1678,7 +1678,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.74', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.75', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2609,6 +2609,55 @@ const server = http.createServer(async (req, res) => {
         return send(res, 502, { error: (j && (j.error || j.info)) || 'no link returned' })
       }
       return send(res, 200, { ok: true, link: j.download_link, expires: j.expires || null })
+    }
+
+    // Why a recording will or will not stream in a browser.
+    //
+    // An mp4 can only start playing before it has fully downloaded if its
+    // `moov` atom (the index) sits ahead of `mdat` (the media). Encoders write
+    // moov last by default; "faststart" is the step that moves it to the front.
+    // When it is at the end, a player either stalls on a spinner or quietly
+    // pulls the entire file first — which for a 73-minute townhall is 2.3 GB.
+    //
+    // Fetches the first megabyte and reports what it finds, rather than
+    // guessing from behaviour. Cheap: one ranged request, nothing stored.
+    if (req.method === 'POST' && req.url === '/admin/recording-probe') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status || 401, { error: a.error })
+      const key = process.env.DAILY_API_KEY
+      if (!key) return send(res, 400, { error: 'DAILY_API_KEY not set' })
+      const body = await readJson(req)
+      const id = (body && body.id) || ''
+      if (!/^[A-Za-z0-9-]{6,64}$/.test(id)) return send(res, 400, { error: 'bad recording id' })
+
+      const lr = await fetch(`https://api.daily.co/v1/recordings/${id}/access-link`, {
+        headers: { Authorization: 'Bearer ' + key }
+      })
+      const lj = await lr.json()
+      if (!lr.ok || !lj || !lj.download_link) {
+        return send(res, 502, { error: (lj && (lj.error || lj.info)) || 'no link returned' })
+      }
+
+      const r = await fetch(lj.download_link, { headers: { Range: 'bytes=0-1048575' } })
+      const buf = Buffer.from(await r.arrayBuffer())
+      const moov = buf.indexOf('moov')
+      const mdat = buf.indexOf('mdat')
+      // Present in the first MB and ahead of the media = progressive playback works.
+      const faststart = moov !== -1 && (mdat === -1 || moov < mdat)
+      return send(res, 200, {
+        ok: true,
+        status: r.status,
+        contentType: r.headers.get('content-type'),
+        contentDisposition: r.headers.get('content-disposition'),
+        acceptRanges: r.headers.get('accept-ranges'),
+        contentRange: r.headers.get('content-range'),
+        moovOffset: moov, mdatOffset: mdat, faststart,
+        verdict: faststart
+          ? 'moov is at the front — this should stream'
+          : (moov === -1
+              ? 'no moov atom in the first MB — the index is at the end of the file, so a browser must download the whole recording before it can play'
+              : 'moov sits after mdat — the index is not at the front, so playback cannot start early')
+      })
     }
 
     if (req.method === 'POST' && req.url === '/admin/messages-meta') {
