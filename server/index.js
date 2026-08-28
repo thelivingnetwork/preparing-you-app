@@ -1182,7 +1182,27 @@ async function dailyEnsureRoom(roomName, opts = {}) {
   const headers = { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' }
   // Try get
   const got = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, { headers })
-  if (got.ok) return await got.json()
+  if (got.ok) {
+    const room = await got.json()
+    // "Ensure" used to mean "create if absent", so a room that already existed
+    // kept whatever properties it was born with. That makes a change to
+    // TOWNHALL_RECORDING_MODE silently apply to new rooms only, and the
+    // difference shows up weeks later as a recording in the wrong format.
+    // Reconcile the recording mode when it has drifted; leave everything else.
+    const want = (opts.properties || {}).enable_recording
+    if (want && room.config && room.config.enable_recording !== want) {
+      const up = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ properties: { enable_recording: want } })
+      })
+      if (up.ok) {
+        console.log(`[daily] room ${roomName}: enable_recording ${room.config.enable_recording} -> ${want}`)
+        return await up.json()
+      }
+      console.warn(`[daily] could not update ${roomName} recording mode: ${up.status}`)
+    }
+    return room
+  }
   // Create
   const cr = await fetch('https://api.daily.co/v1/rooms', {
     method: 'POST', headers,
@@ -1196,13 +1216,24 @@ async function dailyEnsureRoom(roomName, opts = {}) {
   return await cr.json()
 }
 
+// Townhall recording mode. 'cloud-audio-only' produces an .m4a instead of an
+// mp4: Daily bills audio-only at $0.005/recorded-minute against $0.01349 for
+// video, and the files are a fraction of the size — a 73-minute townhall came
+// to 2.3 GB of video, which is slow to retrieve and pointless for a discussion
+// nobody watches. Set to 'cloud' to go back to video.
+//
+// Defined once because the three room-creation sites must agree; a room created
+// with the wrong mode records the wrong thing and only shows up much later.
+const TOWNHALL_RECORDING_MODE = 'cloud-audio-only'
+
 async function dailyMintToken(roomName, { userName, isOwner, startRecording }) {
   const r = await fetch('https://api.daily.co/v1/meeting-tokens', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' },
     // start_cloud_recording makes recording begin when this token-holder joins —
     // the documented, reliable way to "always record" without a moderator
-    // clicking record. Requires the room's enable_recording:'cloud' (set below).
+    // clicking record. Requires the room's enable_recording to be set (see
+    // TOWNHALL_RECORDING_MODE).
     body: JSON.stringify({ properties: { room_name: roomName, user_name: userName || 'Guest', is_owner: !!isOwner, ...(startRecording ? { start_cloud_recording: true } : {}), exp: Math.floor(Date.now()/1000) + 3*3600 } })
   })
   if (!r.ok) throw new Error(`daily token mint failed: ${r.status} ${await r.text()}`)
@@ -1662,7 +1693,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.75', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.76', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1678,7 +1709,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.75', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.76', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3203,7 +3234,7 @@ const server = http.createServer(async (req, res) => {
       if (!await isHost(v.uid)) return send(res, 403, { error: 'host_only' })
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
-      const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
+      const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: TOWNHALL_RECORDING_MODE } })
       const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: true, startRecording: true })
       await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
       return send(res, 200, { url: `${room.url}?t=${token}`, isOwner: true })
@@ -3229,7 +3260,7 @@ const server = http.createServer(async (req, res) => {
       const isLive = !!th.live_at && !th.ended_at
       // Non-hosts may only join after a moderator has started the call.
       if (!isLive && !owner) return send(res, 403, { error: 'not_started', message: 'The townhall has not started yet. Please wait for a moderator to begin.' })
-      const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: 'cloud' } })
+      const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: TOWNHALL_RECORDING_MODE } })
       // Carry start_cloud_recording so the first person in (host or not) kicks off
       // the recording — keeps "Replay last townhall" working for auto-opened calls.
       const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: owner, startRecording: true })
@@ -3524,7 +3555,7 @@ async function runTownhallAutostart() {
     for (const th of ths) {
       const roomName = th.daily_room || 'preparing-you-townhall'
       // Ensure the room exists with cloud recording enabled, then mark it live.
-      await dailyEnsureRoom(roomName, { properties: { enable_recording: 'cloud' } })
+      await dailyEnsureRoom(roomName, { properties: { enable_recording: TOWNHALL_RECORDING_MODE } })
       await sb.from('prep_townhalls').update({ live_at: nowIso, ended_at: null }).eq('id', th.id)
 
       // Announce it's live — inbox message + web push (fires once: live_at is
