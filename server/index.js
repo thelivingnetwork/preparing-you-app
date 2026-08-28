@@ -1662,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.72', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.73', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1678,7 +1678,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.72', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.73', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2507,6 +2507,105 @@ const server = http.createServer(async (req, res) => {
         id: t.id, when: t.scheduled_at, room: t.daily_room, hasUrl: !!t.recording_url
       }))
       return send(res, 200, out)
+    }
+
+    // Every recording Daily holds, grouped against the townhall it belongs to.
+    //
+    // Deliberately stores nothing. Daily's access links expire after about an
+    // hour, so a URL written into prep_townhalls.recording_url starts rotting
+    // the moment it lands — which is what the /webhooks/daily handler does, and
+    // why that column would have been full of dead links even if the webhook
+    // had ever fired. We keep Daily's recording IDs, which do not expire, and
+    // mint a link at the moment someone asks (see /admin/recording-link).
+    //
+    // Rooms hold several recordings, not one: cloud recording restarts whenever
+    // someone joins an empty room, so a townhall typically has one real session
+    // plus a few short stubs. They are returned longest-first and the caller is
+    // left to judge, rather than this guessing which one "the" recording is.
+    if (req.method === 'POST' && req.url === '/admin/townhall-recordings') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status || 401, { error: a.error })
+      const key = process.env.DAILY_API_KEY
+      if (!key) return send(res, 200, { ok: false, reason: 'DAILY_API_KEY not set on the server' })
+      const hdr = { headers: { Authorization: 'Bearer ' + key } }
+
+      // Page through the whole set — a single limit=100 call silently truncates,
+      // which reads as "that is all of them" when it is not.
+      const recs = []
+      let after = null
+      let truncated = false
+      for (let page = 0; page < 20; page++) {
+        const url = 'https://api.daily.co/v1/recordings?limit=100' +
+                    (after ? '&starting_after=' + encodeURIComponent(after) : '')
+        const r = await fetch(url, hdr)
+        const j = await r.json()
+        if (!r.ok) return send(res, 200, { ok: false, reason: (j && (j.error || j.info)) || ('HTTP ' + r.status) })
+        const batch = (j && j.data) || []
+        recs.push(...batch)
+        if (batch.length < 100) { after = null; break }
+        after = batch[batch.length - 1].id
+        if (page === 19) truncated = true
+      }
+
+      const byRoom = new Map()
+      for (const r of recs) {
+        const room = r.room_name || '(unknown)'
+        if (!byRoom.has(room)) byRoom.set(room, [])
+        byRoom.get(room).push({
+          id: r.id, startedAt: r.start_ts, seconds: r.duration || 0, status: r.status
+        })
+      }
+      for (const list of byRoom.values()) list.sort((x, y) => (y.seconds || 0) - (x.seconds || 0))
+
+      const { data: ths } = await sb.from('prep_townhalls')
+        .select('id, scheduled_at, title, daily_room')
+        .order('scheduled_at', { ascending: false }).limit(200)
+
+      const claimed = new Set()
+      const townhalls = (ths || []).map(t => {
+        const room = t.daily_room || ''
+        const list = byRoom.get(room) || []
+        if (list.length) claimed.add(room)
+        return {
+          id: t.id, when: t.scheduled_at, title: t.title, room,
+          recordings: list
+        }
+      })
+      // Recordings whose room matches no townhall row — worth showing rather
+      // than dropping, since they are still retrievable footage.
+      const orphans = []
+      for (const [room, list] of byRoom) {
+        if (!claimed.has(room)) orphans.push({ room, recordings: list })
+      }
+      orphans.sort((a, b) => (b.recordings[0]?.startedAt || 0) - (a.recordings[0]?.startedAt || 0))
+
+      return send(res, 200, {
+        ok: true, total: recs.length, truncated,
+        webhookSecretSet: !!process.env.DAILY_WEBHOOK_SECRET,
+        townhalls, orphans
+      })
+    }
+
+    // Mint a fresh, short-lived Daily access link for one recording. Called at
+    // the moment of playback so nothing expiring is ever persisted.
+    if (req.method === 'POST' && req.url === '/admin/recording-link') {
+      const a = await requireAdmin(req)
+      if (a.error) return send(res, a.status || 401, { error: a.error })
+      const key = process.env.DAILY_API_KEY
+      if (!key) return send(res, 400, { error: 'DAILY_API_KEY not set' })
+      const body = await readJson(req)
+      const id = (body && body.id) || ''
+      // The id lands in a URL path — constrain it rather than interpolating
+      // whatever arrives.
+      if (!/^[A-Za-z0-9-]{6,64}$/.test(id)) return send(res, 400, { error: 'bad recording id' })
+      const r = await fetch(`https://api.daily.co/v1/recordings/${id}/access-link`, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + key }
+      })
+      const j = await r.json()
+      if (!r.ok || !j || !j.download_link) {
+        return send(res, 502, { error: (j && (j.error || j.info)) || 'no link returned' })
+      }
+      return send(res, 200, { ok: true, link: j.download_link })
     }
 
     if (req.method === 'POST' && req.url === '/admin/messages-meta') {
