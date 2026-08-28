@@ -1662,7 +1662,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.73', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.74', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1678,7 +1678,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.73', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.74', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -2598,14 +2598,17 @@ const server = http.createServer(async (req, res) => {
       // The id lands in a URL path — constrain it rather than interpolating
       // whatever arrives.
       if (!/^[A-Za-z0-9-]{6,64}$/.test(id)) return send(res, 400, { error: 'bad recording id' })
+      // GET, not POST. Daily answers a POST here with {"error":"not-found"},
+      // which reads as "no such recording" and sends you hunting for the wrong
+      // problem entirely.
       const r = await fetch(`https://api.daily.co/v1/recordings/${id}/access-link`, {
-        method: 'POST', headers: { Authorization: 'Bearer ' + key }
+        headers: { Authorization: 'Bearer ' + key }
       })
       const j = await r.json()
       if (!r.ok || !j || !j.download_link) {
         return send(res, 502, { error: (j && (j.error || j.info)) || 'no link returned' })
       }
-      return send(res, 200, { ok: true, link: j.download_link })
+      return send(res, 200, { ok: true, link: j.download_link, expires: j.expires || null })
     }
 
     if (req.method === 'POST' && req.url === '/admin/messages-meta') {
@@ -2779,8 +2782,9 @@ const server = http.createServer(async (req, res) => {
           const j = await r.json()
           const rec = (j && j.data && j.data[0]) || null
           if (rec && rec.id) {
+            // GET, not POST — a POST returns {"error":"not-found"}, so this
+            // silently resolved no URL every time it ran.
             const lr = await fetch(`https://api.daily.co/v1/recordings/${rec.id}/access-link`, {
-              method: 'POST',
               headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}` }
             })
             const lj = await lr.json()
