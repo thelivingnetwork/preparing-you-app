@@ -884,6 +884,7 @@ async function tlnIsSealedMember(){
 let _townhallState = null;        // last fetched state from /townhall/state
 let _townhallIsHost = false;      // am I in prep_townhall_hosts?
 let _townhallPollTimer = null;
+const _TH_WHATSNEW_UNTIL = '2026-11-15'; // the Townhall card's "See what's new" promo button disappears after this date
 const TOWNHALL_MINUTES = 120; // mirrors server TOWNHALL_AUTOCLOSE_MS (auto-close after 120 min)
 
 async function refreshTownhallCard(){
@@ -908,6 +909,8 @@ async function refreshTownhallCard(){
   if(!st){ card.style.display='none'; if(banner) banner.style.display='none'; return; }
 
   card.style.display = 'block';
+  const wn = document.getElementById('townhall-whatsnew');
+  if(wn) wn.style.display = (Date.now() < Date.parse(_TH_WHATSNEW_UNTIL)) ? 'inline-block' : 'none';
   const at = new Date(st.scheduled_at);
   const end = new Date(at.getTime() + TOWNHALL_MINUTES * 60000);
   const _thDay = at.toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric' });
@@ -2395,10 +2398,15 @@ function _initInstallCard(){
   card.style.display = standalone ? 'none' : 'block';
 }
 function openInstallClip(platform){
+  openClip(platform === 'android' ? '/install-android.mp4' : '/install-iphone.mp4');
+}
+// Plays any short clip in the shared overlay player (install walkthroughs,
+// the Townhall "See what's new" promo).
+function openClip(src){
   const ov = document.getElementById('install-clip-overlay');
   const v  = document.getElementById('install-clip-video');
   if(!ov || !v) return;
-  v.src = platform === 'android' ? '/install-android.mp4' : '/install-iphone.mp4';
+  v.src = src;
   ov.style.display = 'flex';
   v.play().catch(()=>{});   // some browsers require the user to tap play — fine
 }

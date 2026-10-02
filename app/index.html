@@ -238,6 +238,8 @@
         <span id="townhall-when" style="font-size:12px;font-weight:500;color:var(--walnut-mid);text-transform:none">—</span>
       </div>
       <div class="card-text" id="townhall-text">Join the call.</div>
+      <!-- Short promo for the in-app room; hidden after _TH_WHATSNEW_UNTIL (app.js). -->
+      <button id="townhall-whatsnew" style="display:none;margin-top:10px;background:var(--teal);color:var(--cream);border:none;border-radius:999px;padding:7px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer" onclick="event.stopPropagation();openClip('/townhall-new.mp4')"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-1px;margin-right:6px"><polygon points="6 4 20 12 6 20"/></svg>See what&rsquo;s new</button>
       <div id="townhall-actions" style="margin-top:10px;display:none;text-align:right">
         <button id="townhall-end-btn" style="background:var(--danger,#9c3030);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:500;cursor:pointer;display:none" onclick="event.stopPropagation();endTownhall()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/></svg>End Townhall</button>
       </div>
