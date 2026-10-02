@@ -364,3 +364,59 @@
   /* Responsive 16:9 wrapper for the channel video player. */
   .lib-yt-wrap{position:relative;width:100%;padding-bottom:56.25%;border-radius:12px;overflow:hidden;background:#000}
   .lib-yt-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+
+  /* ── Townhall room (townhall-room.js) ─────────────────────────────
+     Full-screen, audio-only, Spaces-style. Circles reuse the profile-circle
+     look (_avInner): photo if the member has one, otherwise initials. */
+  html.th-open, html.th-open body{overflow:hidden}
+  .th-room{position:fixed;inset:0;z-index:450;background:var(--parch);color:var(--walnut);display:none;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 0}
+  .th-room.open{display:flex}
+  .th-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;max-width:640px;width:100%;margin:0 auto}
+  .th-head-text{min-width:0}
+  .th-live{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#c0392b;text-transform:uppercase;letter-spacing:.04em}
+  .th-dot{width:8px;height:8px;border-radius:50%;background:#c0392b;animation:th-blink 1.6s infinite}
+  @keyframes th-blink{50%{opacity:.35}}
+  .th-title{font-size:20px;font-weight:650;color:var(--brand-ink);line-height:1.25;margin-top:2px}
+  .th-sub{font-size:13px;color:var(--walnut-mid)}
+  .th-icon-btn{flex-shrink:0;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--walnut);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .th-status{display:none;max-width:640px;width:100%;margin:10px auto 0;padding:8px 12px;border-radius:10px;background:var(--terra-soft);color:var(--accent-ink);font-size:14px;text-align:center}
+  .th-status.show{display:block}
+  .th-status.err{background:rgba(192,57,43,.12);color:#c0392b}
+  .th-grid{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 8px;align-content:start;max-width:640px;width:100%;margin:16px auto 0;padding-bottom:16px}
+  @media (min-width:520px){.th-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+  .th-p{text-align:center;min-width:0;cursor:pointer}
+  .th-av{position:relative;width:64px;height:64px;margin:0 auto;border-radius:50%;background:var(--terra);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px;transition:box-shadow .15s}
+  .th-avi{width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:50%;overflow:hidden}
+  .th-p.speaking .th-av{box-shadow:0 0 0 3px var(--parch),0 0 0 6px var(--gold)}
+  .th-badge{position:absolute;right:-3px;bottom:-3px;width:24px;height:24px;border-radius:50%;background:var(--surface);border:1px solid var(--line);color:var(--walnut-mid);display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1}
+  .th-name{margin-top:6px;font-size:12.5px;font-weight:600;color:var(--walnut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .th-role{font-size:11.5px;color:var(--gold);font-weight:600}
+  .th-rx{position:absolute;inset:0;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:36px;line-height:1;animation:th-pop 2.6s forwards;pointer-events:none;z-index:2}
+  @keyframes th-pop{0%{transform:scale(.3);opacity:0}12%{transform:scale(1.12);opacity:1}22%{transform:scale(1)}78%{transform:scale(1);opacity:1}100%{transform:scale(.35);opacity:0}}
+  .th-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:640px;width:100%;margin:0 auto;padding:12px 0 calc(env(safe-area-inset-bottom,0px) + 14px);border-top:1px solid var(--line)}
+  .th-round{position:relative;width:50px;height:50px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--walnut);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;padding:0}
+  .th-round.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  #th-hand.on{background:var(--gold);border-color:var(--gold)}
+  .th-unread{display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:var(--badge);border:2px solid var(--surface)}
+  .th-unread.show{display:block}
+  .th-leave{height:44px;padding:0 20px;border-radius:22px;border:none;background:#c0392b;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+  .th-leave.th-close{background:var(--teal);margin:0 auto}
+  .th-sheet-wrap{display:none;position:absolute;inset:0;background:rgba(15,10,25,.35);align-items:flex-end;justify-content:center;z-index:2}
+  .th-sheet-wrap.show{display:flex}
+  .th-sheet{width:100%;max-width:640px;max-height:75vh;overflow-y:auto;background:var(--surface);border-radius:18px 18px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 16px);box-shadow:0 -6px 24px rgba(0,0,0,.18)}
+  .th-sheet-head{display:flex;align-items:center;justify-content:space-between;font-weight:650;font-size:16px;color:var(--brand-ink);margin-bottom:8px}
+  .th-x{border:none;background:none;font-size:26px;line-height:1;color:var(--walnut-mid);cursor:pointer;padding:0 4px}
+  .th-row{display:block;width:100%;text-align:left;padding:13px 4px;border:none;border-top:1px solid var(--line);background:none;color:var(--walnut);font-size:16px;cursor:pointer}
+  .th-row.danger{color:#c0392b}
+  .th-reacts{display:flex;justify-content:space-between;gap:4px}
+  .th-react-btn{flex:1;font-size:30px;line-height:1;padding:10px 0;border:none;background:none;border-radius:12px;cursor:pointer}
+  .th-react-btn:active{background:var(--terra-soft)}
+  .th-chat-list{max-height:40vh;overflow-y:auto;margin-bottom:10px}
+  .th-chat-msg{padding:6px 0;font-size:15px;color:var(--walnut);word-wrap:break-word}
+  .th-chat-msg b{color:var(--brand-ink);font-weight:650}
+  .th-chat-msg.me b{color:var(--gold)}
+  .th-chat-empty{padding:12px 0;color:var(--walnut-soft);font-size:14px}
+  .th-chat-form{display:flex;gap:8px}
+  .th-chat-form input{flex:1;min-width:0;height:42px;border:1px solid var(--line);border-radius:21px;padding:0 14px;background:var(--parch);color:var(--walnut);font-size:16px}
+  .th-chat-form button{height:42px;padding:0 16px;border:none;border-radius:21px;background:var(--teal);color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+  .th-chat-note{margin-top:8px;font-size:12px;color:var(--walnut-soft)}

@@ -16,6 +16,11 @@
     # blocks injecting EXTERNAL scripts and limits where data can be sent — the
     # hand-rolled output escaping remains the primary XSS defense. If a future
     # dependency needs eval(), add 'unsafe-eval' to script-src.
+    # Townhall room (2026-10-02): daily-js loads from unpkg and pulls its call
+    # bundle from *.daily.co; media/signalling run over the Daily, dailywebrtc
+    # and pluot hosts (Daily's documented CSP list, WebSockets narrowed to
+    # those hosts rather than a bare wss:). worker-src blob: is for Daily's
+    # audio worker. The room passes dailyConfig.avoidEval, so no 'unsafe-eval'.
     # NOW ENFORCED (2026-06-10). Before flipping off "-Report-Only" the origin
     # allow-list was audited against the code: added frame-src for the YouTube
     # (nocookie) + Spotify library embeds, and api.met.no / wttr.in to
@@ -24,7 +29,7 @@
     # prep_client_errors via the client's securitypolicyviolation handler, so
     # anything missed is visible (not just silently broken). To revert in a
     # hurry, rename this header back to "Content-Security-Policy-Report-Only".
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com https://keysofthekingdom.info; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net https://geocoding-api.open-meteo.com https://api.open-meteo.com https://api.bigdatacloud.net https://api-bdc.io https://api.met.no https://wttr.in https://preparingyou.com; frame-src https://www.youtube-nocookie.com https://open.spotify.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self' blob: https://*.supabase.co https://preparing-you-server.onrender.com https://keysofthekingdom.info; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://preparing-you-server.onrender.com https://api.emailjs.com https://cdn.jsdelivr.net https://geocoding-api.open-meteo.com https://api.open-meteo.com https://api.bigdatacloud.net https://api-bdc.io https://api.met.no https://wttr.in https://preparingyou.com https://*.daily.co https://*.dailywebrtc.com https://*.dailywebrtc.net https://*.pluot.blue wss://*.daily.co wss://*.dailywebrtc.com wss://*.dailywebrtc.net wss://*.pluot.blue; frame-src https://www.youtube-nocookie.com https://open.spotify.com; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
 # Always revalidate the app shell so deploys show up immediately instead of
 # being served stale from the browser / PWA cache.
@@ -48,6 +53,11 @@
 
 [[headers]]
   for = "/styles.css"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/townhall-room.js"
   [headers.values]
     Cache-Control = "no-cache"
 

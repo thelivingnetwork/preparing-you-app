@@ -979,7 +979,8 @@ async function startTownhall(){
     });
     const j = await r.json();
     if(!r.ok) throw new Error(j.error || 'start failed');
-    window.open(j.url, '_blank');
+    if(j.roomUrl && j.token && typeof openTownhallRoom === 'function' && _thRoomEnabled(j.isOwner)) openTownhallRoom(j);
+    else window.open(j.url, '_blank');
     refreshTownhallCard();
   } catch(e){
     alert('Could not start: ' + e.message);
@@ -1009,11 +1010,14 @@ async function joinTownhall(){
     });
     const j = await r.json();
     if(!r.ok){
-      if(j.error === 'not_started') alert(j.message || 'The townhall has not started yet.');
+      if(j.error === 'not_started' || j.error === 'removed') alert(j.message || 'The townhall has not started yet.');
       else throw new Error(j.error || 'join failed');
       return;
     }
-    window.open(j.url, '_blank');
+    // In-app room (townhall-room.js). Falls back to Daily's own page if the
+    // server is older than the room or the room code didn't load.
+    if(j.roomUrl && j.token && typeof openTownhallRoom === 'function' && _thRoomEnabled(j.isOwner)) openTownhallRoom(j);
+    else window.open(j.url, '_blank');
   } catch(e){
     alert('Could not join: ' + e.message);
   }
