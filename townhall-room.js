@@ -28,7 +28,7 @@ let _th = null; // the open room, or null
 // townhall first. Anyone can opt in on their own device by opening the app
 // once with ?throom=1 (and opt out with ?throom=0). Flip to true to give
 // it to everyone.
-const _TH_ROOM_FOR_ALL = false;
+const _TH_ROOM_FOR_ALL = true;
 (function(){
   try {
     const q = new URLSearchParams(location.search).get('throom');
