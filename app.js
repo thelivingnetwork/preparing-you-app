@@ -2684,9 +2684,8 @@ function _notifIsIosTab(){
 async function _refreshNotifSetting(){
   const st = document.getElementById('notif-status');
   const on = document.getElementById('notif-on-btn');
-  const test = document.getElementById('notif-test-btn');
-  if(!st || !on || !test) return;
-  on.style.display = 'none'; test.style.display = 'none';
+  if(!st || !on) return;
+  on.style.display = 'none';
   if(_notifIsIosTab()){
     st.textContent = 'On iPhone, first add Preparing You to your Home Screen (Share → Add to Home Screen), open it from there, then turn notifications on here.';
     return;
@@ -2703,7 +2702,6 @@ async function _refreshNotifSetting(){
   try { const reg = await navigator.serviceWorker.ready; sub = await reg.pushManager.getSubscription(); } catch(_){}
   if(Notification.permission === 'granted' && sub){
     st.textContent = 'On for this device. You\u2019ll be alerted to new messages and when the Townhall goes live.';
-    test.style.display = 'inline-block';
     _subscribeToPush().catch(()=>{});   // keep the server's copy fresh
     return;
   }
@@ -2722,17 +2720,6 @@ async function turnOnNotifications(){
   } catch(e){ if(st) st.textContent = 'Could not turn on notifications: ' + (e && e.message || e); return; }
   _refreshNotifSetting();
 }
-async function sendTestNotification(){
-  const st = document.getElementById('notif-status');
-  try {
-    const r = await fetch(_SERVER_URL + '/push/test', { method:'POST', headers: await _authHeaders(), body: '{}' });
-    const j = await r.json().catch(()=>({}));
-    if(r.ok && j.delivered > 0) st.textContent = 'Test sent. It should appear on this device in a few seconds.';
-    else if(r.ok) { st.textContent = 'The test didn\u2019t reach this device. Turning notifications on again…'; await turnOnNotifications(); }
-    else st.textContent = 'Could not send a test right now.';
-  } catch(e){ st.textContent = 'Could not send a test right now.'; }
-}
-
 // ── Delete account ────────────────────────────────────────────────────────
 // Irreversible: a confirmed POST to /account/delete removes the auth user,
 // which cascades every prep_* row server-side. The Delete button stays locked

@@ -1713,7 +1713,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.79', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.80', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1729,7 +1729,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.79', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.80', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -1821,16 +1821,6 @@ const server = http.createServer(async (req, res) => {
       }, { onConflict: 'endpoint' })
       if (error) return send(res, 500, { error: error.message })
       return send(res, 200, { ok: true })
-    }
-
-    // Member-triggered test from Profile → Notifications. Sends one push to the
-    // caller's own devices and reports how many accepted it, so a member can
-    // see straight away whether alerts reach this phone.
-    if (req.method === 'POST' && req.url === '/push/test') {
-      const v = await verifyToken(req)
-      if (v.error) return send(res, v.status, { error: v.error })
-      const delivered = await pushToUser(v.uid, { icon: '🔔', text: 'Notifications are working on this device.', action: { type: 'page', page: 'home' } })
-      return send(res, 200, { ok: true, delivered })
     }
 
     if (req.method === 'POST' && req.url === '/push/unsubscribe') {
