@@ -1713,7 +1713,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.77', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.78', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1729,7 +1729,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.77', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.78', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3439,6 +3439,15 @@ async function runTownhallReminders() {
     if (!ths || !ths.length) return
 
     for (const th of ths) {
+      // Claim before sending, same reason as runTownhallAnnouncements: a send
+      // loop longer than the minute tick must not be picked up twice.
+      const { data: claimed, error: claimErr } = await sb.from('prep_townhalls')
+        .update({ reminder_sent_at: new Date().toISOString() })
+        .eq('id', th.id).is('reminder_sent_at', null)
+        .select('id')
+      if (claimErr) { console.warn('[townhall-cron] claim failed', claimErr); continue }
+      if (!claimed || !claimed.length) continue
+
       const minsAway = Math.max(1, Math.round((new Date(th.scheduled_at).getTime() - Date.now()) / 60000))
       const title = th.title || 'Weekly Townhall'
       const text = `🎙 ${title} starts in ${minsAway} minutes` + (th.topic ? ` — ${th.topic}` : '')
@@ -3473,7 +3482,6 @@ Open Preparing You: https://preparingyou.app`
         }
       }
 
-      await sb.from('prep_townhalls').update({ reminder_sent_at: new Date().toISOString() }).eq('id', th.id)
       console.log(`[townhall-cron] sent reminders for townhall ${th.id} to ${list.length} users`)
     }
   } catch (e) {
@@ -3497,6 +3505,19 @@ async function runTownhallAnnouncements() {
     if (!ths || !ths.length) return
 
     for (const th of ths) {
+      // Claim the townhall BEFORE sending. The send loop can run longer than a
+      // minute (one email per member, paced), and announcements can be started
+      // from several places (the minute tick, recurrence creating a row, the
+      // admin button). Stamping announced_at only at the end let the next tick
+      // see "not announced" mid-loop and email everyone a second time. The
+      // conditional update means exactly one caller wins the claim.
+      const { data: claimed, error: claimErr } = await sb.from('prep_townhalls')
+        .update({ announced_at: new Date().toISOString() })
+        .eq('id', th.id).is('announced_at', null)
+        .select('id')
+      if (claimErr) { console.warn('[townhall-announce] claim failed', claimErr); continue }
+      if (!claimed || !claimed.length) continue   // another run already announced it
+
       const title = th.title || 'Weekly Townhall'
       const text = `🎙 New townhall set: ${title}` + (th.topic ? ` — ${th.topic}` : '')
 
@@ -3529,7 +3550,6 @@ Open Preparing You: https://preparingyou.app`
         }
       }
 
-      await sb.from('prep_townhalls').update({ announced_at: new Date().toISOString() }).eq('id', th.id)
       console.log(`[townhall-announce] announced townhall ${th.id} to ${list.length} users`)
     }
   } catch (e) {
