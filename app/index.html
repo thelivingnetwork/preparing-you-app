@@ -163,6 +163,14 @@
         <label class="prof-label">Email</label>
         <input id="prof-email" class="prof-input" type="email" disabled style="opacity:.6;cursor:not-allowed">
         <div style="font-size:11px;color:var(--walnut-mid);margin:-6px 2px 16px">Email is your sign-in and can't be changed here.</div>
+        <label class="prof-label">Notifications</label>
+        <div id="notif-box" style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:16px;background:var(--parch)">
+          <div id="notif-status" style="font-size:13px;color:var(--walnut);line-height:1.5">Checking…</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" id="notif-on-btn" class="pcm-pick" style="display:none;padding:8px 14px;font-size:12px" onclick="turnOnNotifications()">Turn on</button>
+            <button type="button" id="notif-test-btn" class="pcm-pick" style="display:none;padding:8px 14px;font-size:12px" onclick="sendTestNotification()">Send a test</button>
+          </div>
+        </div>
         <div id="profile-msg" style="display:none;font-size:13px;margin:0 2px 12px"></div>
         <button id="profile-save-btn" class="pcm-pick" style="width:100%;padding:12px;font-size:12px" onclick="saveProfile()">Save changes</button>
         <button class="link-btn" style="width:100%;margin-top:14px;color:var(--terra)" onclick="closeProfile();signOut()">Sign out</button>

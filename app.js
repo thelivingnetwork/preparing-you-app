@@ -2306,7 +2306,14 @@ async function _maybeOfferPushPrompt() {
   if (Notification.permission === 'denied') return;
   // Soft prompt — don't auto-fire the browser dialog; require a tap so iOS
   // counts it as a user gesture (required on iOS Safari).
-  if (localStorage.getItem('pp_push_dismissed') === '1') return;
+  // "Not now" snoozes for two weeks. It used to hide the prompt forever
+  // (pp_push_dismissed), and with no setting to turn alerts on later most
+  // members ended up with none; that old flag is deliberately ignored so
+  // everyone who dismissed it is asked once more.
+  try {
+    const until = parseInt(localStorage.getItem('pp_push_snooze_until') || '0', 10);
+    if (until && Date.now() < until) return;
+  } catch (_) {}
   _renderPushBanner();
 }
 
@@ -2315,8 +2322,8 @@ function _renderPushBanner() {
   const div = document.createElement('div');
   div.id = 'push-banner';
   div.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;background:var(--teal);color:var(--cream);border:1px solid var(--teal-deep);border-radius:12px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4';
-  div.innerHTML = '<div style="flex:1">Want a badge on your home-screen icon when you have new notifications?</div>' +
-    '<button id="push-banner-yes" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer">Enable</button>' +
+  div.innerHTML = '<div style="flex:1">Turn on notifications to hear about new messages and when the Townhall goes live.</div>' +
+    '<button id="push-banner-yes" style="background:var(--terra);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:500;cursor:pointer">Turn on</button>' +
     '<button id="push-banner-no" style="background:transparent;color:var(--cream);border:1px solid var(--cream);border-radius:8px;padding:8px 10px;font-family:inherit;cursor:pointer">Not now</button>';
   document.body.appendChild(div);
   document.getElementById('push-banner-yes').onclick = async () => {
@@ -2327,7 +2334,7 @@ function _renderPushBanner() {
     } catch(e) { console.warn('push prompt', e); }
   };
   document.getElementById('push-banner-no').onclick = () => {
-    localStorage.setItem('pp_push_dismissed', '1');
+    try { localStorage.setItem('pp_push_snooze_until', String(Date.now() + 14 * 86400000)); } catch (_) {}
     div.remove();
   };
 }
@@ -2660,8 +2667,71 @@ function openProfile(){
   document.getElementById('prof-email').value = currentUser.email || '';
   const msg = document.getElementById('profile-msg'); msg.style.display = 'none';
   document.getElementById('profile-overlay').style.display = 'block';
+  _refreshNotifSetting();
 }
 function closeProfile(){ document.getElementById('profile-overlay').style.display = 'none'; }
+
+// ── Profile → Notifications ─────────────────────────────────────────────
+// Lets a member see whether alerts reach this device and turn them on at any
+// time (the first-run banner is easy to dismiss). Push is per device, so the
+// state shown is for the phone or browser in hand.
+function _notifIsIosTab(){
+  const ua = navigator.userAgent || '';
+  const ios = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  return ios && !standalone;
+}
+async function _refreshNotifSetting(){
+  const st = document.getElementById('notif-status');
+  const on = document.getElementById('notif-on-btn');
+  const test = document.getElementById('notif-test-btn');
+  if(!st || !on || !test) return;
+  on.style.display = 'none'; test.style.display = 'none';
+  if(_notifIsIosTab()){
+    st.textContent = 'On iPhone, first add Preparing You to your Home Screen (Share → Add to Home Screen), open it from there, then turn notifications on here.';
+    return;
+  }
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){
+    st.textContent = 'This browser can\u2019t show notifications. Try the installed app or Chrome.';
+    return;
+  }
+  if(Notification.permission === 'denied'){
+    st.textContent = 'Notifications are blocked for Preparing You on this device. Turn them on in your phone or browser settings (iPhone: Settings → Notifications → Preparing You; Android: press and hold the app icon → App info → Notifications), then come back here.';
+    return;
+  }
+  let sub = null;
+  try { const reg = await navigator.serviceWorker.ready; sub = await reg.pushManager.getSubscription(); } catch(_){}
+  if(Notification.permission === 'granted' && sub){
+    st.textContent = 'On for this device. You\u2019ll be alerted to new messages and when the Townhall goes live.';
+    test.style.display = 'inline-block';
+    _subscribeToPush().catch(()=>{});   // keep the server's copy fresh
+    return;
+  }
+  st.textContent = 'Off for this device. Turn on to hear about new messages and when the Townhall goes live.';
+  on.style.display = 'inline-block';
+}
+async function turnOnNotifications(){
+  const st = document.getElementById('notif-status');
+  try {
+    const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if(perm === 'granted'){
+      await _subscribeToPush();
+      try { localStorage.removeItem('pp_push_snooze_until'); } catch(_){}
+      const b = document.getElementById('push-banner'); if(b) b.remove();
+    }
+  } catch(e){ if(st) st.textContent = 'Could not turn on notifications: ' + (e && e.message || e); return; }
+  _refreshNotifSetting();
+}
+async function sendTestNotification(){
+  const st = document.getElementById('notif-status');
+  try {
+    const r = await fetch(_SERVER_URL + '/push/test', { method:'POST', headers: await _authHeaders(), body: '{}' });
+    const j = await r.json().catch(()=>({}));
+    if(r.ok && j.delivered > 0) st.textContent = 'Test sent. It should appear on this device in a few seconds.';
+    else if(r.ok) { st.textContent = 'The test didn\u2019t reach this device. Turning notifications on again…'; await turnOnNotifications(); }
+    else st.textContent = 'Could not send a test right now.';
+  } catch(e){ st.textContent = 'Could not send a test right now.'; }
+}
 
 // ── Delete account ────────────────────────────────────────────────────────
 // Irreversible: a confirmed POST to /account/delete removes the auth user,
