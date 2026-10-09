@@ -10,6 +10,12 @@
 //   everyone        mic on/off (joins muted), raise hand, react, chat, leave
 //   host + co-host  mute one person, mute everyone, remove someone, lower a hand
 //   host only       make or unmake a co-host, end the townhall
+//
+// Muting locks the mic: the muted person can't unmute themselves, and only
+// whoever muted them can unmute them (a host can step in once that person has
+// left). Hosts can never be muted. The lock is Daily's send permission, set by
+// the muter's app and carried on rejoin tokens; who holds each lock is kept by
+// the server (/townhall/mute) and shared over app messages.
 // "Host" = Daily meeting owner (prep_townhall_hosts). "Co-host" = a member a
 // host promoted, which gives them Daily's participant-admin permission.
 //
@@ -74,6 +80,33 @@ function _thMicOn(p){
 }
 function _thMe(){ return _th && _th.call ? _th.call.participants().local : null; }
 
+// Daily's send permission — false once a moderator has locked this person's mic.
+function _thCanSpeak(p){
+  const c = p && p.permissions && p.permissions.canSend;
+  if(c === undefined || c === true) return true;
+  if(!c) return false;
+  return (typeof c.has === 'function') ? c.has('audio') : (Array.isArray(c) && c.includes('audio'));
+}
+// Who muted this person, from the server's lock list: {by, name} or null.
+function _thLockFor(p){
+  if(!_th || !p || p.owner || !p.user_id) return null;
+  const L = _th.locks || {};
+  const uid = String(p.user_id);
+  if(L.people && L.people[uid]) return L.people[uid];
+  const r = L.room;
+  if(r && r.by !== uid && !(r.allow || []).includes(uid)) return r;
+  return null;
+}
+function _thHere(uid){
+  return !!(_th && _th.call && Object.values(_th.call.participants()).some(p => String(p.user_id) === String(uid)));
+}
+// You may undo a lock you set, or — as a host — one whose muter has gone.
+function _thMayUnlock(lock){
+  const me = _thMe();
+  if(!lock || !me) return false;
+  return String(lock.by) === String(me.user_id) || (me.owner && !_thHere(lock.by));
+}
+
 // ── Opening and closing ────────────────────────────────────────────
 // j = the /townhall/join (or /townhall/start) response.
 async function openTownhallRoom(j){
@@ -108,7 +141,8 @@ function _thBuild(j){
   _th = {
     call: null, title: j.title || 'Weekly townhall', topic: j.topic || '',
     fallbackUrl: j.url || '', chat: [], unread: 0, sig: '', ended: false,
-    lastReact: 0, wakeLock: null, leaving: false, speaking: new Set()
+    lastReact: 0, wakeLock: null, leaving: false, speaking: new Set(),
+    locks: j.locks || { room: null, people: {} }, enforced: {}
   };
   let el = document.getElementById('th-room');
   if(el) el.remove();
@@ -195,7 +229,7 @@ function _thFlash(text){
 
 // ── Daily events ───────────────────────────────────────────────────
 function _thWire(call){
-  const rerender = () => _thRender();
+  const rerender = () => { _thEnforceLocks(); _thRender(); };
   call.on('participant-joined', rerender);
   call.on('participant-updated', rerender);
   call.on('participant-left', ev => {
@@ -278,6 +312,14 @@ function _thOnMessage(d, fromId){
     _th.ended = true;
     leaveTownhallRoom('You were removed from the townhall.');
   }
+  else if(d.t === 'locks' && _thIsAdmin(from) && d.s && typeof d.s === 'object'){
+    _th.locks = d.s;
+    _th.sig = '';
+    _thRender();
+  }
+  else if(d.t === 'unlocked' && me && (d.to === me.session_id || d.to === '*') && _thIsAdmin(from)){
+    _thFlash(d.to === '*' ? 'Everyone can unmute again.' : 'You’ve been unmuted. Tap the mic to speak.');
+  }
   else if(d.t === 'end' && from && from.owner){
     _th.ended = true;
     leaveTownhallRoom('The townhall has ended.');
@@ -296,13 +338,20 @@ function _thRender(){
   if(!_th || !_th.call) return;
   const list = _thList();
   const me = _thMe();
-  const sig = list.map(p => [p.session_id, p.user_name, (p.userData || {}).av, (p.userData || {}).hand ? 1 : 0, _thRole(p), _thMicOn(p) ? 1 : 0].join('|')).join(';');
+  const sig = list.map(p => [p.session_id, p.user_name, (p.userData || {}).av, (p.userData || {}).hand ? 1 : 0, _thRole(p), _thMicOn(p) ? 1 : 0, _thCanSpeak(p) ? 1 : 0].join('|')).join(';');
   const sub = document.getElementById('th-sub');
   if(sub) sub.textContent = (_th.topic ? _th.topic + ' · ' : '') + list.length + ' here';
   if(me){
     const mic = document.getElementById('th-mic');
-    const on = _thMicOn(me);
-    if(mic){ mic.innerHTML = _thSvg(on ? 'mic' : 'mic-off'); mic.classList.toggle('on', on); mic.setAttribute('aria-label', on ? 'Mute' : 'Unmute'); }
+    const locked = !_thCanSpeak(me);
+    if(locked && _thMicOn(me)) _th.call.setLocalAudio(false);
+    const on = !locked && _thMicOn(me);
+    if(mic){
+      mic.innerHTML = _thSvg(locked ? 'lock' : (on ? 'mic' : 'mic-off'));
+      mic.classList.toggle('on', on);
+      mic.classList.toggle('locked', locked);
+      mic.setAttribute('aria-label', locked ? 'Muted by a moderator' : (on ? 'Mute' : 'Unmute'));
+    }
     const hand = document.getElementById('th-hand');
     if(hand) hand.classList.toggle('on', !!(me.userData || {}).hand);
   }
@@ -330,7 +379,8 @@ function _thRender(){
     const avi = t.querySelector('.th-avi');
     if(avi.dataset.k !== avKey){ avi.dataset.k = avKey; avi.innerHTML = _avInner({ avatar_url: av, name: p.user_name }); }
     t.querySelector('.th-badge-slot').innerHTML = ud.hand ? '<span class="th-badge">✋</span>'
-      : (!_thMicOn(p) ? '<span class="th-badge">' + _thSvg('mic-off', 12) + '</span>' : '');
+      : (!_thCanSpeak(p) ? '<span class="th-badge th-badge-lock">' + _thSvg('lock', 12) + '</span>'
+      : (!_thMicOn(p) ? '<span class="th-badge">' + _thSvg('mic-off', 12) + '</span>' : ''));
     t.querySelector('.th-name').textContent = p.local ? (p.user_name || 'You') + ' (you)' : (p.user_name || 'Guest');
     t.querySelector('.th-role').textContent = _thRole(p);
     t.classList.toggle('speaking', _th.speaking.has(sid) && _thMicOn(p));
@@ -365,6 +415,11 @@ function _thToggleMic(){
   if(!_th || !_th.call) return;
   const me = _thMe();
   const on = !_thMicOn(me);
+  if(on && !_thCanSpeak(me)){
+    const lock = _thLockFor(me);
+    _thFlash((lock && lock.name ? lock.name : 'A moderator') + ' muted you. Raise your hand to ask to speak.');
+    return;
+  }
   _th.call.setLocalAudio(on);
   if(on && (me.userData || {}).hand) _thSetHand(false); // speaking lowers your hand, like Spaces
 }
@@ -467,7 +522,12 @@ function _thOpenPerson(sid){
       : '<button class="th-row" onclick="_thSetCohost(\'' + _esc(sid) + '\', true)">Make co-host</button>';
   }
   if(ud.hand) html += '<button class="th-row" onclick="_thLowerHand(\'' + _esc(sid) + '\')">Lower hand</button>';
-  if(_thMicOn(p)) html += '<button class="th-row" onclick="_thMute(\'' + _esc(sid) + '\')">Mute</button>';
+  if(!p.owner){   // hosts can't be muted
+    const lock = _thLockFor(p);
+    if(!lock) html += '<button class="th-row" onclick="_thMute(\'' + _esc(sid) + '\')">Mute</button>';
+    else if(_thMayUnlock(lock)) html += '<button class="th-row" onclick="_thUnmute(\'' + _esc(sid) + '\')">Unmute</button>';
+    else html += '<div class="th-row th-row-note">Muted by ' + _esc(lock.name || 'a moderator') + '</div>';
+  }
   if(!p.owner) html += '<button class="th-row danger" onclick="_thRemove(\'' + _esc(sid) + '\')">Remove from townhall</button>';
   _thSheet(html);
 }
@@ -475,7 +535,12 @@ function _thOpenPerson(sid){
 function _thOpenRoomMenu(){
   const me = _thMe();
   let html = _thSheetHead('Townhall');
-  if(_thIsAdmin(me)) html += '<button class="th-row" onclick="_thMuteAll()">Mute everyone</button>';
+  if(_thIsAdmin(me)){
+    const room = _th && _th.locks && _th.locks.room;
+    if(!room) html += '<button class="th-row" onclick="_thMuteAll()">Mute everyone</button>';
+    else if(_thMayUnlock(room)) html += '<button class="th-row" onclick="_thUnmuteAll()">Unmute everyone</button>';
+    else html += '<div class="th-row th-row-note">Everyone muted by ' + _esc(room.name || 'a moderator') + '</div>';
+  }
   if(me && me.owner) html += '<button class="th-row danger" onclick="_thEnd()">End townhall for everyone</button>';
   if(_th && _th.fallbackUrl) html += '<button class="th-row" onclick="_thOpenFallback()">Trouble hearing? Open in browser</button>';
   _thSheet(html);
@@ -492,9 +557,11 @@ async function _thSetCohost(sid, on){
     if(p.user_id){
       const r = await fetch(_SERVER_URL + '/townhall/cohost', {
         method: 'POST', headers: await _authHeaders(),
-        body: JSON.stringify({ targetUserId: p.user_id, on: !!on })
+        body: JSON.stringify({ targetUserId: p.user_id, on: !!on, userName: (_thMe() || {}).user_name })
       });
       if(!r.ok) throw new Error('not allowed');
+      const j = await r.json().catch(() => ({}));
+      if(j.locks){ _th.locks = j.locks; _th.sig = ''; _th.call.sendAppMessage({ t: 'locks', s: j.locks }, '*'); }
     }
     _th.call.updateParticipant(sid, { updatePermissions: { canAdmin: on ? ['participants'] : [] } });
     _thFlash(on ? (p.user_name || 'They') + ' is now a co-host.' : (p.user_name || 'They') + ' is no longer a co-host.');
@@ -504,14 +571,78 @@ function _thLowerHand(sid){
   _th.call.sendAppMessage({ t: 'lower', to: sid }, sid);
   _thCloseSheet();
 }
-function _thMute(sid){
-  _th.call.updateParticipant(sid, { setAudio: false });
-  _thCloseSheet();
+// Record the lock with the server, then share the new lock list with the room.
+// Returns true when the server agreed.
+async function _thSetLock(body){
+  const me = _thMe();
+  try {
+    const r = await fetch(_SERVER_URL + '/townhall/mute', {
+      method: 'POST', headers: await _authHeaders(),
+      body: JSON.stringify(Object.assign({ userName: me && me.user_name }, body))
+    });
+    const j = await r.json().catch(() => ({}));
+    if(j.locks && _th){ _th.locks = j.locks; _th.sig = ''; _th.call.sendAppMessage({ t: 'locks', s: j.locks }, '*'); }
+    if(r.status === 409){ _thFlash('Already muted by ' + (j.by || 'another moderator') + '.'); _thRender(); return false; }
+    if(!r.ok) throw new Error('not allowed');
+    return true;
+  } catch(e){ _thFlash('Could not change that. Try again.'); return false; }
 }
-function _thMuteAll(){
-  _th.call.updateParticipants({ '*': { setAudio: false } });
+const _TH_LOCK = { setAudio: false, updatePermissions: { canSend: false } };
+const _TH_UNLOCK = { updatePermissions: { canSend: true } };
+
+async function _thMute(sid){
+  const p = _thPart(sid);
   _thCloseSheet();
+  if(!p || p.owner || !await _thSetLock({ targetUserId: p.user_id, on: true })) return;
+  _th.call.updateParticipant(sid, _TH_LOCK);
+  _thRender();
+}
+async function _thUnmute(sid){
+  const p = _thPart(sid);
+  _thCloseSheet();
+  if(!p || !await _thSetLock({ targetUserId: p.user_id, on: false })) return;
+  if(!_thLockFor(p)){
+    _th.call.updateParticipant(sid, _TH_UNLOCK);
+    _th.call.sendAppMessage({ t: 'unlocked', to: sid }, sid);
+  }
+  _thRender();
+}
+// Locks everyone except hosts and you — and anyone who joins afterwards.
+async function _thMuteAll(){
+  _thCloseSheet();
+  if(!await _thSetLock({ all: true, on: true })) return;
+  const ups = {};
+  _thList().forEach(p => { if(!p.local && !p.owner) ups[p.session_id] = _TH_LOCK; });
+  if(Object.keys(ups).length) _th.call.updateParticipants(ups);
   _thFlash('Everyone else is muted.');
+  _thRender();
+}
+async function _thUnmuteAll(){
+  _thCloseSheet();
+  if(!await _thSetLock({ all: true, on: false })) return;
+  const ups = {};
+  _thList().forEach(p => { if(!p.local && !p.owner && !_thLockFor(p) && !_thCanSpeak(p)) ups[p.session_id] = _TH_UNLOCK; });
+  if(Object.keys(ups).length) _th.call.updateParticipants(ups);
+  _th.call.sendAppMessage({ t: 'unlocked', to: '*' }, '*');
+  _thFlash('Everyone can unmute again.');
+  _thRender();
+}
+// Keep locks in force for people who join (or rejoin) after you muted them.
+// Only the lock's holder does this (or a host, once the holder has gone), so
+// two moderators never fight over someone's permission.
+function _thEnforceLocks(){
+  if(!_th || !_th.call) return;
+  const me = _thMe();
+  if(!_thIsAdmin(me)) return;
+  const now = Date.now();
+  _thList().forEach(p => {
+    if(p.local || p.owner || !_thCanSpeak(p)) return;
+    const lock = _thLockFor(p);
+    if(!lock || !_thMayUnlock(lock)) return;
+    if(now - (_th.enforced[p.session_id] || 0) < 3000) return;
+    _th.enforced[p.session_id] = now;
+    _th.call.updateParticipant(p.session_id, _TH_LOCK);
+  });
 }
 async function _thRemove(sid){
   const p = _thPart(sid);
@@ -560,6 +691,7 @@ function _thSvg(name, size){
     'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M9 9v2a3 3 0 0 0 5.1 2.1M15 9.3V5a3 3 0 0 0-5.9-.6"/><path d="M17 16.9A7 7 0 0 1 5 11v-1m14 0v1a7 7 0 0 1-.1 1.2"/><line x1="12" y1="18" x2="12" y2="22"/>',
     'smile': '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>',
     'chat': '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z"/>',
+    'lock': '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     'dots': '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'
   };
   return open + (paths[name] || '') + '</svg>';

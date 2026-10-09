@@ -397,6 +397,8 @@
   .th-round{position:relative;width:50px;height:50px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--walnut);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;padding:0}
   .th-round.on{background:var(--teal);border-color:var(--teal);color:#fff}
   #th-hand.on{background:var(--gold);border-color:var(--gold)}
+  .th-round.locked{color:#c0392b;border-color:#e3b3ad}
+  .th-badge-lock{color:#c0392b}
   .th-unread{display:none;position:absolute;top:4px;right:4px;width:10px;height:10px;border-radius:50%;background:var(--badge);border:2px solid var(--surface)}
   .th-unread.show{display:block}
   .th-leave{height:44px;padding:0 20px;border-radius:22px;border:none;background:#c0392b;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
@@ -408,6 +410,7 @@
   .th-x{border:none;background:none;font-size:26px;line-height:1;color:var(--walnut-mid);cursor:pointer;padding:0 4px}
   .th-row{display:block;width:100%;text-align:left;padding:13px 4px;border:none;border-top:1px solid var(--line);background:none;color:var(--walnut);font-size:16px;cursor:pointer}
   .th-row.danger{color:#c0392b}
+  .th-row-note{cursor:default;color:var(--walnut-mid);font-size:14.5px}
   .th-reacts{display:flex;justify-content:space-between;gap:4px}
   .th-react-btn{flex:1;font-size:30px;line-height:1;padding:10px 0;border:none;background:none;border-radius:12px;cursor:pointer}
   .th-react-btn:active{background:var(--terra-soft)}
