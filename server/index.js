@@ -1235,7 +1235,32 @@ const _thCohosts = new Map()   // townhall id -> Set(user id)
 const _thRemoved = new Map()   // townhall id -> Set(user id)
 function _thSet(map, id) { if (!map.has(id)) map.set(id, new Set()); return map.get(id) }
 
-async function dailyMintToken(roomName, { userName, isOwner, startRecording, userId, coHost }) {
+// Mic locks. When a host or co-host mutes someone (or the whole room), that
+// person can't unmute themselves; only whoever muted them can let them speak
+// again (or a host, once that person has left — the app enforces that part).
+// The lock is a Daily send permission, so it holds even against a modified
+// app, and it rides on the join token so leaving and rejoining doesn't escape
+// it. Hosts can never be locked.
+//   room:   'mute everyone' — locks everyone but hosts and the muter, including
+//           people who join later; `allow` = members the muter let back in.
+//   people: one member muted on their own.
+const _thLocks = new Map()     // townhall id -> { room: {by,name,allow:Set}|null, people: Map(uid -> {by,name}) }
+function _thLockState(id) { if (!_thLocks.has(id)) _thLocks.set(id, { room: null, people: new Map() }); return _thLocks.get(id) }
+function _thLockOf(id, uid) {
+  const s = _thLockState(id); uid = String(uid)
+  if (s.people.has(uid)) return s.people.get(uid)
+  if (s.room && s.room.by !== uid && !s.room.allow.has(uid)) return s.room
+  return null
+}
+function _thLockJson(id) {
+  const s = _thLockState(id)
+  return {
+    room: s.room ? { by: s.room.by, name: s.room.name, allow: [...s.room.allow] } : null,
+    people: Object.fromEntries([...s.people].map(([u, l]) => [u, { by: l.by, name: l.name }]))
+  }
+}
+
+async function dailyMintToken(roomName, { userName, isOwner, startRecording, userId, coHost, micLocked }) {
   const r = await fetch('https://api.daily.co/v1/meeting-tokens', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' },
@@ -1246,13 +1271,15 @@ async function dailyMintToken(roomName, { userName, isOwner, startRecording, use
     //
     // user_id ties the Daily participant to the member, so the in-app room can
     // remove the right person and keep them out. Everyone joins muted with no
-    // camera. A co-host's admin rights ride on the token so they survive a
-    // reconnect, which mints a fresh session.
+    // camera. A co-host's admin rights and a muted member's mic lock ride on
+    // the token so they survive a reconnect, which mints a fresh session.
     body: JSON.stringify({ properties: {
       room_name: roomName, user_name: userName || 'Guest', is_owner: !!isOwner,
       ...(userId ? { user_id: String(userId).slice(0, 36) } : {}),
       start_audio_off: true, start_video_off: true,
-      ...(coHost && !isOwner ? { permissions: { canAdmin: ['participants'] } } : {}),
+      ...(!isOwner && (coHost || micLocked) ? { permissions: {
+        ...(coHost ? { canAdmin: ['participants'] } : {}),
+        ...(micLocked ? { canSend: false } : {}) } } : {}),
       ...(startRecording ? { start_cloud_recording: true } : {}),
       exp: Math.floor(Date.now()/1000) + 3*3600 } })
   })
@@ -1713,7 +1740,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.80', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.81', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1729,7 +1756,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.80', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.81', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3257,7 +3284,7 @@ const server = http.createServer(async (req, res) => {
       const room = await dailyEnsureRoom(th.daily_room || 'preparing-you-townhall', { properties: { enable_recording: TOWNHALL_RECORDING_MODE } })
       const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', { userName, isOwner: true, startRecording: true, userId: v.uid })
       await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
-      return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token, isOwner: true, title: th.title, topic: th.topic })
+      return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token, isOwner: true, title: th.title, topic: th.topic, locks: _thLockJson(th.id) })
     }
 
     // Host makes a member a co-host (or takes it back). Recorded here so a
@@ -3267,13 +3294,55 @@ const server = http.createServer(async (req, res) => {
       const v = await verifyToken(req)
       if (v.error) return send(res, v.status, { error: v.error })
       if (!await isHost(v.uid)) return send(res, 403, { error: 'host_only' })
-      const { targetUserId, on } = await readJson(req)
+      const { targetUserId, on, userName } = await readJson(req)
       if (!targetUserId) return send(res, 400, { error: 'targetUserId required' })
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
       const set = _thSet(_thCohosts, th.id)
       if (on) set.add(String(targetUserId)); else set.delete(String(targetUserId))
-      return send(res, 200, { ok: true })
+      // A demoted co-host can't unmute anyone any more, so whoever they muted
+      // passes to the host who demoted them rather than staying stuck.
+      if (!on) {
+        const s = _thLockState(th.id), t = String(targetUserId)
+        const hand = (l) => { if (l && l.by === t) { l.by = v.uid; l.name = String(userName || 'the host').slice(0, 80) } }
+        hand(s.room); s.people.forEach(hand)
+      }
+      return send(res, 200, { ok: true, locks: _thLockJson(th.id) })
+    }
+
+    // Host or co-host mutes someone (targetUserId) or the whole room (all),
+    // locking their mic — or, with on:false, lets them speak again. Only the
+    // person who muted can undo it; a host may too (the app offers that only
+    // once the muter has left). The live Daily change happens in the caller's app.
+    if (req.method === 'POST' && req.url === '/townhall/mute') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { targetUserId, all, on, userName } = await readJson(req)
+      if (!targetUserId && !all) return send(res, 400, { error: 'targetUserId or all required' })
+      const th = await pickTownhall()
+      if (!th) return send(res, 404, { error: 'no townhall' })
+      const host = await isHost(v.uid)
+      if (!host && !_thSet(_thCohosts, th.id).has(v.uid)) return send(res, 403, { error: 'host_only' })
+      const s = _thLockState(th.id)
+      const mine = { by: v.uid, name: String(userName || 'A moderator').slice(0, 80) }
+      if (all) {
+        if (s.room && s.room.by !== v.uid && !host) return send(res, 409, { error: 'already_muted', by: s.room.name, locks: _thLockJson(th.id) })
+        if (on) s.room = { ...mine, allow: new Set() }
+        else s.room = null
+      } else {
+        const t = String(targetUserId)
+        if (await isHost(t)) return send(res, 403, { error: 'cannot_mute_host' })
+        const cur = _thLockOf(th.id, t)
+        if (cur && cur.by !== v.uid && !host) return send(res, 409, { error: 'already_muted', by: cur.name, locks: _thLockJson(th.id) })
+        if (on) {
+          s.people.set(t, mine)
+          if (s.room) s.room.allow.delete(t)
+        } else {
+          s.people.delete(t)
+          if (s.room && s.room.by !== t) s.room.allow.add(t)
+        }
+      }
+      return send(res, 200, { ok: true, locks: _thLockJson(th.id) })
     }
 
     // Host or co-host removes a member. They are refused a new token for the
@@ -3290,6 +3359,7 @@ const server = http.createServer(async (req, res) => {
       if (await isHost(targetUserId)) return send(res, 403, { error: 'cannot_remove_host' })
       _thSet(_thRemoved, th.id).add(String(targetUserId))
       _thSet(_thCohosts, th.id).delete(String(targetUserId))
+      _thLockState(th.id).people.delete(String(targetUserId))
       return send(res, 200, { ok: true })
     }
 
@@ -3300,6 +3370,7 @@ const server = http.createServer(async (req, res) => {
       const th = await pickTownhall()
       if (!th) return send(res, 404, { error: 'no townhall' })
       await sb.from('prep_townhalls').update({ ended_at: new Date().toISOString() }).eq('id', th.id)
+      _thLocks.delete(th.id)
       return send(res, 200, { ok: true })
     }
 
@@ -3319,14 +3390,15 @@ const server = http.createServer(async (req, res) => {
       // the recording — keeps "Replay last townhall" working for auto-opened calls.
       const token = await dailyMintToken(th.daily_room || 'preparing-you-townhall', {
         userName, isOwner: owner, startRecording: true, userId: v.uid,
-        coHost: _thSet(_thCohosts, th.id).has(v.uid)
+        coHost: _thSet(_thCohosts, th.id).has(v.uid),
+        micLocked: !owner && !!_thLockOf(th.id, v.uid)
       })
       // If a host joins the join endpoint while not yet live, treat that as starting it.
       if (!isLive && owner) {
         await sb.from('prep_townhalls').update({ live_at: new Date().toISOString(), ended_at: null }).eq('id', th.id)
       }
       // url = Daily's own page (the backup); roomUrl + token = the in-app room.
-      return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic, isOwner: owner })
+      return send(res, 200, { url: `${room.url}?t=${token}`, roomUrl: room.url, token, scheduled_at: th.scheduled_at, title: th.title, topic: th.topic, isOwner: owner, locks: _thLockJson(th.id) })
     }
 
     send(res, 404, { error: 'not_found' })
