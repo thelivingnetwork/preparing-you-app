@@ -211,6 +211,40 @@ test.describe('townhall room', () => {
     await expect(page.locator('#th-chat-list .th-att')).toHaveCount(2);   // the outside link got no attachment
   });
 
+  test('long-press on a circle just enlarges it; a tap still opens host options', async ({ page }) => {
+    await openRoom(page, true);
+    const box = await page.locator('.th-p[data-sid="s2"] .th-av').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#th-pop .th-zoom-name')).toHaveText('Ruth Adams');
+    await expect(page.locator('#th-sheet-wrap')).not.toHaveClass(/show/);   // no options menu
+    await page.locator('#th-pop .th-zoom').click();
+    await expect(page.locator('#th-pop')).not.toHaveClass(/show/);
+    await page.locator('.th-p[data-sid="s2"]').click();
+    await expect(page.locator('#th-sheet-wrap')).toHaveClass(/show/);
+  });
+
+  test('long-press on a shared file offers save, share and open', async ({ page }) => {
+    await openRoom(page, false);
+    await page.route('https://abc.supabase.co/**', (r) => r.fulfill({ status: 200, contentType: 'application/pdf', body: Buffer.from('%PDF-1.4') }));
+    await page.locator('#th-chat').click();
+    await page.evaluate((u) => __fire('app-message', { data: { t: 'chat', x: '', a: { u: u.replace('photo.png', 'agenda.pdf'), k: 'pdf', n: 'agenda.pdf' } }, fromId: 's1' }), SIGNED);
+    const box = await page.locator('#th-chat-list .th-att-file').boundingBox();
+    const popups = [];
+    page.on('popup', (p) => popups.push(p));
+    await page.mouse.move(box.x + 20, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    await expect(page.locator('#th-pop .th-menu .th-row')).toHaveText(['Save PDF', 'Share…', 'Open', 'Cancel']);
+    expect(popups.length).toBe(0);   // the long-press didn't also open the file
+    await page.locator('#th-pop .th-row', { hasText: 'Cancel' }).click();
+    await expect(page.locator('#th-pop')).not.toHaveClass(/show/);
+    await expect(page.locator('#th-sheet-wrap')).toHaveClass(/show/);   // still in chat
+  });
+
   test('chat sends and shows messages', async ({ page }) => {
     await openRoom(page, false);
     await page.evaluate(() => __fire('app-message', { data: { t: 'chat', x: 'Amen' }, fromId: 's1' }));

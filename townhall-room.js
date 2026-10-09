@@ -171,6 +171,7 @@ function _thBuild(j){
     '<div class="th-status" id="th-status"></div>' +
     '<div class="th-grid" id="th-grid"></div>' +
     '<div class="th-sheet-wrap" id="th-sheet-wrap" onclick="if(event.target===this)_thCloseSheet()"><div class="th-sheet" id="th-sheet"></div></div>' +
+    '<div class="th-pop" id="th-pop" onclick="if(event.target===this)_thClosePop()"></div>' +
     '<div class="th-bar">' +
       '<button class="th-round" id="th-mic" aria-label="Unmute" onclick="_thToggleMic()">' + _thSvg('mic-off') + '</button>' +
       '<button class="th-round" id="th-hand" aria-label="Raise hand" onclick="_thToggleHand()">✋</button>' +
@@ -180,7 +181,58 @@ function _thBuild(j){
     '</div>' +
     '<div id="th-audio" style="display:none"></div>';
   document.body.appendChild(el);
+  // Long-press a circle to see it big. (The phone's own long-press menu —
+  // save/copy the photo — is switched off on circles in CSS.)
+  _thHold(el.querySelector('#th-grid'), '.th-p', t => _thZoomPerson(t.dataset.sid));
   _thShow();
+}
+
+// Long-press, delegated: after ~half a second without moving, run onLong(el)
+// and swallow the tap that would otherwise follow when the finger lifts.
+function _thHold(container, selector, onLong){
+  if(!container) return;
+  let timer = null, x = 0, y = 0, fired = false;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  container.addEventListener('pointerdown', ev => {
+    const el = ev.target.closest(selector);
+    if(!el || !container.contains(el)) return;
+    fired = false; x = ev.clientX; y = ev.clientY;
+    cancel();
+    timer = setTimeout(() => { timer = null; fired = true; onLong(el); }, 450);
+  });
+  container.addEventListener('pointermove', ev => { if(timer && Math.hypot(ev.clientX - x, ev.clientY - y) > 10) cancel(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => container.addEventListener(n, cancel));
+  container.addEventListener('click', ev => {
+    if(fired && ev.target.closest(selector)){ ev.preventDefault(); ev.stopPropagation(); fired = false; }
+  }, true);
+  container.addEventListener('contextmenu', ev => { if(ev.target.closest(selector)) ev.preventDefault(); });
+}
+
+// A small layer above the room (and above the chat sheet) for the enlarged
+// circle and the attachment menu.
+function _thPop(html, cls){
+  const pop = document.getElementById('th-pop');
+  if(!pop) return null;
+  pop.className = 'th-pop show' + (cls ? ' ' + cls : '');
+  pop.innerHTML = html;
+  return pop;
+}
+function _thClosePop(){
+  const pop = document.getElementById('th-pop');
+  if(pop){ pop.className = 'th-pop'; pop.innerHTML = ''; }
+  if(_th) _th.popFile = null;
+}
+
+function _thZoomPerson(sid){
+  const p = _thPart(sid);
+  if(!p) return;
+  const av = _thSafeAv((p.userData || {}).av);
+  const role = _thRole(p);
+  _thPop('<div class="th-zoom" onclick="_thClosePop()">' +
+    '<div class="th-zoom-av">' + _avInner({ avatar_url: av, name: p.user_name }) + '</div>' +
+    '<div class="th-zoom-name">' + _esc(p.user_name || 'Guest') + '</div>' +
+    (role ? '<div class="th-zoom-role">' + role + '</div>' : '') +
+  '</div>', 'dim');
 }
 
 function _thShow(){
@@ -191,6 +243,7 @@ function _thShow(){
 
 async function leaveTownhallRoom(msg){
   if(!_th) return;
+  _thClosePop();
   const t = _th;
   t.leaving = true;
   try { if(t.call){ await t.call.leave(); t.call.destroy(); } } catch(_){}
@@ -502,7 +555,10 @@ function _thOpenChat(){
     '<div class="th-chat-note">Chat and shared files are for this townhall only and are deleted when it ends.</div>');
   if(_th.uploading) _thUploadStatus(_th.uploading);
   const list = document.getElementById('th-chat-list');
-  if(list) list.scrollTop = list.scrollHeight;
+  if(list){
+    list.scrollTop = list.scrollHeight;
+    _thHold(list, '.th-att', el => _thFileMenu(el));
+  }
 }
 function _thChatHtml(){
   if(!_th.chat.length) return '<div class="th-chat-empty">No messages yet.</div>';
@@ -514,9 +570,10 @@ function _thMsgHtml(m){
 function _thAttHtml(a){
   if(!a) return '';
   const u = _esc(a.u), n = _esc(a.n || '');
-  if(a.k === 'img') return '<a class="th-att" href="' + u + '" target="_blank" rel="noopener"><img class="th-att-img" src="' + u + '" alt="' + n + '" onload="_thChatPin()"></a>';
-  if(a.k === 'vid') return '<video class="th-att th-att-vid" src="' + u + '" controls playsinline preload="metadata" onloadedmetadata="_thChatPin()"></video>';
-  return '<a class="th-att th-att-file" href="' + u + '" target="_blank" rel="noopener">' + _thSvg('file', 18) + '<span>' + (n || 'PDF') + '</span></a>';
+  const data = ' data-u="' + u + '" data-k="' + a.k + '" data-n="' + n + '"';
+  if(a.k === 'img') return '<a class="th-att"' + data + ' href="' + u + '" target="_blank" rel="noopener"><img class="th-att-img" src="' + u + '" alt="' + n + '" onload="_thChatPin()"></a>';
+  if(a.k === 'vid') return '<video class="th-att th-att-vid"' + data + ' src="' + u + '" controls playsinline preload="metadata" onloadedmetadata="_thChatPin()"></video>';
+  return '<a class="th-att th-att-file"' + data + ' href="' + u + '" target="_blank" rel="noopener">' + _thSvg('file', 18) + '<span>' + (n || 'PDF') + '</span></a>';
 }
 // Keep the newest message in view as photos and clips load and grow the list.
 function _thChatPin(){
@@ -552,6 +609,65 @@ function _thSendChat(){
   _thAddChat(me ? me.user_name : 'You', text, true);
   inp.value = '';
   inp.focus();
+}
+
+// Long-press a shared photo, clip or PDF: save it, share it, or open it.
+// The file is fetched as soon as the menu opens so Share/Save can hand it
+// over straight from the tap (phones refuse to share after a slow wait).
+const _TH_KIND_WORD = { img: 'photo', vid: 'video', pdf: 'PDF' };
+function _thFileMenu(el){
+  const a = _thSafeAtt({ u: el.dataset.u, k: el.dataset.k, n: el.dataset.n });
+  if(!a || !_th) return;
+  const word = _TH_KIND_WORD[a.k];
+  _th.popFile = { a, file: null };
+  const job = _th.popFile;
+  fetch(a.u).then(r => r.ok ? r.blob() : null).then(b => {
+    if(!b) return;
+    const ext = { img: '.jpg', vid: '.mp4', pdf: '.pdf' }[a.k];
+    const name = a.n || (word + ext);
+    job.file = new File([b], name, { type: b.type || '' });
+  }).catch(() => {});
+  _thPop('<div class="th-menu">' +
+    '<div class="th-menu-title">' + _esc(a.n || word) + '</div>' +
+    '<button class="th-row" onclick="_thFileSave()">Save ' + word + '</button>' +
+    '<button class="th-row" onclick="_thFileShare()">Share…</button>' +
+    '<button class="th-row" onclick="_thFileOpen()">Open</button>' +
+    '<button class="th-row th-menu-cancel" onclick="_thClosePop()">Cancel</button>' +
+  '</div>', 'dim');
+}
+function _thFileOpen(){
+  const j = _th && _th.popFile;
+  if(j) window.open(j.a.u, '_blank', 'noopener');
+  _thClosePop();
+}
+// On phones the share sheet is how you save to Photos or Files, so Save uses
+// it when it can take files; otherwise it downloads.
+function _thFileSave(){
+  const j = _th && _th.popFile;
+  if(!j) return;
+  if(!j.file){ _thFlash('Still getting the file — try again in a moment.'); return; }
+  if(navigator.canShare && navigator.canShare({ files: [j.file] }) && /iPhone|iPad|Android/i.test(navigator.userAgent)){
+    navigator.share({ files: [j.file] }).catch(() => {});
+  } else {
+    const url = URL.createObjectURL(j.file);
+    const link = document.createElement('a');
+    link.href = url; link.download = j.file.name;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  _thClosePop();
+}
+function _thFileShare(){
+  const j = _th && _th.popFile;
+  if(!j) return;
+  if(j.file && navigator.canShare && navigator.canShare({ files: [j.file] })){
+    navigator.share({ files: [j.file] }).catch(() => {});
+  } else if(navigator.share){
+    navigator.share({ title: j.a.n || 'Townhall file', url: j.a.u }).catch(() => {});
+  } else {
+    try { navigator.clipboard.writeText(j.a.u); _thFlash('Link copied.'); } catch(_){}
+  }
+  _thClosePop();
 }
 
 function _thUploadStatus(text, isError){
