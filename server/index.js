@@ -1260,6 +1260,48 @@ function _thLockJson(id) {
   }
 }
 
+// Townhall chat attachments: photos, short clips and PDFs. Files go to the
+// private message-attachments bucket under townhall/<townhall id>/<user id>/,
+// uploaded through a one-time signed upload URL (members can't write outside
+// their own folder directly), and everyone in the room gets a signed read link
+// over the live chat. Like the chat itself they don't outlast the townhall:
+// _thSweepFiles deletes a townhall's folder once it has ended. The bucket's own
+// 25 MB file limit applies.
+const TH_FILE_KINDS = {
+  'image/jpeg': 'img', 'image/png': 'img', 'image/gif': 'img', 'image/webp': 'img',
+  'video/mp4': 'vid', 'video/quicktime': 'vid', 'video/webm': 'vid',
+  'application/pdf': 'pdf'
+}
+const TH_FILE_MAX = 25 * 1024 * 1024
+const TH_FILES_PER_MEMBER = 30
+const _thFileCounts = new Map()   // townhall id -> Map(user id -> uploads)
+function _thFilePrefix(thId, uid) { return `townhall/${thId}/${uid}/` }
+
+let _thSweptAt = 0
+async function _thSweepFiles(force) {
+  if (!force && Date.now() - _thSweptAt < 10 * 60 * 1000) return
+  _thSweptAt = Date.now()
+  const bucket = sb.storage.from('message-attachments')
+  const { data: dirs, error } = await bucket.list('townhall', { limit: 1000 })
+  if (error || !dirs || !dirs.length) return
+  const liveFloor = new Date(Date.now() - TOWNHALL_AUTOCLOSE_MS).toISOString()
+  for (const d of dirs) {
+    const id = d.name
+    const { data: th } = await sb.from('prep_townhalls').select('live_at, ended_at').eq('id', id).maybeSingle()
+    const live = th && th.live_at && !th.ended_at && th.live_at >= liveFloor
+    if (live) continue
+    const { data: users } = await bucket.list(`townhall/${id}`, { limit: 1000 })
+    let n = 0
+    for (const u of users || []) {
+      const { data: files } = await bucket.list(`townhall/${id}/${u.name}`, { limit: 1000 })
+      const paths = (files || []).map(f => `townhall/${id}/${u.name}/${f.name}`)
+      if (paths.length) { await bucket.remove(paths); n += paths.length }
+    }
+    _thFileCounts.delete(id)
+    if (n) console.log(`[townhall-files] deleted ${n} chat file(s) from townhall ${id}`)
+  }
+}
+
 async function dailyMintToken(roomName, { userName, isOwner, startRecording, userId, coHost, micLocked }) {
   const r = await fetch('https://api.daily.co/v1/meeting-tokens', {
     method: 'POST',
@@ -1740,7 +1782,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.81', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.82', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1756,7 +1798,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.81', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.82', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -3371,7 +3413,58 @@ const server = http.createServer(async (req, res) => {
       if (!th) return send(res, 404, { error: 'no townhall' })
       await sb.from('prep_townhalls').update({ ended_at: new Date().toISOString() }).eq('id', th.id)
       _thLocks.delete(th.id)
+      _thSweepFiles(true).catch(e => console.warn('[townhall-files]', e && e.message))
       return send(res, 200, { ok: true })
+    }
+
+    // Chat attachment, step 1: check the file and hand back a one-time upload
+    // URL into this member's townhall folder.
+    if (req.method === 'POST' && req.url === '/townhall/attach') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { name, type, size } = await readJson(req)
+      const th = await pickTownhall()
+      if (!th || !th.live_at || th.ended_at) return send(res, 403, { error: 'not_live', message: 'The townhall isn’t live.' })
+      if (_thSet(_thRemoved, th.id).has(v.uid)) return send(res, 403, { error: 'removed' })
+      if (!TH_FILE_KINDS[type]) return send(res, 415, { error: 'type', message: 'You can share photos, short videos and PDFs.' })
+      if (!(size > 0) || size > TH_FILE_MAX) return send(res, 413, { error: 'size', message: 'That file is too large (max 25 MB).' })
+      if (!_thFileCounts.has(th.id)) _thFileCounts.set(th.id, new Map())
+      const counts = _thFileCounts.get(th.id)
+      const used = counts.get(v.uid) || 0
+      if (used >= TH_FILES_PER_MEMBER) return send(res, 429, { error: 'limit', message: 'You’ve shared the most files allowed in one townhall.' })
+      counts.set(v.uid, used + 1)
+      const safe = String(name || 'file').replace(/[^\w.\-]+/g, '_').slice(-80) || 'file'
+      const path = _thFilePrefix(th.id, v.uid) + Date.now() + '-' + safe
+      const { data, error } = await sb.storage.from('message-attachments').createSignedUploadUrl(path)
+      if (error || !data) return send(res, 500, { error: 'upload_url_failed' })
+      return send(res, 200, { path: data.path || path, token: data.token })
+    }
+
+    // Chat attachment, step 2: once uploaded, check what actually landed and
+    // return a read link everyone in the room can open until the townhall ends.
+    if (req.method === 'POST' && req.url === '/townhall/attach/done') {
+      const v = await verifyToken(req)
+      if (v.error) return send(res, v.status, { error: v.error })
+      const { path } = await readJson(req)
+      const th = await pickTownhall()
+      if (!th || !th.live_at || th.ended_at) return send(res, 403, { error: 'not_live' })
+      const prefix = _thFilePrefix(th.id, v.uid)
+      if (typeof path !== 'string' || !path.startsWith(prefix) || path.includes('..') || path.slice(prefix.length).includes('/')) {
+        return send(res, 400, { error: 'bad_path' })
+      }
+      const bucket = sb.storage.from('message-attachments')
+      const file = path.slice(prefix.length)
+      const { data: found } = await bucket.list(prefix.slice(0, -1), { search: file, limit: 5 })
+      const obj = (found || []).find(f => f.name === file)
+      const mime = obj && obj.metadata && obj.metadata.mimetype
+      const kind = TH_FILE_KINDS[mime]
+      if (!obj || !kind || !(obj.metadata.size <= TH_FILE_MAX)) {
+        if (obj) await bucket.remove([path])
+        return send(res, 415, { error: 'type', message: 'You can share photos, short videos and PDFs.' })
+      }
+      const { data: signed } = await bucket.createSignedUrl(path, 4 * 3600)
+      if (!signed || !signed.signedUrl) return send(res, 500, { error: 'sign_failed' })
+      return send(res, 200, { url: signed.signedUrl, kind })
     }
 
     if (req.method === 'POST' && req.url === '/townhall/join') {
@@ -3982,6 +4075,7 @@ async function runCronTick(source) {
     await runTownhallAnnouncements()
     await runTownhallAutoclose()
     await runTownhallRecurrence()
+    try { await _thSweepFiles() } catch (e) { console.warn('[townhall-files]', e && e.message) }
     // Watchdog runs last and swallows its own failures — alerting must never
     // be able to stop the townhall jobs.
     try { await runHealthWatch() } catch (e) { console.warn('[healthwatch]', e && e.message) }
