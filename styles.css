@@ -423,3 +423,13 @@
   .th-chat-form input{flex:1;min-width:0;height:42px;border:1px solid var(--line);border-radius:21px;padding:0 14px;background:var(--parch);color:var(--walnut);font-size:16px}
   .th-chat-form button{height:42px;padding:0 16px;border:none;border-radius:21px;background:var(--teal);color:#fff;font-weight:600;font-size:15px;cursor:pointer}
   .th-chat-note{margin-top:8px;font-size:12px;color:var(--walnut-soft)}
+  .th-attach{width:42px;flex:none;padding:0!important;display:flex;align-items:center;justify-content:center;background:var(--parch)!important;color:var(--walnut)!important;border:1px solid var(--line)!important}
+  .th-attach:disabled{opacity:.5}
+  .th-att{display:block;margin-top:6px;max-width:260px}
+  .th-att-img{display:block;max-width:100%;max-height:260px;border-radius:10px;background:rgba(0,0,0,.06)}
+  .th-att-vid{width:100%;max-height:300px;border-radius:10px;background:#000}
+  .th-att-file{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--parch);color:var(--accent-ink);text-decoration:none;font-size:14px;max-width:100%}
+  .th-att-file span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .th-chat-up{display:none;margin-bottom:8px;font-size:13px;color:var(--walnut-mid)}
+  .th-chat-up.show{display:block}
+  .th-chat-up.err{color:#c0392b}

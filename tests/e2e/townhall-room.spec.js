@@ -25,7 +25,7 @@ const FAKE_DAILY = `
     participants(){ return ps; },
     setLocalAudio(on){ __log.push(['local', on]); ps.local.tracks.audio.state = on ? 'playable' : 'off'; fire('participant-updated', {}); },
     setUserData(d){ ps.local.userData = d; fire('participant-updated', {}); },
-    sendAppMessage(d, to){ __log.push(['msg', d.t, to]); },
+    sendAppMessage(d, to){ __log.push(['msg', d.t, to]); (window.__msgs = window.__msgs || []).push(d); },
     updateParticipant(sid, p){
       __log.push(['upd', sid, Object.keys(p).join('+')]);
       const t = Object.values(ps).find(x => x.session_id === sid);
@@ -44,6 +44,10 @@ const FAKE_DAILY = `
   window.Daily = { createCallObject(opts){ window.__createOpts = opts; return call; } };
 })();`;
 
+const SIGNED = 'https://abc.supabase.co/storage/v1/object/sign/message-attachments/townhall/7/u-me/1-photo.png?token=x';
+// 1x1 PNG, served for the signed link so the image actually loads.
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
 // o: { cohost, locked, s1Host, locks } — who you are and what the server says.
 async function openRoom(page, asHost, o = {}){
   const mutes = [];
@@ -51,7 +55,10 @@ async function openRoom(page, asHost, o = {}){
   // A tiny stand-in for the server's lock list: the muter is always 'u-me'.
   const locks = o.locks || { room: null, people: {} };
   await page.route('**/townhall/**', (r) => {
-    if(!r.request().url().endsWith('/townhall/mute')) return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    const url = r.request().url();
+    if(url.endsWith('/townhall/attach')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ path: 'townhall/7/u-me/1-photo.png', token: 'tok' }) });
+    if(url.endsWith('/townhall/attach/done')) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: SIGNED, kind: 'img' }) });
+    if(!url.endsWith('/townhall/mute')) return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
     const b = JSON.parse(r.request().postData() || '{}');
     mutes.push(b);
     if(b.all) locks.room = b.on ? { by: 'u-me', name: b.userName, allow: [] } : null;
@@ -169,13 +176,48 @@ test.describe('townhall room', () => {
     expect(await page.evaluate(() => __log.map(x => x.join(':')))).not.toContain('canSend:s2:true');
   });
 
+  test('chat shares a photo through storage and shows it', async ({ page }) => {
+    await openRoom(page, false);
+    await page.route('https://abc.supabase.co/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+    await page.evaluate(() => {
+      window.__uploads = [];
+      _sb.storage.from = () => ({ uploadToSignedUrl: async (path, token, file, o) => { __uploads.push([path, token, file.name, o.contentType]); return { error: null }; } });
+    });
+    await page.locator('#th-chat').click();
+    await page.locator('#th-chat-input').fill('From tonight');
+    await page.locator('#th-file').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: PNG });
+    await expect(page.locator('#th-chat-list .th-att-img')).toHaveAttribute('src', SIGNED);
+    await expect(page.locator('#th-chat-list')).toContainText('From tonight');
+    expect(await page.evaluate(() => __uploads)).toEqual([['townhall/7/u-me/1-photo.png', 'tok', 'photo.png', 'image/png']]);
+    const sent = await page.evaluate(() => __msgs.find(m => m.t === 'chat'));
+    expect(sent).toMatchObject({ x: 'From tonight', a: { u: SIGNED, k: 'img', n: 'photo.png' } });
+    // Unsupported files are refused before anything is uploaded.
+    await page.locator('#th-file').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hi') });
+    await expect(page.locator('#th-chat-up')).toContainText('photos, short videos and PDFs');
+    expect(await page.evaluate(() => __uploads.length)).toBe(1);
+  });
+
+  test('chat shows clips and PDFs from others, and ignores outside links', async ({ page }) => {
+    await openRoom(page, false);
+    await page.locator('#th-chat').click();
+    await page.evaluate((u) => {
+      __fire('app-message', { data: { t: 'chat', x: '', a: { u: u.replace('photo.png', 'clip.mp4'), k: 'vid', n: 'clip.mp4' } }, fromId: 's1' });
+      __fire('app-message', { data: { t: 'chat', x: 'Agenda', a: { u: u.replace('photo.png', 'agenda.pdf'), k: 'pdf', n: 'agenda.pdf' } }, fromId: 's1' });
+      __fire('app-message', { data: { t: 'chat', x: 'look', a: { u: 'https://evil.example/x.png', k: 'img', n: 'x' } }, fromId: 's1' });
+    }, SIGNED);
+    await expect(page.locator('#th-chat-list video.th-att-vid')).toHaveCount(1);
+    await expect(page.locator('#th-chat-list .th-att-file')).toContainText('agenda.pdf');
+    await expect(page.locator('#th-chat-list')).toContainText('look');
+    await expect(page.locator('#th-chat-list .th-att')).toHaveCount(2);   // the outside link got no attachment
+  });
+
   test('chat sends and shows messages', async ({ page }) => {
     await openRoom(page, false);
     await page.evaluate(() => __fire('app-message', { data: { t: 'chat', x: 'Amen' }, fromId: 's1' }));
     await expect(page.locator('#th-unread')).toHaveClass(/show/);
     await page.locator('#th-chat').click();
     await page.locator('#th-chat-input').fill('Welcome everyone');
-    await page.locator('.th-chat-form button').click();
+    await page.locator('.th-chat-form button[type=submit]').click();
     await expect(page.locator('#th-chat-list')).toContainText('Caleb Eaton Amen');
     await expect(page.locator('#th-chat-list')).toContainText('Welcome everyone');
   });

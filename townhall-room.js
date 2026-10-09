@@ -20,12 +20,22 @@
 // host promoted, which gives them Daily's participant-admin permission.
 //
 // Live-only state (hands, reactions, chat) travels over Daily app messages and
-// participant userData; nothing here is stored.
+// participant userData; nothing here is stored. Chat attachments are the one
+// exception: they're uploaded to a townhall folder in storage (app messages
+// are too small to carry them), only a signed link goes over chat, and the
+// server deletes the folder once the townhall ends.
 
 const _TH_DAILY_SRC = 'https://unpkg.com/@daily-co/daily-js@0.92.2/dist/daily.js';
 const _TH_REACTIONS = ['💯', '😂', '❤️', '👏', '👋', '✊', '✌️'];
 const _TH_SPEAK_LEVEL = 0.03;   // audio level (0..1) that counts as talking
 const _TH_CHAT_MAX = 500;
+// Chat attachments: photos, short clips and PDFs, up to the bucket's 25 MB.
+const _TH_FILE_KINDS = {
+  'image/jpeg': 'img', 'image/png': 'img', 'image/gif': 'img', 'image/webp': 'img',
+  'video/mp4': 'vid', 'video/quicktime': 'vid', 'video/webm': 'vid',
+  'application/pdf': 'pdf'
+};
+const _TH_FILE_MAX = 25 * 1024 * 1024;
 
 let _th = null; // the open room, or null
 
@@ -302,7 +312,7 @@ function _thOnMessage(d, fromId){
     Object.values(_th.call.participants()).find(p => p.session_id === fromId);
   if(d.t === 'react' && _TH_REACTIONS.includes(d.e)) _thShowReaction(fromId, d.e);
   else if(d.t === 'chat' && typeof d.x === 'string'){
-    _thAddChat(from ? from.user_name : 'Someone', d.x.slice(0, _TH_CHAT_MAX), false);
+    _thAddChat(from ? from.user_name : 'Someone', d.x.slice(0, _TH_CHAT_MAX), false, _thSafeAtt(d.a));
   }
   else if(d.t === 'lower' && me && d.to === me.session_id && _thIsAdmin(from)){
     _thSetHand(false);
@@ -466,6 +476,15 @@ function _thOpenReactions(){
     '<button class="th-react-btn" onclick="_thReact(\'' + e + '\')">' + e + '</button>').join('') + '</div>');
 }
 
+// Attachments arrive over chat from other members' apps, so only accept a
+// signed link into our own townhall storage folder, and a known kind.
+function _thSafeAtt(a){
+  if(!a || typeof a !== 'object' || typeof a.u !== 'string') return null;
+  if(!['img', 'vid', 'pdf'].includes(a.k)) return null;
+  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/sign\/message-attachments\/townhall\/[^"'<>\s]+$/.test(a.u)) return null;
+  return { u: a.u, k: a.k, n: (typeof a.n === 'string' ? a.n : '').slice(0, 120) };
+}
+
 function _thOpenChat(){
   if(!_th) return;
   _th.chatOpen = true;
@@ -473,24 +492,50 @@ function _thOpenChat(){
   _thUnread();
   _thSheet(_thSheetHead('Chat') +
     '<div class="th-chat-list" id="th-chat-list">' + _thChatHtml() + '</div>' +
+    '<div class="th-chat-up" id="th-chat-up"></div>' +
     '<form class="th-chat-form" onsubmit="event.preventDefault();_thSendChat()">' +
+      '<button type="button" class="th-attach" id="th-attach" aria-label="Share a photo, video or PDF" onclick="document.getElementById(\'th-file\').click()">' + _thSvg('clip', 20) + '</button>' +
+      '<input type="file" id="th-file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,application/pdf" style="display:none" onchange="_thPickFile(this)">' +
       '<input id="th-chat-input" maxlength="' + _TH_CHAT_MAX + '" placeholder="Say something" autocomplete="off">' +
       '<button type="submit">Send</button>' +
     '</form>' +
-    '<div class="th-chat-note">Chat is for this townhall only and isn’t saved.</div>');
+    '<div class="th-chat-note">Chat and shared files are for this townhall only and are deleted when it ends.</div>');
+  if(_th.uploading) _thUploadStatus(_th.uploading);
   const list = document.getElementById('th-chat-list');
   if(list) list.scrollTop = list.scrollHeight;
 }
 function _thChatHtml(){
   if(!_th.chat.length) return '<div class="th-chat-empty">No messages yet.</div>';
-  return _th.chat.map(m => '<div class="th-chat-msg' + (m.me ? ' me' : '') + '"><b>' + _esc(m.n) + '</b> ' + _esc(m.x) + '</div>').join('');
+  return _th.chat.map(_thMsgHtml).join('');
 }
-function _thAddChat(name, text, mine){
-  if(!_th || !text.trim()) return;
-  _th.chat.push({ n: name || 'Someone', x: text, me: mine });
+function _thMsgHtml(m){
+  return '<div class="th-chat-msg' + (m.me ? ' me' : '') + '"><b>' + _esc(m.n) + '</b> ' + _esc(m.x) + _thAttHtml(m.a) + '</div>';
+}
+function _thAttHtml(a){
+  if(!a) return '';
+  const u = _esc(a.u), n = _esc(a.n || '');
+  if(a.k === 'img') return '<a class="th-att" href="' + u + '" target="_blank" rel="noopener"><img class="th-att-img" src="' + u + '" alt="' + n + '" onload="_thChatPin()"></a>';
+  if(a.k === 'vid') return '<video class="th-att th-att-vid" src="' + u + '" controls playsinline preload="metadata" onloadedmetadata="_thChatPin()"></video>';
+  return '<a class="th-att th-att-file" href="' + u + '" target="_blank" rel="noopener">' + _thSvg('file', 18) + '<span>' + (n || 'PDF') + '</span></a>';
+}
+// Keep the newest message in view as photos and clips load and grow the list.
+function _thChatPin(){
+  const list = document.getElementById('th-chat-list');
+  if(list && list.scrollHeight - list.scrollTop - list.clientHeight < 400) list.scrollTop = list.scrollHeight;
+}
+function _thAddChat(name, text, mine, att){
+  if(!_th || (!text.trim() && !att)) return;
+  const m = { n: name || 'Someone', x: text, me: mine, a: att || null };
+  _th.chat.push(m);
   if(_th.chat.length > 200) _th.chat.shift();
   const list = document.getElementById('th-chat-list');
-  if(_th.chatOpen && list){ list.innerHTML = _thChatHtml(); list.scrollTop = list.scrollHeight; }
+  if(_th.chatOpen && list){
+    // Append rather than redraw, so a clip someone is watching keeps playing.
+    const empty = list.querySelector('.th-chat-empty'); if(empty) empty.remove();
+    list.insertAdjacentHTML('beforeend', _thMsgHtml(m));
+    while(list.children.length > 200) list.firstElementChild.remove();
+    list.scrollTop = list.scrollHeight;
+  }
   else if(!mine){ _th.unread++; _thUnread(); }
 }
 function _thUnread(){
@@ -507,6 +552,54 @@ function _thSendChat(){
   _thAddChat(me ? me.user_name : 'You', text, true);
   inp.value = '';
   inp.focus();
+}
+
+function _thUploadStatus(text, isError){
+  const el = document.getElementById('th-chat-up');
+  if(!el) return;
+  el.textContent = text || '';
+  el.className = 'th-chat-up' + (text ? ' show' : '') + (isError ? ' err' : '');
+  const b = document.getElementById('th-attach');
+  if(b) b.disabled = !!(_th && _th.uploading);
+}
+// Upload a photo, clip or PDF to the townhall's storage folder, then share a
+// link to it in chat — with whatever is typed in the box as its caption.
+async function _thPickFile(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if(!file || !_th || !_th.call || _th.uploading) return;
+  const kind = _TH_FILE_KINDS[file.type];
+  if(!kind){ _thUploadStatus('You can share photos, short videos and PDFs.', true); return; }
+  if(file.size > _TH_FILE_MAX){
+    _thUploadStatus(kind === 'vid' ? 'That clip is too long (max 25 MB — about 20 seconds of phone video).' : 'That file is too large (max 25 MB).', true);
+    return;
+  }
+  _th.uploading = 'Sharing ' + file.name + '…';
+  _thUploadStatus(_th.uploading);
+  try {
+    const post = async (url, body) => {
+      const r = await fetch(_SERVER_URL + url, { method: 'POST', headers: await _authHeaders(), body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok) throw new Error(j.message || 'Could not share that file. Try again.');
+      return j;
+    };
+    const up = await post('/townhall/attach', { name: file.name, type: file.type, size: file.size });
+    const { error } = await _sb.storage.from('message-attachments').uploadToSignedUrl(up.path, up.token, file, { contentType: file.type });
+    if(error) throw new Error('Could not upload that file. Try again.');
+    const done = await post('/townhall/attach/done', { path: up.path });
+    if(!_th || !_th.call) return;
+    const att = { u: done.url, k: done.kind, n: file.name.slice(0, 120) };
+    const inp = document.getElementById('th-chat-input');
+    const text = inp ? inp.value.trim().slice(0, _TH_CHAT_MAX) : '';
+    if(inp) inp.value = '';
+    _th.call.sendAppMessage({ t: 'chat', x: text, a: att }, '*');
+    const me = _thMe();
+    _th.uploading = null;
+    _thUploadStatus('');
+    _thAddChat(me ? me.user_name : 'You', text, true, att);
+  } catch(e){
+    if(_th){ _th.uploading = null; _thUploadStatus((e && e.message) || 'Could not share that file. Try again.', true); }
+  }
 }
 
 function _thOpenPerson(sid){
@@ -692,6 +785,8 @@ function _thSvg(name, size){
     'smile': '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>',
     'chat': '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5z"/>',
     'lock': '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    'clip': '<path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+    'file': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>',
     'dots': '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'
   };
   return open + (paths[name] || '') + '</svg>';
