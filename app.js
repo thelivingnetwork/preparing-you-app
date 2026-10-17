@@ -1,7 +1,7 @@
 // ═════════════════════════ CONFIG ═════════════════════════
 // Fill these in once the new Supabase project is created.
 const _SB_URL  = 'https://qvcfgcwecykilbddgqzv.supabase.co';
-const _SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2Y2ZnY3dlY3lraWxiZGRncXp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5NTQ2MzQsImV4cCI6MjA5MzUzMDYzNH0.cn-xvirE9JOG-m9vNFITVRiDLAZQQzE9yzoKEYUGUZg';
+const _SB_ANON = 'sb_publishable_AJ7uumgqWmloRVRZIebNCw_OFWuPOiR';
 const _SERVER_URL = 'https://preparing-you-server.onrender.com';
 
 // ═════════════════════════ ERROR REPORTING ═════════════════════════
