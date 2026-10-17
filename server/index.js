@@ -350,43 +350,25 @@ async function transcribeAudio(buf, contentType, langName) {
   return (j.text || '').trim()
 }
 
-// ─── Text-to-speech (per-language router) ───────────────────────────────
-// ElevenLabs Flash v2.5 covers 11 of Paul's 13 languages well, but NOT
-// Armenian or Swahili. So we route by language: ElevenLabs for the ones it
-// speaks well, OpenAI TTS for the rest (and as the universal fallback when
-// ElevenLabs isn't configured — OpenAI is already wired for Whisper).
-const PAUL_VOICE_ID  = process.env.PAUL_VOICE_ID || ''
+// ─── Text-to-speech (OpenAI) ────────────────────────────────────────────
+// One voice for all of Paul's languages. ElevenLabs was dropped 2026-10-17
+// (flat subscription for very little use); gpt-4o-mini-tts bills per use and
+// the instructions give "cedar" Paul's warm, unhurried delivery.
 const PAUL_DAILY_CAP = parseInt(process.env.PAUL_DAILY_CAP || '150', 10)
-
-// Paul languages ElevenLabs Flash v2.5 handles natively (Armenian + Swahili excluded).
-const ELEVEN_LANGS = new Set([
-  'English','Spanish','French','Portuguese','German','Italian',
-  'Russian','Chinese (Simplified)','Arabic','Hindi','Filipino'
-])
-
-async function ttsElevenLabs(text) {
-  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${PAUL_VOICE_ID}?output_format=mp3_44100_128`, {
-    method: 'POST',
-    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
-    body: JSON.stringify({ text, model_id: 'eleven_flash_v2_5', voice_settings: { stability: 0.4, similarity_boost: 0.8 } })
-  })
-  if (!r.ok) throw new Error(`elevenlabs failed: ${r.status} ${await r.text()}`)
-  return Buffer.from(await r.arrayBuffer())
-}
+const PAUL_TTS_VOICE = process.env.PAUL_TTS_VOICE || 'cedar'
+const PAUL_TTS_STYLE = 'Speak like a warm, wise pastor talking with a friend: unhurried, gentle, with quiet conviction, natural pauses, and a hint of a smile. Not theatrical.'
 
 async function ttsOpenAI(text) {
   const r = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: 'onyx', input: text })
+    body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: PAUL_TTS_VOICE, instructions: PAUL_TTS_STYLE, input: text })
   })
   if (!r.ok) throw new Error(`openai tts failed: ${r.status} ${await r.text()}`)
   return Buffer.from(await r.arrayBuffer())
 }
 
 async function synthSpeech(text, langName) {
-  const elevenReady = process.env.ELEVENLABS_API_KEY && PAUL_VOICE_ID
-  if (elevenReady && ELEVEN_LANGS.has(langName || 'English')) return ttsElevenLabs(text)
   if (process.env.OPENAI_API_KEY) return ttsOpenAI(text)
   const e = new Error('tts_unconfigured'); e.code = 'tts_unconfigured'; throw e
 }
@@ -1782,7 +1764,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/health') {
-      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.82', enc: !!_MSG_KEY })
+      return send(res, 200, { ok: true, service: 'preparing-you', version: '0.9.83', enc: !!_MSG_KEY })
     }
 
     // Deep health check — actually exercises the dependencies rather than just
@@ -1798,7 +1780,7 @@ const server = http.createServer(async (req, res) => {
       // false is an outage; an undeterminable probe must not 503 an uptime
       // monitor, or the monitor becomes noise for the same reason the alert did.
       const ok = Object.values(probes).every(p => p.ok !== false)
-      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.82', probes })
+      return send(res, ok ? 200 : 503, { ok, service: 'preparing-you', version: '0.9.83', probes })
     }
 
     // Signed audiobook URL — the Supabase public CDN intermittently 404s "cold"
@@ -1918,7 +1900,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { text })
     }
 
-    // ─── Voice: text-to-speech (swappable, default ElevenLabs) ────────────
+    // ─── Voice: text-to-speech (OpenAI) ───────────────────────────────────
     if (req.method === 'POST' && req.url === '/paul/speak') {
       const v = await verifyToken(req)
       if (v.error) return send(res, v.status, { error: v.error })
