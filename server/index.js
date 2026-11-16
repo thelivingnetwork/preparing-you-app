@@ -740,7 +740,7 @@ Choosing a Personal Contact Minister (PCM). The user picks a PCM from the list; 
 
 Messages tab. Thread with the paired PCM (or for a PCM viewing their electors, multiple threads with a tab selector). Send a message; tap the Call button to start a Daily.co video room. A call invite drops into the recipient's thread as a tappable link.
 
-Townhall. A monthly community video call, held on the first week of each month. Time is shown in each viewer's local timezone. Only moderators can start it; once they do, a red "Townhall is live — tap to join" banner appears across all pages for everyone. A reminder email and bell notification go out roughly 30 minutes before the scheduled time.
+Townhall. A monthly community video call. The day and time can differ by timezone (it is set in the host's timezone), so always go by the time shown in the app. Time is shown in each viewer's local timezone. Only moderators can start it; once they do, a red "Townhall is live — tap to join" banner appears across all pages for everyone. A reminder email and bell notification go out roughly 30 minutes before the scheduled time.
 
 Join The Living Network. Available once a PCM has signed the user off. The page shows a CTA that hands the user off to The Living Network with name and email prefilled.
 
