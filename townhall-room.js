@@ -149,7 +149,7 @@ async function openTownhallRoom(j){
 
 function _thBuild(j){
   _th = {
-    call: null, title: j.title || 'Weekly townhall', topic: j.topic || '',
+    call: null, title: j.title || 'Monthly townhall', topic: j.topic || '',
     fallbackUrl: j.url || '', chat: [], unread: 0, sig: '', ended: false,
     lastReact: 0, wakeLock: null, leaving: false, speaking: new Set(),
     locks: j.locks || { room: null, people: {} }, enforced: {}
