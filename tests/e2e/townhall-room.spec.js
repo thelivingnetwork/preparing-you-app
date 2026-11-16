@@ -74,7 +74,7 @@ async function openRoom(page, asHost, o = {}){
     window.__s1Host = !!o.s1Host;
     window._authHeaders = async () => ({ 'Content-Type': 'application/json' });
     window.confirm = () => true;
-    openTownhallRoom({ roomUrl: 'https://x.daily.co/t', token: 't', title: 'Weekly Townhall', topic: 'Open discussion', url: 'https://x.daily.co/t?t=1', locks: o.locks });
+    openTownhallRoom({ roomUrl: 'https://x.daily.co/t', token: 't', title: 'Monthly Townhall', topic: 'Open discussion', url: 'https://x.daily.co/t?t=1', locks: o.locks });
   }, [asHost, o]);
   await expect(page.locator('#th-grid .th-p')).toHaveCount(4);
   return mutes;

@@ -740,7 +740,7 @@ Choosing a Personal Contact Minister (PCM). The user picks a PCM from the list; 
 
 Messages tab. Thread with the paired PCM (or for a PCM viewing their electors, multiple threads with a tab selector). Send a message; tap the Call button to start a Daily.co video room. A call invite drops into the recipient's thread as a tappable link.
 
-Townhall. A weekly community video call. Time is shown in each viewer's local timezone. Only moderators can start it; once they do, a red "Townhall is live — tap to join" banner appears across all pages for everyone. A reminder email and bell notification go out roughly 30 minutes before the scheduled time.
+Townhall. A monthly community video call. The day and time can differ by timezone (it is set in the host's timezone), so always go by the time shown in the app. Time is shown in each viewer's local timezone. Only moderators can start it; once they do, a red "Townhall is live — tap to join" banner appears across all pages for everyone. A reminder email and bell notification go out roughly 30 minutes before the scheduled time.
 
 Join The Living Network. Available once a PCM has signed the user off. The page shows a CTA that hands the user off to The Living Network with name and email prefilled.
 
@@ -3238,7 +3238,7 @@ const server = http.createServer(async (req, res) => {
         hour: clamp(b.hour, 0, 23, 12),
         minute: clamp(b.minute, 0, 59, 0),
         timezone: (typeof b.timezone === 'string' && b.timezone.trim()) || 'America/New_York',
-        title: (typeof b.title === 'string' && b.title.trim()) || 'Weekly Townhall',
+        title: thTitle(typeof b.title === 'string' && b.title.trim()),
         topic: (typeof b.topic === 'string' && b.topic.trim()) || 'Open discussion',
         updated_at: new Date().toISOString()
       }
@@ -3283,7 +3283,7 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, {
             id: null, preview: true,
             scheduled_at: new Date(nextMs).toISOString(),
-            title: rule.title || 'Weekly Townhall',
+            title: thTitle(rule.title),
             topic: rule.topic || 'Open discussion',
             live_at: null, ended_at: null, isLive: false
           })
@@ -3552,14 +3552,24 @@ function localYMD(date, tz) {
   return { y: parseInt(g('year'), 10), m: parseInt(g('month'), 10), d: parseInt(g('day'), 10), wd: wdMap[g('weekday')] }
 }
 
-// Next UTC ms at which the rule (weekday/hour/minute in rule.timezone) fires
-// strictly after `fromMs`. Iterates up to 14 days to clear DST/skip edge cases.
+// Default title for the standing townhall. Rows and rules saved while the
+// townhall was weekly still carry the old default, so map that to the new one.
+function thTitle(t) {
+  return (!t || t === 'Weekly Townhall') ? 'Monthly Townhall' : t
+}
+
+// The standing townhall is MONTHLY: it fires on the first `rule.weekday` of
+// each month, at rule.hour:rule.minute in rule.timezone.
+// Returns the next UTC ms at which that happens strictly after `fromMs`.
+// Walks local calendar dates (not 24h steps) so a DST shift can never skip the
+// single qualifying day; 45 days always reaches next month's occurrence.
 function nextOccurrence(rule, fromMs) {
   const tz = _tzValid(rule.timezone) ? rule.timezone : TOWNHALL_HOST_TZ
-  for (let i = 0; i <= 14; i++) {
-    const probe = new Date(fromMs + i * 86400000)
-    const { y, m, d, wd } = localYMD(probe, tz)
-    if (wd !== rule.weekday) continue
+  const start = localYMD(new Date(fromMs), tz)
+  for (let i = 0; i <= 45; i++) {
+    const cal = new Date(Date.UTC(start.y, start.m - 1, start.d + i))
+    const y = cal.getUTCFullYear(), m = cal.getUTCMonth() + 1, d = cal.getUTCDate()
+    if (d > 7 || cal.getUTCDay() !== rule.weekday) continue
     const utc = zonedTimeToUtc(y, m, d, rule.hour, rule.minute, tz)
     if (utc > fromMs) return utc
   }
@@ -3596,7 +3606,7 @@ async function runTownhallReminders() {
       if (!claimed || !claimed.length) continue
 
       const minsAway = Math.max(1, Math.round((new Date(th.scheduled_at).getTime() - Date.now()) / 60000))
-      const title = th.title || 'Weekly Townhall'
+      const title = thTitle(th.title)
       const text = `🎙 ${title} starts in ${minsAway} minutes` + (th.topic ? ` — ${th.topic}` : '')
 
       const { data: users } = await sb.from('prep_users').select('id, name, email, timezone').eq('is_system', false)   // never email the system account (no-reply@ bounces)
@@ -3665,7 +3675,7 @@ async function runTownhallAnnouncements() {
       if (claimErr) { console.warn('[townhall-announce] claim failed', claimErr); continue }
       if (!claimed || !claimed.length) continue   // another run already announced it
 
-      const title = th.title || 'Weekly Townhall'
+      const title = thTitle(th.title)
       const text = `🎙 New townhall set: ${title}` + (th.topic ? ` — ${th.topic}` : '')
 
       const { data: users } = await sb.from('prep_users').select('id, name, email, timezone').eq('is_system', false)   // never email the system account (no-reply@ bounces)
@@ -3708,7 +3718,7 @@ Open Preparing You: https://preparingyou.app`
 // Reads the single standing-rule row. If enabled, ensures the next occurrence
 // exists as a prep_townhalls row (source='recurring') — but only once we're
 // within RECUR_LEAD_DAYS of that occurrence, so members get the announcement a
-// few days out rather than a full week early. The announcement cron then picks
+// few days out rather than weeks early. The announcement cron then picks
 // the new row up and emails everyone. Runs hourly + on boot.
 const RECUR_LEAD_DAYS = parseInt(process.env.TOWNHALL_RECUR_LEAD_DAYS || '4', 10)
 const RECUR_LEAD_MS = RECUR_LEAD_DAYS * 86400000
@@ -3740,7 +3750,7 @@ async function runTownhallRecurrence() {
     const room = 'preparing-you-townhall-' + Date.now().toString(36)
     const { error } = await sb.from('prep_townhalls').insert({
       scheduled_at: scheduledAt,
-      title: rule.title || 'Weekly Townhall',
+      title: thTitle(rule.title),
       topic: rule.topic || 'Open discussion',
       daily_room: room,
       source: 'recurring'
@@ -3786,7 +3796,7 @@ async function runTownhallAutostart() {
       // Announce it's live — inbox message + web push (fires once: live_at is
       // now set). The push opens Home to join; the message lets the unread-
       // message badge clear when the member opens it.
-      const title = th.title || 'Weekly Townhall'
+      const title = thTitle(th.title)
       const text = `🎙 ${title} is live now — join from the home screen` + (th.topic ? ` — ${th.topic}` : '')
       await townhallInboxBroadcast(text, { push: true, pushAction: { type: 'page', page: 'home' } })
       console.log(`[townhall-autostart] opened townhall ${th.id} (${roomName}) and messaged members`)
