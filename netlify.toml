@@ -4,7 +4,12 @@
   # Skip the deploy (15 Netlify credits each) when a push only touches files
   # the site doesn't serve. Exit 0 = skip; any error (e.g. no cached ref on a
   # fresh clone) falls through to a normal deploy.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)server' ':(exclude)sql' ':(exclude)tests' ':(exclude)mockups' ':(exclude)presentation'"
+  # The is-ancestor guard matters for pull requests: a PR's deploy preview
+  # leaves ITS commit as $CACHED_COMMIT_REF, so when the PR is merged the plain
+  # diff sees "no content change" and cancels the production deploy (this
+  # happened to #25). Only trust the cached ref when it is already part of the
+  # branch's own history before this commit; otherwise deploy.
+  ignore = "git merge-base --is-ancestor $CACHED_COMMIT_REF $COMMIT_REF^ && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)server' ':(exclude)sql' ':(exclude)tests' ':(exclude)mockups' ':(exclude)presentation'"
 
 [[headers]]
   for = "/*"
